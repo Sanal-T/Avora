@@ -1,75 +1,230 @@
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
-/* Dark mode is switched by a `dark` class on <html> (see the account menu in App.tsx). */
+/* Dark mode is switched by a `dark` class on <html> (see useTheme in src/lib/hooks.ts). */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/*
-  Avora design tokens
-  Black + white + orange. Orange is a signal, not decoration:
-  it marks where you are, the primary action, and anything that needs attention.
-
-  Theme-aware colours are CSS variables so the whole UI flips together.
-*/
+/* ───────────────────────────────────────────────────────────────
+   AVORA DESIGN TOKENS
+   Brand: black + white + orange. Orange is a signal, never a wash:
+   primary actions, the current location, and things that need attention.
+   Hex values live ONLY in this file; components use the token names.
+   ─────────────────────────────────────────────────────────────── */
 :root {
-  --canvas: #ffffff; /* page and card background */
-  --fg: #000000; /* primary text and inverted chips */
-  --paper: #f4f4f4; /* quiet fills: pills, hovers, segmented track */
-  --line: #e2e2e2; /* borders and dividers */
-  --mute: #6b6b6b; /* secondary text */
-  --panel: #000000; /* feature panels: pipeline band, pending actions */
-  --signal-text: #c2410c; /* orange used as text on canvas */
+  /* Surfaces */
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --muted: #f5f5f5;
+  --muted-foreground: #525252; /* 7.6:1 on white */
+  --subtle: #fafafa;
+  --border: #e5e5e5;
+  --input: #d4d4d4;
+  --ring: #f97316;
+
+  /* Brand */
+  --primary: #f97316;
+  --primary-hover: #ea580c;
+  --primary-foreground: #0a0a0a; /* black on orange = 7.6:1 (white would fail) */
+  --primary-soft: #fff7ed;
+  --primary-text: #c2410c; /* orange as text on light surfaces = 5.2:1 */
+
+  /* Semantic (text colours are AA on their own soft background) */
+  --success: #15803d;
+  --success-soft: #f0fdf4;
+  --warning: #a16207;
+  --warning-soft: #fefce8;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --info: #1d4ed8;
+  --info-soft: #eff6ff;
+
+  /* Sidebar stays black in both themes */
+  --sidebar: #0a0a0a;
+  --sidebar-foreground: #fafafa;
+  --sidebar-muted: #a3a3a3;
+  --sidebar-border: #262626;
+  --sidebar-accent: #1c1c1c;
+
+  /* Department accents: icons, small indicators and chart series only */
+  --dept-enquiries: #2563eb;
+  --dept-designs: #7c3aed;
+  --dept-quotations: #0891b2;
+  --dept-production: #d97706;
+  --dept-feedback: #db2777;
+  --dept-labour: #16a34a;
+
   color-scheme: light;
 }
 
 .dark {
-  --canvas: #000000;
-  --fg: #ffffff;
-  --paper: #1a1a1a;
-  --line: #2b2b2b;
-  --mute: #a3a3a3;
-  --panel: #161616;
-  --signal-text: #ff7a33;
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --card: #121212;
+  --card-foreground: #fafafa;
+  --muted: #1a1a1a;
+  --muted-foreground: #a3a3a3;
+  --subtle: #0f0f0f;
+  --border: #262626;
+  --input: #404040;
+  --ring: #fb923c;
+
+  --primary: #f97316;
+  --primary-hover: #fb923c;
+  --primary-foreground: #0a0a0a;
+  --primary-soft: #2a1608;
+  --primary-text: #fb923c;
+
+  --success: #4ade80;
+  --success-soft: #0c2416;
+  --warning: #facc15;
+  --warning-soft: #261f06;
+  --danger: #f87171;
+  --danger-soft: #2b1010;
+  --info: #60a5fa;
+  --info-soft: #0e1a30;
+
+  --sidebar: #050505;
+  --sidebar-border: #1f1f1f;
+  --sidebar-accent: #141414;
+
+  --dept-enquiries: #60a5fa;
+  --dept-designs: #a78bfa;
+  --dept-quotations: #22d3ee;
+  --dept-production: #fbbf24;
+  --dept-feedback: #f472b6;
+  --dept-labour: #4ade80;
+
   color-scheme: dark;
 }
 
+/* Theme-aware colours become Tailwind utilities (bg-card, text-muted-foreground, …) */
 @theme inline {
-  --color-canvas: var(--canvas);
-  --color-fg: var(--fg);
-  --color-paper: var(--paper);
-  --color-line: var(--line);
-  --color-mute: var(--mute);
-  --color-panel: var(--panel);
-  --color-signal-deep: var(--signal-text);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle: var(--subtle);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-text: var(--primary-text);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent: var(--sidebar-accent);
+
+  --color-dept-enquiries: var(--dept-enquiries);
+  --color-dept-designs: var(--dept-designs);
+  --color-dept-quotations: var(--dept-quotations);
+  --color-dept-production: var(--dept-production);
+  --color-dept-feedback: var(--dept-feedback);
+  --color-dept-labour: var(--dept-labour);
 }
 
+/* Static tokens: type, radius, brand scale */
 @theme {
-  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Bricolage Grotesque", "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --color-ink: #000000; /* always black: text that sits on orange */
-  --color-signal: #ff5a00;
+  /* Radius scale: 6 / 8 / 12 */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Minimal elevation: borders first, shadows only for floating layers */
+  --shadow-float: 0 8px 24px -6px rgb(0 0 0 / 0.18), 0 2px 6px -2px rgb(0 0 0 / 0.12);
+
+  /* Brand scale, 50 to 950 */
+  --color-primary-50: #fff7ed;
+  --color-primary-100: #ffedd5;
+  --color-primary-200: #fed7aa;
+  --color-primary-300: #fdba74;
+  --color-primary-400: #fb923c;
+  --color-primary-500: #f97316;
+  --color-primary-600: #ea580c;
+  --color-primary-700: #c2410c;
+  --color-primary-800: #9a3412;
+  --color-primary-900: #7c2d12;
+  --color-primary-950: #431407;
+}
+
+/* Type scale */
+@utility text-page-title {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+@utility text-section {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+@utility text-card-title {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+@utility text-caption {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+@utility text-kpi {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
 }
 
 body {
-  @apply min-w-80 bg-canvas font-sans text-fg antialiased;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  -webkit-font-smoothing: antialiased;
+  min-width: 20rem;
 }
 
 ::selection {
-  background: var(--color-signal);
-  color: var(--color-ink);
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-signal);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
+/* Motion: short and purposeful; fully off for people who ask for less */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
