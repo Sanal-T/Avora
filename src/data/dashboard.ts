@@ -299,7 +299,7 @@ export const departmentDetailsByRange: Record<
       title: 'Quotation management',
       subtitle: 'Pricing, customer approvals, and production handover (Last 7 days)',
       stats: [
-        ['Approval rate', '31.2%', '+2.1%'],
+        ['Approval rate', '50.0%', '+2.1%'],
         ['Pending follow-ups', '3', '1 due today'],
         ['Approved value', '₹0.95L', '+₹0.2L'],
       ],
@@ -309,7 +309,7 @@ export const departmentDetailsByRange: Record<
       title: 'Production management',
       subtitle: 'Work orders, schedules, and installation progress (Last 7 days)',
       stats: [
-        ['On-time completion', '88.0%', '+2.5%'],
+        ['On-time completion', '90.9%', '+2.5%'],
         ['Active work orders', '6', '1 at risk'],
         ['Installations this week', '3', '+1'],
       ],
@@ -361,7 +361,7 @@ export const departmentDetailsByRange: Record<
       title: 'Quotation management',
       subtitle: 'Pricing, customer approvals, and production handover (This month)',
       stats: [
-        ['Approval rate', '30.5%', '+2.9%'],
+        ['Approval rate', '50.0%', '+2.9%'],
         ['Pending follow-ups', '7', '3 due today'],
         ['Approved value', '₹1.9L', '+₹0.3L'],
       ],
@@ -371,7 +371,7 @@ export const departmentDetailsByRange: Record<
       title: 'Production management',
       subtitle: 'Work orders, schedules, and installation progress (This month)',
       stats: [
-        ['On-time completion', '86.4%', '+2.1%'],
+        ['On-time completion', '84.6%', '+2.1%'],
         ['Active work orders', '12', '3 at risk'],
         ['Installations this week', '5', '+2'],
       ],
@@ -423,7 +423,7 @@ export const departmentDetailsByRange: Record<
       title: 'Quotation management',
       subtitle: 'Pricing, customer approvals, and production handover (Last 30 days)',
       stats: [
-        ['Approval rate', '31.0%', '+3.8%'],
+        ['Approval rate', '50.8%', '+3.8%'],
         ['Pending follow-ups', '11', '5 due today'],
         ['Approved value', '₹3.1L', '+₹0.4L'],
       ],
