@@ -2,10 +2,12 @@ import {
   actionItemsByRange,
   activitiesByRange,
   departments,
+  departmentDetailsByRange,
   departmentsByRange,
   type Department,
   type RangeKey,
 } from './dashboard'
+import type { DepartmentDetail } from './types'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -44,6 +46,8 @@ export type DashboardOverviewResponse = {
   snapshot?: ApiSnapshot
   actionItems?: ApiActionItem[]
   recentActivities?: ApiActivityItem[]
+  /** Per-department detail stats. The live API does not provide these yet, so callers fall back to mock details. */
+  details?: Record<string, DepartmentDetail>
 }
 
 const toDepartment = (summary: ApiSummary): Department => {
@@ -80,7 +84,7 @@ const mockSnapshots: Record<RangeKey, ApiSnapshot> = {
     open_work_count: 14,
     needs_attention_count: 4,
   },
-  'month': {
+  month: {
     active_pipeline_value: '₹7.8L',
     open_work_count: 29,
     needs_attention_count: 11,
@@ -92,6 +96,26 @@ const mockSnapshots: Record<RangeKey, ApiSnapshot> = {
   },
 }
 
+/** Mock overview for one range. Also used as the fallback when the live API is unreachable. */
+export function getMockOverview(range: RangeKey): DashboardOverviewResponse {
+  return {
+    source: 'mock',
+    departments: departmentsByRange[range],
+    snapshot: mockSnapshots[range],
+    actionItems: actionItemsByRange[range].map(([title, description, department_id]) => ({
+      title,
+      description,
+      department_id,
+    })),
+    recentActivities: activitiesByRange[range].map(([title, category, time_ago]) => ({
+      title,
+      category,
+      time_ago,
+    })),
+    details: departmentDetailsByRange[range],
+  }
+}
+
 export async function getDashboardOverview({
   dateFrom,
   dateTo,
@@ -100,23 +124,7 @@ export async function getDashboardOverview({
   const selectedRange = inferRange(dateFrom, dateTo, rangeId)
 
   if (!apiBaseUrl) {
-    const rawActions = actionItemsByRange[selectedRange] || actionItemsByRange['30d']
-    const rawActivities = activitiesByRange[selectedRange] || activitiesByRange['30d']
-    return {
-      source: 'mock',
-      departments: departmentsByRange[selectedRange] || departmentsByRange['30d'],
-      snapshot: mockSnapshots[selectedRange],
-      actionItems: rawActions.map(([title, description, department_id]) => ({
-        title,
-        description,
-        department_id,
-      })),
-      recentActivities: rawActivities.map(([title, category, time_ago]) => ({
-        title,
-        category,
-        time_ago,
-      })),
-    }
+    return getMockOverview(selectedRange)
   }
 
   const parameters = new URLSearchParams()
