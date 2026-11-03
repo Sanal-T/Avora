@@ -1,0 +1,155 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Plus, ArrowLeft, ArrowUpRight, PenTool } from 'lucide-react'
+import { PageContainer, PageHeader } from '../../../components/shared/PageHeader'
+import { Button } from '../../../components/ui/Button'
+import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
+import { StatusBadge } from '../../../components/shared/StatusBadge'
+import { mockDesigns, type MockDesign } from '../../../data/mockData'
+import { DesignFormModal } from './DesignFormModal'
+
+export function DesignsListPage() {
+  const navigate = useNavigate()
+  const [data, setData] = useState<MockDesign[]>(mockDesigns)
+  const [activeTab, setActiveTab] = useState<string>('all')
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+
+  const filterTabs: QuickFilterTab[] = [
+    { id: 'all', label: 'All Designs', count: data.length },
+    { id: 'in_progress', label: 'In Progress', count: data.filter((d) => d.status === 'in_progress').length },
+    { id: 'completed', label: 'Completed', count: data.filter((d) => d.status === 'completed').length },
+  ]
+
+  const filteredData =
+    activeTab === 'all' ? data : data.filter((d) => d.status === activeTab)
+
+  const columns: ColumnDef<MockDesign>[] = [
+    {
+      key: 'code',
+      header: 'Design Code',
+      sortable: true,
+      cell: (row) => (
+        <button
+          type="button"
+          onClick={() => navigate(`/designs/${row.id}`)}
+          className="font-mono font-bold text-primary hover:underline cursor-pointer"
+        >
+          {row.code}
+        </button>
+      ),
+    },
+    {
+      key: 'title',
+      header: 'Project Title & Client',
+      sortable: true,
+      cell: (row) => (
+        <div>
+          <p className="font-semibold text-foreground">{row.title}</p>
+          <p className="text-xs text-muted-foreground">{row.client} · Ref: {row.enquiryCode}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'designer',
+      header: 'Lead Designer',
+      sortable: true,
+      cell: (row) => <span className="text-xs font-medium text-foreground">{row.designer}</span>,
+    },
+    {
+      key: 'version',
+      header: 'Version',
+      cell: (row) => (
+        <span className="rounded bg-muted px-2 py-0.5 text-xs font-mono font-semibold">{row.version}</span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      sortable: true,
+      cell: (row) => <StatusBadge department="designs" status={row.status} showIcon />,
+    },
+    {
+      key: 'completionRate',
+      header: 'Drafting Progress',
+      sortable: true,
+      cell: (row) => (
+        <div className="w-28 space-y-1">
+          <div className="flex justify-between text-[11px]">
+            <span className="text-muted-foreground">Progress</span>
+            <span className="font-bold tabular-nums text-foreground">{row.completionRate}%</span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-dept-designs transition-all"
+              style={{ width: `${row.completionRate}%` }}
+            />
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'dueDate',
+      header: 'Target Date',
+      sortable: true,
+      cell: (row) => <span className="text-xs text-muted-foreground">{row.dueDate}</span>,
+    },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      cell: (row) => (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate(`/designs/${row.id}`)}
+        >
+          Open
+          <ArrowUpRight className="size-3.5 ml-1" />
+        </Button>
+      ),
+    },
+  ]
+
+  const handleCreateSuccess = (newDesign: MockDesign) => {
+    setData([newDesign, ...data])
+  }
+
+  return (
+    <PageContainer>
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/designs')}>
+          <ArrowLeft className="size-3.5 mr-1" />
+          Designs Dashboard
+        </Button>
+      </div>
+
+      <PageHeader
+        title="Designs Registry"
+        description="CAD drawings, 3D renderings, material finishes, and technical drafting packets."
+        actions={
+          <Button variant="primary" size="sm" onClick={() => setCreateModalOpen(true)}>
+            <Plus className="size-3.5" />
+            <span>New Design</span>
+          </Button>
+        }
+      />
+
+      <DataTable
+        data={filteredData}
+        columns={columns}
+        keyExtractor={(row) => row.id}
+        searchPlaceholder="Search designs by title, code or designer…"
+        filterTabs={filterTabs}
+        activeFilterTab={activeTab}
+        onFilterTabChange={setActiveTab}
+        exportFilename="avora_designs_registry.csv"
+      />
+
+      <DesignFormModal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onCreateSuccess={handleCreateSuccess}
+      />
+    </PageContainer>
+  )
+}
