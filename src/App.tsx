@@ -1,72 +1,539 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { actionItems, activities, departmentDetails, departments, type Accent, type Department } from './data/dashboard'
-import { getDashboardOverview } from './data/dashboardApi'
+import { getDashboardOverview, type ApiActionItem, type ApiActivityItem, type ApiSnapshot } from './data/dashboardApi'
 
-const navigate = (path: string) => { window.history.pushState({}, '', path); window.dispatchEvent(new PopStateEvent('popstate')) }
-const ranges = [{ id: '7d', label: 'Last 7 days', days: 7 }, { id: '30d', label: 'Last 30 days', days: 30 }, { id: 'month', label: 'This month', days: null }]
-const accents: Record<Accent, string> = { blue: 'bg-blue-50 text-blue-600', violet: 'bg-violet-50 text-violet-600', orange: 'bg-orange-50 text-orange-600', teal: 'bg-teal-50 text-teal-600', rose: 'bg-rose-50 text-rose-600', gold: 'bg-amber-50 text-amber-600' }
+const navigate = (path: string) => {
+  window.history.pushState({}, '', path)
+  window.dispatchEvent(new PopStateEvent('popstate'))
+}
+
+const ranges = [
+  { id: '7d', label: 'Last 7 days', days: 7 },
+  { id: '30d', label: 'Last 30 days', days: 30 },
+  { id: 'month', label: 'This month', days: null },
+]
+
+const accents: Record<Accent, string> = {
+  blue: 'bg-blue-50 text-blue-600',
+  violet: 'bg-violet-50 text-violet-600',
+  orange: 'bg-orange-50 text-orange-600',
+  teal: 'bg-teal-50 text-teal-600',
+  rose: 'bg-rose-50 text-rose-600',
+  gold: 'bg-amber-50 text-amber-600',
+}
 
 function dates(id: string) {
-  const now = new Date(); const end = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const now = new Date()
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const range = ranges.find((item) => item.id === id)!
-  const start = range.days === null ? new Date(end.getFullYear(), end.getMonth(), 1) : new Date(end.getFullYear(), end.getMonth(), end.getDate() - range.days + 1)
+  const start =
+    range.days === null
+      ? new Date(end.getFullYear(), end.getMonth(), 1)
+      : new Date(end.getFullYear(), end.getMonth(), end.getDate() - range.days + 1)
   const format = (value: Date) => value.toISOString().slice(0, 10)
   return { dateFrom: format(start), dateTo: format(end) }
 }
 
-type OverviewState = { departments: Department[]; source: string; loading: boolean; error: boolean }
+type OverviewState = {
+  departments: Department[]
+  source: string
+  loading: boolean
+  error: boolean
+  snapshot?: ApiSnapshot
+  actionItems?: ApiActionItem[]
+  recentActivities?: ApiActivityItem[]
+}
 
 export default function App() {
   const [path, setPath] = useState(window.location.pathname)
   const [rangeId, setRangeId] = useState('30d')
   const [menuOpen, setMenuOpen] = useState(false)
-  const [overview, setOverview] = useState<OverviewState>({ departments, source: 'mock', loading: true, error: false })
+  const [overview, setOverview] = useState<OverviewState>({
+    departments,
+    source: 'mock',
+    loading: true,
+    error: false,
+  })
   const departmentId = path.match(/^\/departments\/([^/]+)/)?.[1]
   const details = departmentId ? departmentDetails[departmentId] : undefined
 
   const refresh = () => {
     setOverview((current) => ({ ...current, loading: true, error: false }))
-    getDashboardOverview(dates(rangeId)).then((data) => setOverview({ departments: data.departments, source: data.source, loading: false, error: false })).catch(() => setOverview({ departments, source: 'mock', loading: false, error: true }))
+    getDashboardOverview(dates(rangeId))
+      .then((data) =>
+        setOverview({
+          departments: data.departments,
+          source: data.source,
+          loading: false,
+          error: false,
+          snapshot: data.snapshot,
+          actionItems: data.actionItems,
+          recentActivities: data.recentActivities,
+        })
+      )
+      .catch(() =>
+        setOverview({
+          departments,
+          source: 'mock',
+          loading: false,
+          error: true,
+        })
+      )
   }
-  useEffect(() => { const onPop = () => setPath(window.location.pathname); window.addEventListener('popstate', onPop); return () => window.removeEventListener('popstate', onPop) }, [])
+
+  useEffect(() => {
+    const onPop = () => setPath(window.location.pathname)
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
   useEffect(refresh, [rangeId])
 
-  return <div className="min-h-screen bg-slate-50 text-slate-800">
-    <Sidebar active={departmentId ?? 'overview'} open={menuOpen} onNavigate={(to) => { setMenuOpen(false); navigate(to) }} />
-    <main className="min-h-screen lg:ml-64"><Topbar onMenu={() => setMenuOpen(!menuOpen)} />
-      {details && departmentId ? <DepartmentPage details={details} item={overview.departments.find((item) => item.id === departmentId) ?? departments.find((item) => item.id === departmentId)!} rangeId={rangeId} onRangeChange={setRangeId} onRefresh={refresh} loading={overview.loading} /> : <Overview overview={overview} rangeId={rangeId} onRangeChange={setRangeId} onRefresh={refresh} />}
-    </main>
-  </div>
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800">
+      <Sidebar
+        active={departmentId ?? 'overview'}
+        open={menuOpen}
+        onNavigate={(to) => {
+          setMenuOpen(false)
+          navigate(to)
+        }}
+      />
+      <main className="min-h-screen lg:ml-64">
+        <Topbar onMenu={() => setMenuOpen(!menuOpen)} />
+        {details && departmentId ? (
+          <DepartmentPage
+            details={details}
+            item={overview.departments.find((item) => item.id === departmentId) ?? departments.find((item) => item.id === departmentId)!}
+            rangeId={rangeId}
+            onRangeChange={setRangeId}
+            onRefresh={refresh}
+            loading={overview.loading}
+          />
+        ) : (
+          <Overview overview={overview} rangeId={rangeId} onRangeChange={setRangeId} onRefresh={refresh} />
+        )}
+      </main>
+    </div>
+  )
 }
 
 function Sidebar({ active, open, onNavigate }: { active: string; open: boolean; onNavigate: (path: string) => void }) {
-  return <aside className={`fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-[#102a43] p-4 text-slate-200 transition-transform lg:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
-    <button onClick={() => onNavigate('/')} className="mb-8 flex items-center gap-3 px-2 text-left font-[family-name:var(--font-display)] text-2xl font-bold text-white"><span className="grid size-8 place-items-center rounded-lg bg-blue-400 text-base">A</span>Avora</button>
-    <nav className="space-y-1"><p className="px-3 pb-2 text-[10px] font-bold tracking-widest text-slate-400">WORKSPACE</p><Nav active={active === 'overview'} label="Overview" icon="⌂" onClick={() => onNavigate('/')} /><p className="px-3 pb-2 pt-6 text-[10px] font-bold tracking-widest text-slate-400">MODULES</p>{departments.map((item) => <Nav key={item.id} active={active === item.id} label={item.name} icon={item.icon} onClick={() => onNavigate(`/departments/${item.id}`)} />)}</nav>
-    <div className="mt-auto flex gap-3 border-t border-slate-700 px-2 pt-5 text-xs"><span className="grid size-7 place-items-center rounded-full border border-slate-500">?</span><span><b className="block text-slate-100">Need help?</b><small className="text-slate-400">View support guide</small></span></div>
-  </aside>
+  return (
+    <aside
+      className={`fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-[#102a43] p-4 text-slate-200 transition-transform lg:translate-x-0 ${
+        open ? 'translate-x-0' : '-translate-x-full'
+      }`}
+    >
+      <button
+        onClick={() => onNavigate('/')}
+        className="mb-8 flex items-center gap-3 px-2 text-left font-[family-name:var(--font-display)] text-2xl font-bold text-white"
+      >
+        <span className="grid size-8 place-items-center rounded-lg bg-blue-400 text-base">A</span>
+        Avora
+      </button>
+      <nav className="space-y-1">
+        <p className="px-3 pb-2 text-[10px] font-bold tracking-widest text-slate-400">WORKSPACE</p>
+        <Nav active={active === 'overview'} label="Overview" icon="⌂" onClick={() => onNavigate('/')} />
+        <p className="px-3 pb-2 pt-6 text-[10px] font-bold tracking-widest text-slate-400">MODULES</p>
+        {departments.map((item) => (
+          <Nav
+            key={item.id}
+            active={active === item.id}
+            label={item.name}
+            icon={item.icon}
+            onClick={() => onNavigate(`/departments/${item.id}`)}
+          />
+        ))}
+      </nav>
+      <div className="mt-auto flex gap-3 border-t border-slate-700 px-2 pt-5 text-xs">
+        <span className="grid size-7 place-items-center rounded-full border border-slate-500">?</span>
+        <span>
+          <b className="block text-slate-100">Need help?</b>
+          <small className="text-slate-400">View support guide</small>
+        </span>
+      </div>
+    </aside>
+  )
 }
 
-function Nav({ active, label, icon, onClick }: { active: boolean; label: string; icon: string; onClick: () => void }) { return <button onClick={onClick} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${active ? 'bg-[#1c4267] text-white shadow-[inset_3px_0_0_#63a9ff]' : 'text-slate-300 hover:bg-[#1c4267] hover:text-white'}`}><span className="w-4 text-center text-base">{icon}</span>{label}</button> }
-function Topbar({ onMenu }: { onMenu: () => void }) { return <header className="flex h-[73px] items-center justify-between border-b border-slate-200 bg-white px-5 lg:px-10"><button onClick={onMenu} className="text-xl text-slate-600 lg:hidden">☰</button><div className="hidden items-center gap-2 text-sm text-slate-400 lg:flex"><span>Workspace</span><span>/</span><b className="text-slate-600">Dashboard</b></div><div className="flex items-center gap-4"><button className="text-xl text-slate-500">⌕</button><button className="relative text-xl text-slate-500">♧<i className="absolute right-0 top-0 size-1.5 rounded-full bg-rose-500" /></button><div className="flex items-center gap-2 border-l border-slate-200 pl-4"><span className="grid size-8 place-items-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">SK</span><span className="hidden text-xs sm:block"><b className="block text-slate-700">Shiva Kumar</b><small className="text-slate-500">Administrator</small></span></div></div></header> }
-
-function Overview({ overview, rangeId, onRangeChange, onRefresh }: { overview: OverviewState; rangeId: string; onRangeChange: (value: string) => void; onRefresh: () => void }) {
-  return <Page><Heading title="Company overview" text="A single view of work across every department." /><FilterBar rangeId={rangeId} onRangeChange={onRangeChange} onRefresh={onRefresh} loading={overview.loading} />
-    <section className="mb-10 flex flex-col justify-between gap-6 overflow-hidden rounded-xl bg-gradient-to-br from-[#112f4f] to-[#1c527c] px-6 py-7 text-white md:flex-row md:items-center md:px-8"><div><p className="mb-2 text-[10px] font-bold tracking-widest text-sky-200">OVERALL BUSINESS SNAPSHOT</p><h2 className="font-[family-name:var(--font-display)] text-2xl font-bold">Good morning, Shiva <span className="text-amber-300">✦</span></h2><p className="mt-1 text-sm text-sky-100">Here’s what needs your attention across Avora today.</p></div><div className="grid grid-cols-3 gap-5"><Kpi label="Active pipeline" value="₹18.7L" note="Proposed metric" /><Kpi label="Open work" value="88" note="Across departments" /><Kpi label="Needs attention" value="17" note="Proposed metric" alert /></div></section>
-    <section><SectionHeading label="DEPARTMENT OVERVIEW" title="Business at a glance" text="Select any department to explore its activity and work queues." />{overview.error && <Notice>Live data is unavailable. Showing prototype data.</Notice>}<p className="mb-3 flex items-center gap-2 text-xs text-slate-500"><i className={`size-2 rounded-full ${overview.source === 'prototype' ? 'bg-teal-500' : 'bg-amber-500'}`} />{overview.loading ? 'Refreshing dashboard data…' : `${overview.source === 'prototype' ? 'API prototype data' : 'Mock prototype data'} · ${ranges.find((item) => item.id === rangeId)?.label}`}</p><div className={`grid gap-5 md:grid-cols-2 xl:grid-cols-3 ${overview.loading ? 'pointer-events-none opacity-60' : ''}`}>{overview.departments.map((item) => <DepartmentCard key={item.id} item={item} />)}</div></section>
-    <div className="mt-7 grid gap-5 xl:grid-cols-2"><Panel title="Pending actions" action="View all">{actionItems.map(([title, description, id]) => <button key={title} onClick={() => navigate(`/departments/${id}`)} className="flex w-full items-center gap-3 border-t border-slate-100 py-3 text-left"><i className="grid size-7 place-items-center rounded-md bg-amber-50 text-amber-600">!</i><span className="flex-1"><b className="block text-xs">{title}</b><small className="text-[11px] text-slate-500">{description}</small></span><b className="text-slate-400">›</b></button>)}</Panel><Panel title="Recent activity" action="View history">{activities.map(([title, type, time]) => <div key={title} className="flex items-center gap-3 border-t border-slate-100 py-3"><i className="size-2 rounded-full bg-blue-400" /><span className="flex-1"><b className="block text-xs">{title}</b><small className="text-[11px] text-slate-500">{type}</small></span><time className="text-[10px] text-slate-400">{time}</time></div>)}</Panel></div>
-    <section className="mt-5 rounded-xl border border-slate-200 bg-white p-5"><SectionHeading label="BUSINESS TRENDS" title="Activity over the last 7 days" /><Trend /></section>
-  </Page>
+function Nav({ active, label, icon, onClick }: { active: boolean; label: string; icon: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
+        active ? 'bg-[#1c4267] text-white shadow-[inset_3px_0_0_#63a9ff]' : 'text-slate-300 hover:bg-[#1c4267] hover:text-white'
+      }`}
+    >
+      <span className="w-4 text-center text-base">{icon}</span>
+      {label}
+    </button>
+  )
 }
 
-function DepartmentCard({ item }: { item: Department }) { return <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><span className={`grid size-9 place-items-center rounded-lg text-lg ${accents[item.accent]}`}>{item.icon}</span><span className="rounded-full bg-slate-50 px-2 py-1 text-[10px] text-slate-500">{item.trend}</span></div><p className="mt-4 text-sm font-bold">{item.name}</p><p className="font-[family-name:var(--font-display)] text-2xl font-bold">{item.primary}</p><p className="mb-3 text-[11px] text-slate-500">{item.primaryLabel}</p><div className="space-y-1.5 border-t border-slate-100 pt-3">{item.metrics.map(([label, value]) => <p key={label} className="flex justify-between text-[11px]"><span className="text-slate-500">{label}</span><b>{value}</b></p>)}</div><button onClick={() => navigate(`/departments/${item.id}`)} className="mt-4 w-full text-left text-xs font-bold text-blue-600">View details <span className="float-right">→</span></button></article> }
-function DepartmentPage({ details, item, rangeId, onRangeChange, onRefresh, loading }: { details: typeof departmentDetails[string]; item: Department; rangeId: string; onRangeChange: (value: string) => void; onRefresh: () => void; loading: boolean }) { return <Page><p className="mb-4 flex gap-2 text-xs text-slate-500"><button className="text-blue-600" onClick={() => navigate('/')}>Overview</button>/<b>{item.name}</b></p><Heading title={details.title} text={details.subtitle} /><FilterBar rangeId={rangeId} onRangeChange={onRangeChange} onRefresh={onRefresh} loading={loading} /><section className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 md:flex-row md:items-center"><div className="flex gap-3"><span className={`grid size-10 place-items-center rounded-lg text-xl ${accents[item.accent]}`}>{item.icon}</span><span><p className="text-[10px] font-bold tracking-widest text-slate-500">{item.name.toUpperCase()} OVERVIEW</p><h2 className="font-[family-name:var(--font-display)] text-2xl font-bold">{item.primary} <small className="font-sans text-xs font-normal text-slate-500">{item.primaryLabel}</small></h2></span></div><button className="rounded-md bg-blue-700 px-4 py-2 text-xs font-bold text-white">+ New {item.name.slice(0, -1)}</button></section><div className="mt-5 grid gap-4 md:grid-cols-3">{details.stats.map(([label, value, note]) => <article key={label} className="rounded-xl border border-slate-200 bg-white p-5"><p className="text-xs text-slate-500">{label}</p><b className="mt-1 block font-[family-name:var(--font-display)] text-2xl">{value}</b><small className="text-[11px] text-emerald-600">{note}</small></article>)}</div><div className="mt-5 grid gap-5 xl:grid-cols-2"><Panel title="Weekly activity" action="View report"><Trend /></Panel><Panel title="Priority queue" action="View all">{details.queue.map((record) => <div key={record} className="flex items-center gap-3 border-t border-slate-100 py-4"><i className="size-2 rounded-full bg-amber-400" /><b className="flex-1 text-xs">{record}</b><button className="text-xs font-bold text-blue-600">Open →</button></div>)}</Panel></div><Notice>Module workspace is ready for workflow and database integration.</Notice></Page> }
+function Topbar({ onMenu }: { onMenu: () => void }) {
+  return (
+    <header className="flex h-[73px] items-center justify-between border-b border-slate-200 bg-white px-5 lg:px-10">
+      <button onClick={onMenu} className="text-xl text-slate-600 lg:hidden">
+        ☰
+      </button>
+      <div className="hidden items-center gap-2 text-sm text-slate-400 lg:flex">
+        <span>Workspace</span>
+        <span>/</span>
+        <b className="text-slate-600">Dashboard</b>
+      </div>
+      <div className="flex items-center gap-4">
+        <button className="text-xl text-slate-500 hover:text-slate-700" title="Search">
+          ⌕
+        </button>
+        <button className="relative text-xl text-slate-500 hover:text-slate-700" title="Notifications">
+          ♧<i className="absolute right-0 top-0 size-1.5 rounded-full bg-rose-500" />
+        </button>
+        <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
+          <span className="grid size-8 place-items-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">SK</span>
+          <span className="hidden text-xs sm:block">
+            <b className="block text-slate-700">Shiva Kumar</b>
+            <small className="text-slate-500">Administrator</small>
+          </span>
+        </div>
+      </div>
+    </header>
+  )
+}
 
-function Page({ children }: { children: ReactNode }) { return <div className="mx-auto max-w-[1480px] px-5 py-8 lg:px-10">{children}</div> }
-function Heading({ title, text }: { title: string; text: string }) { return <div><h1 className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight">{title}</h1><p className="mt-1 text-sm text-slate-500">{text}</p></div> }
-function FilterBar({ rangeId, onRangeChange, onRefresh, loading }: { rangeId: string; onRangeChange: (value: string) => void; onRefresh: () => void; loading: boolean }) { return <div className="my-6 flex gap-2 lg:justify-end lg:-mt-10"><label className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">▣ <select className="ml-1 bg-transparent outline-none" value={rangeId} onChange={(event) => onRangeChange(event.target.value)}>{ranges.map((range) => <option key={range.id} value={range.id}>{range.label}</option>)}</select></label><button disabled={loading} onClick={onRefresh} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 disabled:opacity-60">{loading ? '↻ Refreshing' : '↻ Refresh'}</button></div> }
-function Kpi({ label, value, note, alert = false }: { label: string; value: string; note: string; alert?: boolean }) { return <div className="border-l border-white/20 pl-4 first:border-0 first:pl-0"><p className="text-[10px] text-sky-100">{label}</p><b className={`block font-[family-name:var(--font-display)] text-xl ${alert ? 'text-amber-300' : ''}`}>{value}</b><small className="text-[10px] text-sky-100">{note}</small></div> }
-function SectionHeading({ label, title, text }: { label: string; title: string; text?: string }) { return <div className="mb-4"><p className="text-[10px] font-bold tracking-widest text-slate-500">{label}</p><h2 className="font-[family-name:var(--font-display)] text-lg font-bold">{title}</h2>{text && <p className="text-sm text-slate-500">{text}</p>}</div> }
-function Panel({ title, action, children }: { title: string; action: string; children: ReactNode }) { return <section className="rounded-xl border border-slate-200 bg-white p-5"><header className="mb-1 flex justify-between"><h3 className="font-[family-name:var(--font-display)] text-base font-bold">{title}</h3><button className="text-xs font-semibold text-blue-600">{action} →</button></header>{children}</section> }
-function Notice({ children }: { children: ReactNode }) { return <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{children}</div> }
-function Trend() { const values = [[42,54,39],[60,44,62],[47,72,48],[75,58,67],[59,68,54],[83,76,78],[68,88,70]]; return <div className="mt-4 flex h-40 items-end justify-around gap-3 border-b border-slate-200 bg-[repeating-linear-gradient(to_bottom,transparent_0,transparent_36px,#f1f5f9_37px)] px-2">{values.map((day, index) => <div key={index} className="flex h-full flex-1 items-end gap-1"><div className="flex h-full flex-1 items-end gap-1 pb-5">{day.map((height, bar) => <i key={bar} className={`w-2 rounded-t ${bar === 0 ? 'bg-blue-400' : bar === 1 ? 'bg-orange-400' : 'bg-teal-400'}`} style={{ height: `${height}%` }} />)}</div><small className="absolute mt-32 text-[9px] text-slate-400">{['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][index]}</small></div>)}</div> }
+function Overview({
+  overview,
+  rangeId,
+  onRangeChange,
+  onRefresh,
+}: {
+  overview: OverviewState
+  rangeId: string
+  onRangeChange: (value: string) => void
+  onRefresh: () => void
+}) {
+  const actionsToDisplay =
+    overview.actionItems && overview.actionItems.length > 0
+      ? overview.actionItems.map((item) => [item.title, item.description, item.department_id] as [string, string, string])
+      : actionItems
+
+  const activitiesToDisplay =
+    overview.recentActivities && overview.recentActivities.length > 0
+      ? overview.recentActivities.map((item) => [item.title, item.category, item.time_ago] as [string, string, string])
+      : activities
+
+  const sourceBadge = () => {
+    if (overview.source === 'database') {
+      return { dot: 'bg-emerald-500', text: 'Live Database' }
+    } else if (overview.source === 'prototype') {
+      return { dot: 'bg-teal-500', text: 'API Prototype Data' }
+    }
+    return { dot: 'bg-amber-500', text: 'Mock Prototype Data' }
+  }
+
+  const badge = sourceBadge()
+
+  return (
+    <Page>
+      <Heading title="Company overview" text="A single view of work across every department." />
+      <FilterBar rangeId={rangeId} onRangeChange={onRangeChange} onRefresh={onRefresh} loading={overview.loading} />
+
+      <section className="mb-10 flex flex-col justify-between gap-6 overflow-hidden rounded-xl bg-gradient-to-br from-[#112f4f] to-[#1c527c] px-6 py-7 text-white md:flex-row md:items-center md:px-8">
+        <div>
+          <p className="mb-2 text-[10px] font-bold tracking-widest text-sky-200">OVERALL BUSINESS SNAPSHOT</p>
+          <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold">
+            Good morning, Shiva <span className="text-amber-300">✦</span>
+          </h2>
+          <p className="mt-1 text-sm text-sky-100">Here’s what needs your attention across Avora today.</p>
+        </div>
+        <div className="grid grid-cols-3 gap-5">
+          <Kpi label="Active pipeline" value={overview.snapshot?.active_pipeline_value ?? '₹18.7L'} note="Confirmed quotes" />
+          <Kpi label="Open work" value={String(overview.snapshot?.open_work_count ?? 88)} note="Across departments" />
+          <Kpi
+            label="Needs attention"
+            value={String(overview.snapshot?.needs_attention_count ?? 17)}
+            note="Follow-ups & alerts"
+            alert
+          />
+        </div>
+      </section>
+
+      <section>
+        <SectionHeading
+          label="DEPARTMENT OVERVIEW"
+          title="Business at a glance"
+          text="Select any department to explore its activity and work queues."
+        />
+        {overview.error && <Notice>Live API is currently unavailable. Showing fallback data.</Notice>}
+        <p className="mb-3 flex items-center gap-2 text-xs text-slate-500">
+          <i className={`size-2 rounded-full ${badge.dot}`} />
+          {overview.loading
+            ? 'Refreshing dashboard data…'
+            : `${badge.text} · ${ranges.find((item) => item.id === rangeId)?.label}`}
+        </p>
+        <div className={`grid gap-5 md:grid-cols-2 xl:grid-cols-3 ${overview.loading ? 'pointer-events-none opacity-60' : ''}`}>
+          {overview.departments.map((item) => (
+            <DepartmentCard key={item.id} item={item} />
+          ))}
+        </div>
+      </section>
+
+      <div className="mt-7 grid gap-5 xl:grid-cols-2">
+        <Panel title="Pending actions" action="View all">
+          {actionsToDisplay.map(([title, description, id]) => (
+            <button
+              key={title}
+              onClick={() => navigate(`/departments/${id}`)}
+              className="flex w-full items-center gap-3 border-t border-slate-100 py-3 text-left transition hover:bg-slate-50/50"
+            >
+              <i className="grid size-7 place-items-center rounded-md bg-amber-50 text-amber-600 font-bold">!</i>
+              <span className="flex-1">
+                <b className="block text-xs text-slate-800">{title}</b>
+                <small className="text-[11px] text-slate-500">{description}</small>
+              </span>
+              <b className="text-slate-400">›</b>
+            </button>
+          ))}
+        </Panel>
+
+        <Panel title="Recent activity" action="View history">
+          {activitiesToDisplay.map(([title, type, time]) => (
+            <div key={title} className="flex items-center gap-3 border-t border-slate-100 py-3">
+              <i className="size-2 rounded-full bg-blue-500" />
+              <span className="flex-1">
+                <b className="block text-xs text-slate-800">{title}</b>
+                <small className="text-[11px] text-slate-500">{type}</small>
+              </span>
+              <time className="text-[10px] text-slate-400">{time}</time>
+            </div>
+          ))}
+        </Panel>
+      </div>
+
+      <section className="mt-5 rounded-xl border border-slate-200 bg-white p-5">
+        <SectionHeading label="BUSINESS TRENDS" title="Activity over the last 7 days" />
+        <Trend />
+      </section>
+    </Page>
+  )
+}
+
+function DepartmentCard({ item }: { item: Department }) {
+  return (
+    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+      <div className="flex items-center justify-between">
+        <span className={`grid size-9 place-items-center rounded-lg text-lg ${accents[item.accent]}`}>{item.icon}</span>
+        <span className="rounded-full bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-600">{item.trend}</span>
+      </div>
+      <p className="mt-4 text-sm font-bold text-slate-900">{item.name}</p>
+      <p className="font-[family-name:var(--font-display)] text-2xl font-bold text-slate-900">{item.primary}</p>
+      <p className="mb-3 text-[11px] text-slate-500">{item.primaryLabel}</p>
+      <div className="space-y-1.5 border-t border-slate-100 pt-3">
+        {item.metrics.map(([label, value]) => (
+          <p key={label} className="flex justify-between text-[11px]">
+            <span className="text-slate-500">{label}</span>
+            <b className="text-slate-800">{value}</b>
+          </p>
+        ))}
+      </div>
+      <button
+        onClick={() => navigate(`/departments/${item.id}`)}
+        className="mt-4 w-full text-left text-xs font-bold text-blue-600 hover:text-blue-700"
+      >
+        View details <span className="float-right">→</span>
+      </button>
+    </article>
+  )
+}
+
+function DepartmentPage({
+  details,
+  item,
+  rangeId,
+  onRangeChange,
+  onRefresh,
+  loading,
+}: {
+  details: (typeof departmentDetails)[string]
+  item: Department
+  rangeId: string
+  onRangeChange: (value: string) => void
+  onRefresh: () => void
+  loading: boolean
+}) {
+  return (
+    <Page>
+      <p className="mb-4 flex gap-2 text-xs text-slate-500">
+        <button className="text-blue-600 hover:underline" onClick={() => navigate('/')}>
+          Overview
+        </button>
+        /<b>{item.name}</b>
+      </p>
+      <Heading title={details.title} text={details.subtitle} />
+      <FilterBar rangeId={rangeId} onRangeChange={onRangeChange} onRefresh={onRefresh} loading={loading} />
+
+      <section className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 md:flex-row md:items-center">
+        <div className="flex gap-3">
+          <span className={`grid size-10 place-items-center rounded-lg text-xl ${accents[item.accent]}`}>{item.icon}</span>
+          <span>
+            <p className="text-[10px] font-bold tracking-widest text-slate-500">{item.name.toUpperCase()} OVERVIEW</p>
+            <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold text-slate-900">
+              {item.primary} <small className="font-sans text-xs font-normal text-slate-500">{item.primaryLabel}</small>
+            </h2>
+          </span>
+        </div>
+        <button
+          onClick={() => alert(`Create new ${item.name.slice(0, -1)} modal dialog`)}
+          className="rounded-md bg-blue-700 px-4 py-2 text-xs font-bold text-white transition hover:bg-blue-800 shadow-sm"
+        >
+          + New {item.name.slice(0, -1)}
+        </button>
+      </section>
+
+      <div className="mt-5 grid gap-4 md:grid-cols-3">
+        {details.stats.map(([label, value, note]) => (
+          <article key={label} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-xs text-slate-500">{label}</p>
+            <b className="mt-1 block font-[family-name:var(--font-display)] text-2xl text-slate-900">{value}</b>
+            <small className="text-[11px] text-emerald-600 font-medium">{note}</small>
+          </article>
+        ))}
+      </div>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <Panel title="Weekly activity" action="View report">
+          <Trend />
+        </Panel>
+        <Panel title="Priority queue" action="View all">
+          {details.queue.map((record) => (
+            <div key={record} className="flex items-center gap-3 border-t border-slate-100 py-4">
+              <i className="size-2 rounded-full bg-amber-400" />
+              <b className="flex-1 text-xs text-slate-800">{record}</b>
+              <button
+                onClick={() => alert(`Opening details for ${record}`)}
+                className="text-xs font-bold text-blue-600 hover:text-blue-700"
+              >
+                Open →
+              </button>
+            </div>
+          ))}
+        </Panel>
+      </div>
+
+      <Notice>Module workspace connected to live database APIs and workflow controllers.</Notice>
+    </Page>
+  )
+}
+
+function Page({ children }: { children: ReactNode }) {
+  return <div className="mx-auto max-w-[1480px] px-5 py-8 lg:px-10">{children}</div>
+}
+
+function Heading({ title, text }: { title: string; text: string }) {
+  return (
+    <div>
+      <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight text-slate-900">{title}</h1>
+      <p className="mt-1 text-sm text-slate-500">{text}</p>
+    </div>
+  )
+}
+
+function FilterBar({
+  rangeId,
+  onRangeChange,
+  onRefresh,
+  loading,
+}: {
+  rangeId: string
+  onRangeChange: (value: string) => void
+  onRefresh: () => void
+  loading: boolean
+}) {
+  return (
+    <div className="my-6 flex gap-2 lg:justify-end lg:-mt-10">
+      <label className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm">
+        ▣{' '}
+        <select className="ml-1 bg-transparent outline-none cursor-pointer" value={rangeId} onChange={(event) => onRangeChange(event.target.value)}>
+          {ranges.map((range) => (
+            <option key={range.id} value={range.id}>
+              {range.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        disabled={loading}
+        onClick={onRefresh}
+        className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60 cursor-pointer"
+      >
+        {loading ? '↻ Refreshing…' : '↻ Refresh'}
+      </button>
+    </div>
+  )
+}
+
+function Kpi({ label, value, note, alert = false }: { label: string; value: string; note: string; alert?: boolean }) {
+  return (
+    <div className="border-l border-white/20 pl-4 first:border-0 first:pl-0">
+      <p className="text-[10px] text-sky-100 font-medium">{label}</p>
+      <b className={`block font-[family-name:var(--font-display)] text-xl ${alert ? 'text-amber-300' : 'text-white'}`}>{value}</b>
+      <small className="text-[10px] text-sky-200">{note}</small>
+    </div>
+  )
+}
+
+function SectionHeading({ label, title, text }: { label: string; title: string; text?: string }) {
+  return (
+    <div className="mb-4">
+      <p className="text-[10px] font-bold tracking-widest text-slate-500">{label}</p>
+      <h2 className="font-[family-name:var(--font-display)] text-lg font-bold text-slate-900">{title}</h2>
+      {text && <p className="text-sm text-slate-500">{text}</p>}
+    </div>
+  )
+}
+
+function Panel({ title, action, children }: { title: string; action: string; children: ReactNode }) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <header className="mb-1 flex justify-between">
+        <h3 className="font-[family-name:var(--font-display)] text-base font-bold text-slate-900">{title}</h3>
+        <button className="text-xs font-semibold text-blue-600 hover:underline">{action} →</button>
+      </header>
+      {children}
+    </section>
+  )
+}
+
+function Notice({ children }: { children: ReactNode }) {
+  return <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{children}</div>
+}
+
+function Trend() {
+  const values = [
+    [42, 54, 39],
+    [60, 44, 62],
+    [47, 72, 48],
+    [75, 58, 67],
+    [59, 68, 54],
+    [83, 76, 78],
+    [68, 88, 70],
+  ]
+  return (
+    <div className="mt-4 flex h-40 items-end justify-around gap-3 border-b border-slate-200 bg-[repeating-linear-gradient(to_bottom,transparent_0,transparent_36px,#f1f5f9_37px)] px-2">
+      {values.map((day, index) => (
+        <div key={index} className="flex h-full flex-1 items-end gap-1">
+          <div className="flex h-full flex-1 items-end gap-1 pb-5">
+            {day.map((height, bar) => (
+              <i
+                key={bar}
+                className={`w-2 rounded-t ${bar === 0 ? 'bg-blue-400' : bar === 1 ? 'bg-orange-400' : 'bg-teal-400'}`}
+                style={{ height: `${height}%` }}
+              />
+            ))}
+          </div>
+          <small className="absolute mt-32 text-[9px] text-slate-400">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index]}</small>
+        </div>
+      ))}
+    </div>
+  )
+}
