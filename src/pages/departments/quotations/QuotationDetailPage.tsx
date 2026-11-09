@@ -1,0 +1,208 @@
+import { useState } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
+import {
+  ArrowLeft,
+  FileEdit,
+  Printer,
+  CheckCircle2,
+  Clock,
+  User,
+  Building,
+  Factory,
+} from 'lucide-react'
+import { PageContainer } from '../../../components/shared/PageHeader'
+import { Button } from '../../../components/ui/Button'
+import { Card } from '../../../components/ui/Card'
+import { Tabs, type TabItem } from '../../../components/ui/Tabs'
+import { StatusBadge } from '../../../components/shared/StatusBadge'
+import { WorkflowStepper } from '../../../components/shared/WorkflowStepper'
+import { ActivityTimeline } from '../../../components/shared/ActivityTimeline'
+import { mockQuotations, type MockQuotation } from '../../../data/mockData'
+import { toast } from '../../../lib/toast'
+
+const steps = [
+  { id: 'pending', label: 'Draft Estimate' },
+  { id: 'approved', label: 'Client Accepted' },
+  { id: 'converted', label: 'Work Order Dispatched' },
+]
+
+export function QuotationDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+
+  const [quotation, setQuotation] = useState<MockQuotation | undefined>(() =>
+    mockQuotations.find((q) => q.id === id || q.code === id) || mockQuotations[0],
+  )
+  const [activeTab, setActiveTab] = useState('items')
+
+  if (!quotation) {
+    return (
+      <PageContainer>
+        <div className="py-12 text-center">
+          <p className="text-base font-semibold">Quotation record not found</p>
+          <Button className="mt-4" onClick={() => navigate('/quotations/list')}>
+            Back to Registry
+          </Button>
+        </div>
+      </PageContainer>
+    )
+  }
+
+  const tabs: TabItem[] = [
+    { id: 'items', label: 'Costing Line Items', count: quotation.items.length },
+    { id: 'terms', label: 'Commercial Terms' },
+    { id: 'timeline', label: 'Approval Audit History' },
+  ]
+
+  return (
+    <PageContainer>
+      <div className="flex items-center justify-between">
+        <Link
+          to="/quotations/list"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="size-3.5" />
+          <span>Back to Quotations Registry</span>
+        </Link>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/quotations/builder?id=${quotation.id}`)}
+          >
+            <FileEdit className="size-3.5 mr-1" />
+            Open in Builder
+          </Button>
+          {quotation.status === 'approved' && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                toast.success('Production Work Order Initialized', 'Hand-off sent to Manufacturing Team')
+                navigate('/production')
+              }}
+            >
+              <Factory className="size-3.5 mr-1" />
+              Generate Work Order
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 border-b border-border pb-5 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-xl font-bold text-foreground">{quotation.code}</span>
+            <span className="font-mono text-xs font-semibold rounded bg-muted px-2 py-0.5">Rev v{quotation.version}</span>
+            <StatusBadge department="quotations" status={quotation.status} showIcon />
+          </div>
+          <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-foreground">
+            {quotation.title}
+          </h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Client: <span className="font-semibold text-foreground">{quotation.client}</span> · Ref: {quotation.enquiryCode}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-muted-foreground">Total Quoted Value</p>
+          <p className="font-display text-3xl font-extrabold text-primary tabular-nums">
+            ₹{quotation.grandTotal.toLocaleString('en-IN')}
+          </p>
+        </div>
+      </div>
+
+      <Card className="p-4">
+        <WorkflowStepper
+          steps={steps}
+          currentStep={quotation.status}
+        />
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
+          <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+
+          {activeTab === 'items' && (
+            <Card className="p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-3">Specification & Line Items</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-muted-foreground">
+                      <th className="py-2.5 px-2 font-semibold">Description</th>
+                      <th className="py-2.5 px-2 font-semibold text-center w-12">Qty</th>
+                      <th className="py-2.5 px-2 font-semibold text-right w-24">Rate (₹)</th>
+                      <th className="py-2.5 px-2 font-semibold text-right w-24">Amount (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {quotation.items.map((item) => (
+                      <tr key={item.id} className="hover:bg-muted/20">
+                        <td className="py-2.5 px-2 text-foreground font-medium">{item.description}</td>
+                        <td className="py-2.5 px-2 text-center font-mono">{item.quantity}</td>
+                        <td className="py-2.5 px-2 text-right font-mono">₹{item.unitPrice.toLocaleString('en-IN')}</td>
+                        <td className="py-2.5 px-2 text-right font-mono font-bold text-foreground">
+                          ₹{(item.quantity * item.unitPrice).toLocaleString('en-IN')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {activeTab === 'terms' && (
+            <Card className="p-5 space-y-3 text-xs leading-relaxed text-muted-foreground">
+              <h3 className="text-sm font-semibold text-foreground">Commercial & Legal Terms</h3>
+              <p>1. Payment terms: 50% mobilization advance, 40% on dispatch readiness, 10% on handover.</p>
+              <p>2. Delivery timeline: 3-4 weeks from approval of production drawings and receipt of advance.</p>
+              <p>3. Tax terms: All taxes (GST 18%) charged as per Government of India statutory notifications.</p>
+            </Card>
+          )}
+
+          {activeTab === 'timeline' && (
+            <Card className="p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-4">Lifecycle Events</h3>
+              <ActivityTimeline
+                events={[
+                  { id: '1', title: 'Quotation Approved', description: 'Accepted by customer facility manager', timeAgo: '2 hrs ago', tone: 'success' },
+                  { id: '2', title: 'Revision v2 Generated', description: 'Updated line-item pricing for conference pods', timeAgo: '2 days ago', tone: 'info' },
+                  { id: '3', title: 'Draft Estimate Created', description: 'Prepared by Vikram Patel', timeAgo: '4 days ago', tone: 'primary' },
+                ]}
+              />
+            </Card>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <Card className="p-5 space-y-3 text-xs">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Summary Details
+            </h3>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Prepared By:</span>
+              <span className="font-semibold text-foreground">{quotation.author}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Target Expiry:</span>
+              <span className="text-foreground">{quotation.dueDate}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Subtotal:</span>
+              <span className="font-mono">₹{quotation.subtotal.toLocaleString('en-IN')}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Taxes (GST):</span>
+              <span className="font-mono">₹{quotation.taxTotal.toLocaleString('en-IN')}</span>
+            </div>
+            <div className="border-t border-border pt-2 flex justify-between font-bold text-sm">
+              <span>Grand Total:</span>
+              <span className="font-mono text-primary">₹{quotation.grandTotal.toLocaleString('en-IN')}</span>
+            </div>
+          </Card>
+        </div>
+      </div>
+    </PageContainer>
+  )
+}
