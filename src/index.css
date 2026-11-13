@@ -1,9 +1,93 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-@theme {
-  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
+/* Dark mode is switched by a `dark` class on <html> (see the account menu in App.tsx). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  Avora design tokens
+  Black + white + orange. Orange is a signal, not decoration:
+  it marks where you are, the primary action, and anything that needs attention.
+
+  Theme-aware colours are CSS variables so the whole UI flips together.
+*/
+:root {
+  --canvas: #ffffff; /* page and card background */
+  --fg: #000000; /* primary text and inverted chips */
+  --paper: #f4f4f4; /* quiet fills: pills, hovers, segmented track */
+  --line: #e2e2e2; /* borders and dividers */
+  --mute: #6b6b6b; /* secondary text */
+  --panel: #000000; /* feature panels: pipeline band, pending actions */
+  --signal-text: #c2410c; /* orange used as text on canvas */
+  color-scheme: light;
 }
 
-body { @apply min-w-80 bg-slate-50 text-slate-800 antialiased; }
+.dark {
+  --canvas: #000000;
+  --fg: #ffffff;
+  --paper: #1a1a1a;
+  --line: #2b2b2b;
+  --mute: #a3a3a3;
+  --panel: #161616;
+  --signal-text: #ff7a33;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-fg: var(--fg);
+  --color-paper: var(--paper);
+  --color-line: var(--line);
+  --color-mute: var(--mute);
+  --color-panel: var(--panel);
+  --color-signal-deep: var(--signal-text);
+}
+
+@theme {
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #000000; /* always black: text that sits on orange */
+  --color-signal: #ff5a00;
+}
+
+body {
+  @apply min-w-80 bg-canvas font-sans text-fg antialiased;
+}
+
+::selection {
+  background: var(--color-signal);
+  color: var(--color-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
+}
+
+/* The one orchestrated moment: the pipeline thread draws in once on load. */
+@keyframes thread-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.thread {
+  transform-origin: left center;
+  animation: thread-draw 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) 0.15s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thread {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
