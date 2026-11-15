@@ -1,0 +1,407 @@
+import uuid
+from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal, ROUND_HALF_UP
+from sqlalchemy import func, or_
+from sqlalchemy.orm import Session
+from fastapi import HTTPException, status
+
+from app.models.auth import Employee
+from app.models.customer import Customer
+from app.models.production import WorkOrder, WorkOrderStatusHistory
+from app.models.quotation import Quotation, QuotationFollowUp, QuotationItem, QuotationRevision, QuotationStatusHistory
+from app.schemas.quotation import (
+    QuotationCreate,
+    QuotationFollowUpCreate,
+    QuotationFollowUpRead,
+    QuotationItemCreate,
+    QuotationItemRead,
+    QuotationRead,
+    QuotationRevisionCreate,
+    QuotationRevisionRead,
+    QuotationStatusUpdate,
+    QuotationSummaryResponse,
+    QuotationUpdate,
+)
+
+VALID_QUOTATION_STATUSES = [
+    "Draft",
+    "Sent",
+    "Awaiting Response",
+    "Approved",
+    "Rejected",
+    "Revision Requested",
+    "Converted",
+    "Expired",
+    "Cancelled",
+]
+
+
+def _round_currency(value: Decimal) -> Decimal:
+    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def calculate_quotation_totals(items: list[QuotationItemCreate], discount_rate: Decimal, tax_rate: Decimal) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+    subtotal = Decimal("0.00")
+    for it in items:
+        line_total = _round_currency(Decimal(str(it.quantity)) * Decimal(str(it.unit_price)))
+        subtotal += line_total
+
+    disc_rate = Decimal(str(discount_rate))
+    tx_rate = Decimal(str(tax_rate))
+
+    discount_amount = _round_currency((subtotal * disc_rate) / Decimal("100.00"))
+    taxable_amount = subtotal - discount_amount
+    tax_amount = _round_currency((taxable_amount * tx_rate) / Decimal("100.00"))
+    total_amount = taxable_amount + tax_amount
+
+    return subtotal, discount_amount, tax_amount, total_amount
+
+
+def _to_quotation_read(quotation: Quotation) -> QuotationRead:
+    item_reads = [
+        QuotationItemRead(
+            id=i.id,
+            item_code=i.item_code,
+            description=i.description,
+            quantity=i.quantity,
+            unit=i.unit,
+            unit_price=i.unit_price,
+            total_price=i.total_price,
+            sort_order=i.sort_order,
+        )
+        for i in quotation.items
+    ]
+    rev_reads = [
+        QuotationRevisionRead(
+            id=r.id,
+            revision_number=r.revision_number,
+            total_amount=r.total_amount,
+            change_summary=r.change_summary,
+            created_at=r.created_at,
+        )
+        for r in quotation.revisions
+    ]
+    follow_reads = [
+        QuotationFollowUpRead(
+            id=f.id,
+            scheduled_date=f.scheduled_date,
+            notes=f.notes,
+            outcome=f.outcome,
+            assigned_employee_id=f.assigned_employee_id,
+            is_completed=f.is_completed,
+            completed_date=f.completed_date,
+            created_at=f.created_at,
+            assigned_employee_name=f"{f.assigned_employee.first_name} {f.assigned_employee.last_name}" if f.assigned_employee else None,
+        )
+        for f in quotation.follow_ups
+    ]
+    return QuotationRead(
+        id=quotation.id,
+        quotation_number=quotation.quotation_number,
+        revision_number=quotation.revision_number,
+        enquiry_id=quotation.enquiry_id,
+        customer_id=quotation.customer_id,
+        status=quotation.status,
+        subtotal=quotation.subtotal,
+        discount_rate=quotation.discount_rate,
+        discount_amount=quotation.discount_amount,
+        tax_rate=quotation.tax_rate,
+        tax_amount=quotation.tax_amount,
+        total_amount=quotation.total_amount,
+        currency=quotation.currency,
+        valid_until=quotation.valid_until,
+        approved_at=quotation.approved_at,
+        rejection_reason=quotation.rejection_reason,
+        created_at=quotation.created_at,
+        updated_at=quotation.updated_at,
+        customer_name=quotation.customer.name if quotation.customer else None,
+        customer_company=quotation.customer.company_name if quotation.customer else None,
+        items=item_reads,
+        revisions=rev_reads,
+        follow_ups=follow_reads,
+        has_work_order=quotation.work_order is not None,
+    )
+
+
+def list_quotations(
+    db: Session,
+    page: int = 1,
+    page_size: int = 20,
+    status_filter: str | None = None,
+    search: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> tuple[int, list[QuotationRead]]:
+    query = db.query(Quotation).filter(Quotation.is_deleted == False)
+    if status_filter:
+        query = query.filter(Quotation.status == status_filter)
+    if date_from:
+        query = query.filter(Quotation.created_at >= datetime.combine(date_from, time.min, tzinfo=timezone.utc))
+    if date_to:
+        query = query.filter(Quotation.created_at <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
+    if search:
+        search_filter = f"%{search}%"
+        query = query.join(Customer).filter(
+            or_(
+                Quotation.quotation_number.ilike(search_filter),
+                Customer.name.ilike(search_filter),
+                Customer.company_name.ilike(search_filter),
+            )
+        )
+    total = query.count()
+    items = query.order_by(Quotation.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return total, [_to_quotation_read(item) for item in items]
+
+
+def get_quotation(db: Session, quotation_id: uuid.UUID) -> Quotation:
+    quotation = db.query(Quotation).filter(Quotation.id == quotation_id, Quotation.is_deleted == False).first()
+    if not quotation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quotation not found.")
+    return quotation
+
+
+def create_quotation(db: Session, data: QuotationCreate, user_id: uuid.UUID | None = None) -> QuotationRead:
+    customer = db.query(Customer).filter(Customer.id == data.customer_id, Customer.is_deleted == False).first()
+    if not customer:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Referenced customer does not exist.")
+
+    count = db.query(Quotation).count() + 1
+    quotation_number = f"Q-{count + 2040}"
+
+    subtotal, discount_amount, tax_amount, total_amount = calculate_quotation_totals(data.items, data.discount_rate, data.tax_rate)
+
+    quotation = Quotation(
+        quotation_number=quotation_number,
+        revision_number=1,
+        enquiry_id=data.enquiry_id,
+        customer_id=data.customer_id,
+        status="Draft",
+        subtotal=subtotal,
+        discount_rate=data.discount_rate,
+        discount_amount=discount_amount,
+        tax_rate=data.tax_rate,
+        tax_amount=tax_amount,
+        total_amount=total_amount,
+        currency=data.currency,
+        valid_until=data.valid_until,
+    )
+    db.add(quotation)
+    db.flush()
+
+    for idx, it in enumerate(data.items):
+        item_total = _round_currency(Decimal(str(it.quantity)) * Decimal(str(it.unit_price)))
+        item = QuotationItem(
+            quotation_id=quotation.id,
+            item_code=it.item_code,
+            description=it.description,
+            quantity=it.quantity,
+            unit=it.unit,
+            unit_price=it.unit_price,
+            total_price=item_total,
+            sort_order=idx + 1,
+        )
+        db.add(item)
+
+    history = QuotationStatusHistory(
+        quotation_id=quotation.id,
+        from_status=None,
+        to_status="Draft",
+        changed_by_id=user_id,
+        notes="Quotation draft created.",
+    )
+    db.add(history)
+    db.commit()
+    db.refresh(quotation)
+    return _to_quotation_read(quotation)
+
+
+def update_quotation_status(db: Session, quotation_id: uuid.UUID, data: QuotationStatusUpdate, user_id: uuid.UUID | None = None) -> QuotationRead:
+    if data.status not in VALID_QUOTATION_STATUSES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid quotation status. Allowed: {VALID_QUOTATION_STATUSES}")
+
+    quotation = get_quotation(db, quotation_id)
+    old_status = quotation.status
+
+    if old_status == "Approved" and data.status not in ["Approved", "Converted"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Approved quotations cannot be directly altered. Please create a new revision.",
+        )
+
+    quotation.status = data.status
+    if data.status == "Approved":
+        quotation.approved_at = datetime.now(timezone.utc)
+    elif data.status == "Rejected":
+        quotation.rejection_reason = data.rejection_reason
+
+    history = QuotationStatusHistory(
+        quotation_id=quotation.id,
+        from_status=old_status,
+        to_status=data.status,
+        changed_by_id=user_id,
+        notes=data.notes or (f"Reason: {data.rejection_reason}" if data.rejection_reason else None),
+    )
+    db.add(history)
+    db.commit()
+    db.refresh(quotation)
+    return _to_quotation_read(quotation)
+
+
+def create_quotation_revision(db: Session, quotation_id: uuid.UUID, data: QuotationRevisionCreate, user_id: uuid.UUID | None = None) -> QuotationRead:
+    quotation = get_quotation(db, quotation_id)
+
+    # 1. Archive current revision into QuotationRevision
+    archived_rev = QuotationRevision(
+        quotation_id=quotation.id,
+        revision_number=quotation.revision_number,
+        total_amount=quotation.total_amount,
+        change_summary=data.change_summary,
+        created_by_id=user_id,
+    )
+    db.add(archived_rev)
+
+    # 2. Increment revision number
+    quotation.revision_number += 1
+    quotation.status = "Draft"
+    quotation.approved_at = None
+
+    # 3. Recalculate totals with new items
+    subtotal, discount_amount, tax_amount, total_amount = calculate_quotation_totals(data.items, data.discount_rate, data.tax_rate)
+    quotation.subtotal = subtotal
+    quotation.discount_rate = data.discount_rate
+    quotation.discount_amount = discount_amount
+    quotation.tax_rate = data.tax_rate
+    quotation.tax_amount = tax_amount
+    quotation.total_amount = total_amount
+
+    # 4. Replace items
+    db.query(QuotationItem).filter(QuotationItem.quotation_id == quotation.id).delete()
+    for idx, it in enumerate(data.items):
+        item_total = _round_currency(Decimal(str(it.quantity)) * Decimal(str(it.unit_price)))
+        item = QuotationItem(
+            quotation_id=quotation.id,
+            item_code=it.item_code,
+            description=it.description,
+            quantity=it.quantity,
+            unit=it.unit,
+            unit_price=it.unit_price,
+            total_price=item_total,
+            sort_order=idx + 1,
+        )
+        db.add(item)
+
+    history = QuotationStatusHistory(
+        quotation_id=quotation.id,
+        from_status=f"Rev {quotation.revision_number - 1}",
+        to_status=f"Rev {quotation.revision_number} Draft",
+        changed_by_id=user_id,
+        notes=f"Revision created: {data.change_summary}",
+    )
+    db.add(history)
+    db.commit()
+    db.refresh(quotation)
+    return _to_quotation_read(quotation)
+
+
+def convert_quotation_to_work_order(db: Session, quotation_id: uuid.UUID, user_id: uuid.UUID | None = None) -> WorkOrder:
+    quotation = get_quotation(db, quotation_id)
+    if quotation.status != "Approved":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only approved quotations can be converted to production work orders.",
+        )
+
+    # Check duplicate conversion
+    existing_wo = db.query(WorkOrder).filter(WorkOrder.quotation_id == quotation.id).first()
+    if existing_wo:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Work order {existing_wo.work_order_number} has already been created for this quotation.",
+        )
+
+    count = db.query(WorkOrder).count() + 1
+    while True:
+        work_order_number = f"WO-{count + 840:04d}"
+        if not db.query(WorkOrder).filter(WorkOrder.work_order_number == work_order_number).first():
+            break
+        count += 1
+
+    planned_end = (
+        quotation.valid_until
+        if (quotation.valid_until and quotation.valid_until > date.today())
+        else (date.today() + timedelta(days=14))
+    )
+
+    work_order = WorkOrder(
+        work_order_number=work_order_number,
+        quotation_id=quotation.id,
+        customer_id=quotation.customer_id,
+        title=f"Work Order for {quotation.quotation_number} - {quotation.customer.name}",
+        status="Pending",
+        priority="Medium",
+        planned_start_date=date.today(),
+        planned_end_date=planned_end,
+        notes=f"Converted from quotation {quotation.quotation_number} Rev {quotation.revision_number}",
+    )
+    db.add(work_order)
+    db.flush()
+
+    wo_history = WorkOrderStatusHistory(
+        work_order_id=work_order.id,
+        from_status=None,
+        to_status="Pending",
+        changed_by_id=user_id,
+        notes="Generated from approved quotation.",
+    )
+    db.add(wo_history)
+
+    quotation.status = "Converted"
+    db.commit()
+    db.refresh(work_order)
+    return work_order
+
+
+def add_follow_up(db: Session, quotation_id: uuid.UUID, data: QuotationFollowUpCreate, user_id: uuid.UUID | None = None) -> QuotationRead:
+    quotation = get_quotation(db, quotation_id)
+    follow_up = QuotationFollowUp(
+        quotation_id=quotation.id,
+        scheduled_date=data.scheduled_date,
+        notes=data.notes,
+        outcome=data.outcome,
+        assigned_employee_id=data.assigned_employee_id,
+        is_completed=False,
+    )
+    db.add(follow_up)
+    db.commit()
+    db.refresh(quotation)
+    return _to_quotation_read(quotation)
+
+
+def get_quotation_summary(db: Session, date_from: date | None = None, date_to: date | None = None) -> QuotationSummaryResponse:
+    query = db.query(Quotation).filter(Quotation.is_deleted == False)
+    if date_from:
+        query = query.filter(Quotation.created_at >= datetime.combine(date_from, time.min, tzinfo=timezone.utc))
+    if date_to:
+        query = query.filter(Quotation.created_at <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
+
+    total_count = query.count()
+    total_val = sum((q.total_amount for q in query.all()), Decimal("0.00"))
+
+    approved_query = query.filter(Quotation.status.in_(["Approved", "Converted"]))
+    approved_count = approved_query.count()
+    approved_val = sum((q.total_amount for q in approved_query.all()), Decimal("0.00"))
+
+    pending_count = query.filter(Quotation.status.in_(["Draft", "Sent", "Awaiting Response", "Revision Requested"])).count()
+    converted_count = query.filter(Quotation.status == "Converted").count()
+
+    pending_follow_ups = db.query(QuotationFollowUp).filter(QuotationFollowUp.is_completed == False).count()
+
+    return QuotationSummaryResponse(
+        total_quotations=total_count,
+        total_value=total_val,
+        approved_quotations=approved_count,
+        approved_value=approved_val,
+        pending_quotations=pending_count,
+        converted_quotations=converted_count,
+        pending_follow_ups=pending_follow_ups,
+    )
