@@ -1,3 +1,19 @@
+import sys
+from pathlib import Path
+
+# Ensure backend root is in sys.path
+backend_path = str(Path(__file__).resolve().parent.parent.parent)
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
+
+import sys
+from pathlib import Path
+
+# Ensure backend root is in sys.path
+backend_path = str(Path(__file__).resolve().parent.parent.parent)
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
+
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
@@ -17,6 +33,7 @@ from app.models.feedback import Feedback, FeedbackCategory
 from app.models.labour import LabourAssignment, LabourRequest, Worker
 
 settings = get_settings()
+
 
 
 def init_db(db: Session) -> None:
@@ -145,7 +162,8 @@ def init_db(db: Session) -> None:
 
     # 7. Sample Enquiries
     now = datetime.now(timezone.utc)
-    if db.query(Enquiry).count() == 0:
+    enq1 = db.query(Enquiry).filter(Enquiry.enquiry_number == "ENQ-1048").first()
+    if not enq1:
         enq1 = Enquiry(
             enquiry_number="ENQ-1048",
             customer_id=customer_map["CUST-002"].id,
@@ -158,6 +176,10 @@ def init_db(db: Session) -> None:
             qualified_at=now - timedelta(days=2),
             created_at=now - timedelta(days=5),
         )
+        db.add(enq1)
+
+    enq2 = db.query(Enquiry).filter(Enquiry.enquiry_number == "ENQ-1046").first()
+    if not enq2:
         enq2 = Enquiry(
             enquiry_number="ENQ-1046",
             customer_id=customer_map["CUST-001"].id,
@@ -171,6 +193,10 @@ def init_db(db: Session) -> None:
             converted_at=now - timedelta(days=3),
             created_at=now - timedelta(days=12),
         )
+        db.add(enq2)
+
+    enq3 = db.query(Enquiry).filter(Enquiry.enquiry_number == "ENQ-1042").first()
+    if not enq3:
         enq3 = Enquiry(
             enquiry_number="ENQ-1042",
             customer_id=customer_map["CUST-004"].id,
@@ -182,14 +208,14 @@ def init_db(db: Session) -> None:
             priority="Medium",
             created_at=now - timedelta(days=1),
         )
-        db.add_all([enq1, enq2, enq3])
-        db.flush()
+        db.add(enq3)
+    db.flush()
 
     # 8. Sample Designs
     if db.query(Design).count() == 0:
         d1 = Design(
             design_number="D-619",
-            enquiry_id=enq1.id,
+            enquiry_id=enq1.id if enq1 else None,
             assigned_designer_id=emp.id,
             title="Office fit-out 3D concept & layout",
             description="3D layout drawings, material specifications, and electrical conduits.",
@@ -202,7 +228,7 @@ def init_db(db: Session) -> None:
         )
         d2 = Design(
             design_number="D-616",
-            enquiry_id=enq2.id,
+            enquiry_id=enq2.id if enq2 else None,
             assigned_designer_id=emp.id,
             title="Modular kitchen and wardrobe proposal",
             description="Complete CAD drawings and finishes sheet.",
@@ -227,13 +253,15 @@ def init_db(db: Session) -> None:
             created_at=now - timedelta(days=3),
         )
         db.add(v1)
+        db.flush()
 
     # 9. Sample Quotations
-    if db.query(Quotation).count() == 0:
+    q1 = db.query(Quotation).filter(Quotation.quotation_number == "Q-2048").first()
+    if not q1:
         q1 = Quotation(
             quotation_number="Q-2048",
             revision_number=1,
-            enquiry_id=enq2.id,
+            enquiry_id=enq2.id if enq2 else None,
             customer_id=customer_map["CUST-001"].id,
             status="Approved",
             subtotal=Decimal("525423.73"),
@@ -246,22 +274,7 @@ def init_db(db: Session) -> None:
             approved_at=now - timedelta(days=1),
             created_at=now - timedelta(days=3),
         )
-        q2 = Quotation(
-            quotation_number="Q-2052",
-            revision_number=1,
-            enquiry_id=enq1.id,
-            customer_id=customer_map["CUST-002"].id,
-            status="Awaiting Response",
-            subtotal=Decimal("381355.93"),
-            discount_rate=Decimal("0.00"),
-            discount_amount=Decimal("0.00"),
-            tax_rate=Decimal("18.00"),
-            tax_amount=Decimal("68644.07"),
-            total_amount=Decimal("450000.00"),
-            valid_until=date.today() + timedelta(days=14),
-            created_at=now - timedelta(days=2),
-        )
-        db.add_all([q1, q2])
+        db.add(q1)
         db.flush()
 
         item1 = QuotationItem(
@@ -284,6 +297,29 @@ def init_db(db: Session) -> None:
             total_price=Decimal("175423.73"),
             sort_order=2,
         )
+        db.add_all([item1, item2])
+        db.flush()
+
+    q2 = db.query(Quotation).filter(Quotation.quotation_number == "Q-2052").first()
+    if not q2:
+        q2 = Quotation(
+            quotation_number="Q-2052",
+            revision_number=1,
+            enquiry_id=enq1.id if enq1 else None,
+            customer_id=customer_map["CUST-002"].id,
+            status="Awaiting Response",
+            subtotal=Decimal("381355.93"),
+            discount_rate=Decimal("0.00"),
+            discount_amount=Decimal("0.00"),
+            tax_rate=Decimal("18.00"),
+            tax_amount=Decimal("68644.07"),
+            total_amount=Decimal("450000.00"),
+            valid_until=date.today() + timedelta(days=14),
+            created_at=now - timedelta(days=2),
+        )
+        db.add(q2)
+        db.flush()
+
         follow1 = QuotationFollowUp(
             quotation_id=q2.id,
             scheduled_date=date.today() + timedelta(days=2),
@@ -291,14 +327,15 @@ def init_db(db: Session) -> None:
             assigned_employee_id=emp.id,
             is_completed=False,
         )
-        db.add_all([item1, item2, follow1])
+        db.add(follow1)
         db.flush()
 
     # 10. Sample Work Orders (Production)
-    if db.query(WorkOrder).count() == 0:
+    wo1 = db.query(WorkOrder).filter(WorkOrder.work_order_number == "WO-0842").first()
+    if not wo1:
         wo1 = WorkOrder(
             work_order_number="WO-0842",
-            quotation_id=q1.id,
+            quotation_id=q1.id if q1 else None,
             customer_id=customer_map["CUST-001"].id,
             title="Aster Interiors - Modular Kitchen & Wardrobe Fabrication",
             status="In Progress",
@@ -345,7 +382,7 @@ def init_db(db: Session) -> None:
     if db.query(Feedback).count() == 0:
         fb1 = Feedback(
             customer_id=customer_map["CUST-001"].id,
-            work_order_id=wo1.id,
+            work_order_id=wo1.id if wo1 else None,
             status="Awaiting",
             category="Quality",
             comments="Installation pending; feedback request generated for initial design phase.",
@@ -388,7 +425,7 @@ def init_db(db: Session) -> None:
 
         lr1 = LabourRequest(
             request_number="LR-140",
-            work_order_id=wo1.id,
+            work_order_id=wo1.id if wo1 else None,
             requested_by_id=admin.id,
             department_id="production",
             required_workers_count=2,
@@ -405,7 +442,7 @@ def init_db(db: Session) -> None:
         assign1 = LabourAssignment(
             labour_request_id=lr1.id,
             worker_id=w1.id,
-            work_order_id=wo1.id,
+            work_order_id=wo1.id if wo1 else None,
             start_date=date.today(),
             end_date=date.today() + timedelta(days=2),
             status="Active",
