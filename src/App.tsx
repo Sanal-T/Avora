@@ -1,5 +1,24 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { actionItems, activities, departmentDetails, departments, type Accent, type Department } from './data/dashboard'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowUpRight,
+  Bell,
+  ChevronRight,
+  Factory,
+  FileText,
+  Inbox,
+  MessageSquare,
+  Moon,
+  PenTool,
+  Plus,
+  RefreshCw,
+  Search,
+  Sun,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
+import { actionItems, activities, departmentDetails, departments, type Department } from './data/dashboard'
 import { getDashboardOverview, type ApiActionItem, type ApiActivityItem, type ApiSnapshot } from './data/dashboardApi'
 
 const navigate = (path: string) => {
@@ -13,14 +32,31 @@ const ranges = [
   { id: 'month', label: 'This month', days: null },
 ]
 
-const accents: Record<Accent, string> = {
-  blue: 'bg-blue-50 text-blue-600',
-  violet: 'bg-violet-50 text-violet-600',
-  orange: 'bg-orange-50 text-orange-600',
-  teal: 'bg-teal-50 text-teal-600',
-  rose: 'bg-rose-50 text-rose-600',
-  gold: 'bg-amber-50 text-amber-600',
+const icons: Record<string, LucideIcon> = {
+  enquiries: Inbox,
+  designs: PenTool,
+  quotations: FileText,
+  production: Factory,
+  feedback: MessageSquare,
+  labour: Users,
 }
+
+// Names used in "New …" buttons, so labels read correctly ("New enquiry", not "New Enquirie").
+const singular: Record<string, string> = {
+  enquiries: 'enquiry',
+  designs: 'design',
+  quotations: 'quotation',
+  production: 'work order',
+  feedback: 'feedback request',
+  labour: 'labour request',
+}
+
+// The real job flow, left to right. Labour supports production and sits outside the flow.
+const pipelineOrder = ['enquiries', 'designs', 'quotations', 'production', 'feedback']
+
+const user = { name: 'Shiva Kumar', role: 'Administrator', initials: 'SK' }
+
+const THEME_KEY = 'avora-theme'
 
 function dates(id: string) {
   const now = new Date()
@@ -44,10 +80,13 @@ type OverviewState = {
   recentActivities?: ApiActivityItem[]
 }
 
+type Crumb = { label: string; to?: string }
+
 export default function App() {
   const [path, setPath] = useState(window.location.pathname)
   const [rangeId, setRangeId] = useState('30d')
-  const [menuOpen, setMenuOpen] = useState(false)
+  // index.html applies a saved dark choice before first paint; read it back here.
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
   const [overview, setOverview] = useState<OverviewState>({
     departments,
     source: 'mock',
@@ -56,11 +95,16 @@ export default function App() {
   })
   const departmentId = path.match(/^\/departments\/([^/]+)/)?.[1]
   const details = departmentId ? departmentDetails[departmentId] : undefined
+  const activeDepartment =
+    details && departmentId
+      ? (overview.departments.find((item) => item.id === departmentId) ?? departments.find((item) => item.id === departmentId))
+      : undefined
 
   const refresh = () => {
     setOverview((current) => ({ ...current, loading: true, error: false }))
-    getDashboardOverview(dates(rangeId))
-      .then((data) =>
+    // The short wait keeps the spinner visible; mock data otherwise resolves instantly and the click looks like a no-op.
+    Promise.all([getDashboardOverview(dates(rangeId)), new Promise((resolve) => setTimeout(resolve, 600))])
+      .then(([data]) =>
         setOverview({
           departments: data.departments,
           source: data.source,
@@ -89,22 +133,33 @@ export default function App() {
 
   useEffect(refresh, [rangeId])
 
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [path])
+
+  const toggleTheme = () => {
+    const next = !dark
+    setDark(next)
+    document.documentElement.classList.toggle('dark', next)
+    try {
+      localStorage.setItem(THEME_KEY, next ? 'dark' : 'light')
+    } catch {
+      // Storage can be unavailable (private mode); the theme still applies for this session.
+    }
+  }
+
+  const crumbs: Crumb[] = activeDepartment
+    ? [{ label: 'Overview', to: '/' }, { label: activeDepartment.name }]
+    : [{ label: 'Workspace' }, { label: 'Overview' }]
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
-      <Sidebar
-        active={departmentId ?? 'overview'}
-        open={menuOpen}
-        onNavigate={(to) => {
-          setMenuOpen(false)
-          navigate(to)
-        }}
-      />
-      <main className="min-h-screen lg:ml-64">
-        <Topbar onMenu={() => setMenuOpen(!menuOpen)} />
-        {details && departmentId ? (
+    <div className="min-h-screen bg-canvas text-fg">
+      <main className="min-h-screen">
+        <Topbar crumbs={crumbs} dark={dark} onToggleTheme={toggleTheme} />
+        {details && activeDepartment ? (
           <DepartmentPage
             details={details}
-            item={overview.departments.find((item) => item.id === departmentId) ?? departments.find((item) => item.id === departmentId)!}
+            item={activeDepartment}
             rangeId={rangeId}
             onRangeChange={setRangeId}
             onRefresh={refresh}
@@ -118,88 +173,117 @@ export default function App() {
   )
 }
 
-function Sidebar({ active, open, onNavigate }: { active: string; open: boolean; onNavigate: (path: string) => void }) {
-  return (
-    <aside
-      className={`fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-[#102a43] p-4 text-slate-200 transition-transform lg:translate-x-0 ${
-        open ? 'translate-x-0' : '-translate-x-full'
-      }`}
-    >
-      <button
-        onClick={() => onNavigate('/')}
-        className="mb-8 flex items-center gap-3 px-2 text-left font-[family-name:var(--font-display)] text-2xl font-bold text-white"
-      >
-        <span className="grid size-8 place-items-center rounded-lg bg-blue-400 text-base">A</span>
-        Avora
-      </button>
-      <nav className="space-y-1">
-        <p className="px-3 pb-2 text-[10px] font-bold tracking-widest text-slate-400">WORKSPACE</p>
-        <Nav active={active === 'overview'} label="Overview" icon="⌂" onClick={() => onNavigate('/')} />
-        <p className="px-3 pb-2 pt-6 text-[10px] font-bold tracking-widest text-slate-400">MODULES</p>
-        {departments.map((item) => (
-          <Nav
-            key={item.id}
-            active={active === item.id}
-            label={item.name}
-            icon={item.icon}
-            onClick={() => onNavigate(`/departments/${item.id}`)}
-          />
-        ))}
-      </nav>
-      <div className="mt-auto flex gap-3 border-t border-slate-700 px-2 pt-5 text-xs">
-        <span className="grid size-7 place-items-center rounded-full border border-slate-500">?</span>
-        <span>
-          <b className="block text-slate-100">Need help?</b>
-          <small className="text-slate-400">View support guide</small>
-        </span>
-      </div>
-    </aside>
-  )
-}
+/* ───────────────────────── Shell ───────────────────────── */
 
-function Nav({ active, label, icon, onClick }: { active: boolean; label: string; icon: string; onClick: () => void }) {
+function Topbar({ crumbs, dark, onToggleTheme }: { crumbs: Crumb[]; dark: boolean; onToggleTheme: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
-        active ? 'bg-[#1c4267] text-white shadow-[inset_3px_0_0_#63a9ff]' : 'text-slate-300 hover:bg-[#1c4267] hover:text-white'
-      }`}
-    >
-      <span className="w-4 text-center text-base">{icon}</span>
-      {label}
-    </button>
-  )
-}
-
-function Topbar({ onMenu }: { onMenu: () => void }) {
-  return (
-    <header className="flex h-[73px] items-center justify-between border-b border-slate-200 bg-white px-5 lg:px-10">
-      <button onClick={onMenu} className="text-xl text-slate-600 lg:hidden">
-        ☰
-      </button>
-      <div className="hidden items-center gap-2 text-sm text-slate-400 lg:flex">
-        <span>Workspace</span>
-        <span>/</span>
-        <b className="text-slate-600">Dashboard</b>
+    <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-4 border-b border-line bg-canvas px-5 lg:px-10">
+      <div className="flex min-w-0 items-center gap-5">
+        <a
+          href="/"
+          onClick={(event) => {
+            event.preventDefault()
+            navigate('/')
+          }}
+          className="flex items-center gap-2.5 font-display text-xl font-extrabold tracking-tight"
+        >
+          <span className="grid size-8 place-items-center rounded-lg bg-signal text-base font-extrabold text-ink">A</span>
+          Avora
+        </a>
+        <nav aria-label="Breadcrumb" className="hidden items-center gap-2 border-l border-line pl-5 text-sm text-mute sm:flex">
+          {crumbs.map((crumb, index) => (
+            <span key={crumb.label} className="flex items-center gap-2">
+              {index > 0 && <ChevronRight className="size-3.5" aria-hidden />}
+              {crumb.to ? (
+                <button onClick={() => navigate(crumb.to!)} className="hover:text-fg hover:underline cursor-pointer">
+                  {crumb.label}
+                </button>
+              ) : (
+                <span className={index === crumbs.length - 1 ? 'font-semibold text-fg' : ''}>{crumb.label}</span>
+              )}
+            </span>
+          ))}
+        </nav>
       </div>
-      <div className="flex items-center gap-4">
-        <button className="text-xl text-slate-500 hover:text-slate-700" title="Search">
-          ⌕
+      <div className="flex items-center gap-1">
+        <button aria-label="Search" className="grid size-10 place-items-center rounded-lg hover:bg-paper cursor-pointer">
+          <Search className="size-[18px]" />
         </button>
-        <button className="relative text-xl text-slate-500 hover:text-slate-700" title="Notifications">
-          ♧<i className="absolute right-0 top-0 size-1.5 rounded-full bg-rose-500" />
+        <button aria-label="Notifications" className="relative grid size-10 place-items-center rounded-lg hover:bg-paper cursor-pointer">
+          <Bell className="size-[18px]" />
+          <i className="absolute right-2.5 top-2.5 size-2 rounded-full bg-signal ring-2 ring-canvas" />
         </button>
-        <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
-          <span className="grid size-8 place-items-center rounded-full bg-blue-100 text-[11px] font-bold text-blue-700">SK</span>
-          <span className="hidden text-xs sm:block">
-            <b className="block text-slate-700">Shiva Kumar</b>
-            <small className="text-slate-500">Administrator</small>
-          </span>
-        </div>
+        <AccountMenu dark={dark} onToggleTheme={onToggleTheme} />
       </div>
     </header>
   )
 }
+
+function AccountMenu({ dark, onToggleTheme }: { dark: boolean; onToggleTheme: () => void }) {
+  const [open, setOpen] = useState(false)
+  const wrapper = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onClick = (event: MouseEvent) => {
+      if (wrapper.current && !wrapper.current.contains(event.target as Node)) setOpen(false)
+    }
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setOpen(false)
+    document.addEventListener('mousedown', onClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div ref={wrapper} className="relative ml-2 border-l border-line pl-3">
+      <button
+        onClick={() => setOpen((value) => !value)}
+        aria-label="Account menu"
+        aria-haspopup="true"
+        aria-expanded={open}
+        className="grid size-10 place-items-center rounded-full bg-fg text-xs font-bold text-canvas transition hover:ring-2 hover:ring-signal cursor-pointer"
+      >
+        {user.initials}
+      </button>
+
+      {open && (
+        <div
+          role="group"
+          aria-label="Account"
+          className="absolute right-0 top-14 z-30 w-64 rounded-xl border border-line bg-canvas p-2 shadow-xl"
+        >
+          <div className="flex items-center gap-3 px-3 py-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-fg text-xs font-bold text-canvas">{user.initials}</span>
+            <span className="text-sm leading-tight">
+              <b className="block font-semibold">{user.name}</b>
+              <small className="text-mute">{user.role}</small>
+            </span>
+          </div>
+          <div className="my-1 border-t border-line" />
+          <button
+            role="switch"
+            aria-checked={dark}
+            onClick={onToggleTheme}
+            className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition hover:bg-paper cursor-pointer"
+          >
+            <span className="flex items-center gap-3">
+              {dark ? <Moon className="size-[18px]" aria-hidden /> : <Sun className="size-[18px]" aria-hidden />}
+              Dark mode
+            </span>
+            <span className={`relative h-6 w-11 rounded-full transition ${dark ? 'bg-signal' : 'bg-mute'}`}>
+              <span className={`absolute top-1 size-4 rounded-full bg-white transition-all ${dark ? 'left-6' : 'left-1'}`} />
+            </span>
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ───────────────────────── Overview ───────────────────────── */
 
 function Overview({
   overview,
@@ -212,65 +296,50 @@ function Overview({
   onRangeChange: (value: string) => void
   onRefresh: () => void
 }) {
-  const actionsToDisplay =
+  const actionsToDisplay: string[][] =
     overview.actionItems && overview.actionItems.length > 0
-      ? overview.actionItems.map((item) => [item.title, item.description, item.department_id] as [string, string, string])
+      ? overview.actionItems.map((item) => [item.title, item.description, item.department_id])
       : actionItems
 
-  const activitiesToDisplay =
+  const activitiesToDisplay: string[][] =
     overview.recentActivities && overview.recentActivities.length > 0
-      ? overview.recentActivities.map((item) => [item.title, item.category, item.time_ago] as [string, string, string])
+      ? overview.recentActivities.map((item) => [item.title, item.category, item.time_ago])
       : activities
 
-  const sourceBadge = () => {
-    if (overview.source === 'database') {
-      return { dot: 'bg-emerald-500', text: 'Live Database' }
-    } else if (overview.source === 'prototype') {
-      return { dot: 'bg-teal-500', text: 'API Prototype Data' }
-    }
-    return { dot: 'bg-amber-500', text: 'Mock Prototype Data' }
-  }
+  const badge =
+    overview.source === 'database'
+      ? { dot: 'bg-fg', text: 'Live database' }
+      : overview.source === 'prototype'
+        ? { dot: 'bg-signal', text: 'API prototype data' }
+        : { dot: 'bg-signal', text: 'Mock prototype data' }
 
-  const badge = sourceBadge()
+  const stages = pipelineOrder
+    .map((id) => overview.departments.find((item) => item.id === id))
+    .filter((item): item is Department => Boolean(item))
 
   return (
     <Page>
-      <Heading title="Company overview" text="A single view of work across every department." />
-      <FilterBar rangeId={rangeId} onRangeChange={onRangeChange} onRefresh={onRefresh} loading={overview.loading} />
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <Heading title="Company overview" text="A single view of work across every department." />
+        <FilterBar rangeId={rangeId} onRangeChange={onRangeChange} onRefresh={onRefresh} loading={overview.loading} />
+      </div>
 
-      <section className="mb-10 flex flex-col justify-between gap-6 overflow-hidden rounded-xl bg-gradient-to-br from-[#112f4f] to-[#1c527c] px-6 py-7 text-white md:flex-row md:items-center md:px-8">
-        <div>
-          <p className="mb-2 text-[10px] font-bold tracking-widest text-sky-200">OVERALL BUSINESS SNAPSHOT</p>
-          <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold">
-            Good morning, Shiva <span className="text-amber-300">✦</span>
+      {overview.error && <Notice tone="alert">Live API is currently unavailable. Showing fallback data.</Notice>}
+
+      <div className={`mt-8 ${overview.loading ? 'opacity-70' : ''}`}>
+        <PipelineBand stages={stages} snapshot={overview.snapshot} />
+      </div>
+
+      <section className="mt-10" aria-labelledby="departments-heading">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <h2 id="departments-heading" className="font-display text-2xl font-bold tracking-tight">
+            Departments
           </h2>
-          <p className="mt-1 text-sm text-sky-100">Here’s what needs your attention across Avora today.</p>
+          <p className="flex items-center gap-2 text-sm text-mute">
+            <i className={`size-2 rounded-full ${badge.dot}`} />
+            {overview.loading ? 'Refreshing dashboard data…' : `${badge.text} · ${ranges.find((item) => item.id === rangeId)?.label}`}
+          </p>
         </div>
-        <div className="grid grid-cols-3 gap-5">
-          <Kpi label="Active pipeline" value={overview.snapshot?.active_pipeline_value ?? '₹18.7L'} note="Confirmed quotes" />
-          <Kpi label="Open work" value={String(overview.snapshot?.open_work_count ?? 88)} note="Across departments" />
-          <Kpi
-            label="Needs attention"
-            value={String(overview.snapshot?.needs_attention_count ?? 17)}
-            note="Follow-ups & alerts"
-            alert
-          />
-        </div>
-      </section>
-
-      <section>
-        <SectionHeading
-          label="DEPARTMENT OVERVIEW"
-          title="Business at a glance"
-          text="Select any department to explore its activity and work queues."
-        />
-        {overview.error && <Notice>Live API is currently unavailable. Showing fallback data.</Notice>}
-        <p className="mb-3 flex items-center gap-2 text-xs text-slate-500">
-          <i className={`size-2 rounded-full ${badge.dot}`} />
-          {overview.loading
-            ? 'Refreshing dashboard data…'
-            : `${badge.text} · ${ranges.find((item) => item.id === rangeId)?.label}`}
-        </p>
         <div className={`grid gap-5 md:grid-cols-2 xl:grid-cols-3 ${overview.loading ? 'pointer-events-none opacity-60' : ''}`}>
           {overview.departments.map((item) => (
             <DepartmentCard key={item.id} item={item} />
@@ -278,73 +347,148 @@ function Overview({
         </div>
       </section>
 
-      <div className="mt-7 grid gap-5 xl:grid-cols-2">
-        <Panel title="Pending actions" action="View all">
-          {actionsToDisplay.map(([title, description, id]) => (
-            <button
-              key={title}
-              onClick={() => navigate(`/departments/${id}`)}
-              className="flex w-full items-center gap-3 border-t border-slate-100 py-3 text-left transition hover:bg-slate-50/50"
-            >
-              <i className="grid size-7 place-items-center rounded-md bg-amber-50 text-amber-600 font-bold">!</i>
-              <span className="flex-1">
-                <b className="block text-xs text-slate-800">{title}</b>
-                <small className="text-[11px] text-slate-500">{description}</small>
-              </span>
-              <b className="text-slate-400">›</b>
-            </button>
-          ))}
-        </Panel>
+      <div className="mt-10 grid gap-5 xl:grid-cols-2">
+        <section className="rounded-2xl bg-panel p-6 text-white dark:border dark:border-line">
+          <header className="flex items-center justify-between">
+            <h3 className="font-display text-xl font-bold tracking-tight">Pending actions</h3>
+            <button className="text-sm font-medium text-white/70 hover:text-white cursor-pointer">View all</button>
+          </header>
+          <div className="mt-3">
+            {actionsToDisplay.map(([title, description, id]) => (
+              <button
+                key={title}
+                onClick={() => navigate(`/departments/${id}`)}
+                className="-mx-3 flex w-[calc(100%+1.5rem)] items-center gap-4 rounded-lg border-t border-white/15 px-3 py-4 text-left transition first:border-t-0 hover:bg-white/10 cursor-pointer"
+              >
+                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-signal text-ink">
+                  <AlertTriangle className="size-4" aria-hidden />
+                </span>
+                <span className="flex-1">
+                  <b className="block text-sm font-semibold">{title}</b>
+                  <small className="text-xs text-white/60">{description}</small>
+                </span>
+                <ChevronRight className="size-4 text-white/50" aria-hidden />
+              </button>
+            ))}
+          </div>
+        </section>
 
-        <Panel title="Recent activity" action="View history">
-          {activitiesToDisplay.map(([title, type, time]) => (
-            <div key={title} className="flex items-center gap-3 border-t border-slate-100 py-3">
-              <i className="size-2 rounded-full bg-blue-500" />
-              <span className="flex-1">
-                <b className="block text-xs text-slate-800">{title}</b>
-                <small className="text-[11px] text-slate-500">{type}</small>
-              </span>
-              <time className="text-[10px] text-slate-400">{time}</time>
-            </div>
-          ))}
-        </Panel>
+        <section className="rounded-2xl border border-line p-6">
+          <header className="flex items-center justify-between">
+            <h3 className="font-display text-xl font-bold tracking-tight">Recent activity</h3>
+            <button className="text-sm font-medium text-mute hover:text-fg cursor-pointer">View history</button>
+          </header>
+          <ol className="relative mt-5 space-y-5 before:absolute before:bottom-2 before:left-[5px] before:top-2 before:w-px before:bg-line before:content-['']">
+            {activitiesToDisplay.map(([title, type, time], index) => (
+              <li key={title} className="relative flex items-start gap-4 pl-6">
+                <span className={`absolute left-0 top-1.5 size-[11px] rounded-full ring-4 ring-canvas ${index === 0 ? 'bg-signal' : 'bg-fg'}`} />
+                <span className="flex-1">
+                  <b className="block text-sm font-semibold">{title}</b>
+                  <small className="text-xs text-mute">{type}</small>
+                </span>
+                <time className="whitespace-nowrap text-xs text-mute">{time}</time>
+              </li>
+            ))}
+          </ol>
+        </section>
       </div>
-
-      <section className="mt-5 rounded-xl border border-slate-200 bg-white p-5">
-        <SectionHeading label="BUSINESS TRENDS" title="Activity over the last 7 days" />
-        <Trend />
-      </section>
     </Page>
   )
 }
 
-function DepartmentCard({ item }: { item: Department }) {
+function PipelineBand({ stages, snapshot }: { stages: Department[]; snapshot?: ApiSnapshot }) {
+  const figures = snapshot
+    ? [
+        ['Active pipeline', snapshot.active_pipeline_value],
+        ['Open work', String(snapshot.open_work_count)],
+        ['Needs attention', String(snapshot.needs_attention_count)],
+      ]
+    : []
+
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-      <div className="flex items-center justify-between">
-        <span className={`grid size-9 place-items-center rounded-lg text-lg ${accents[item.accent]}`}>{item.icon}</span>
-        <span className="rounded-full bg-slate-50 px-2 py-1 text-[10px] font-medium text-slate-600">{item.trend}</span>
+    <section aria-labelledby="pipeline-heading" className="rounded-2xl bg-panel p-6 text-white md:p-8 dark:border dark:border-line">
+      <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h2 id="pipeline-heading" className="font-display text-2xl font-bold tracking-tight md:text-3xl">
+            From enquiry to feedback
+          </h2>
+          <p className="mt-1 max-w-md text-sm text-white/60">Every job moves through these five stages. Select a stage to open its workspace.</p>
+        </div>
+        {figures.length > 0 && (
+          <dl className="flex gap-8">
+            {figures.map(([label, value], index) => (
+              <div key={label} className="flex flex-col-reverse">
+                <dt className="text-xs text-white/60">{label}</dt>
+                <dd className={`font-display text-2xl font-bold tabular-nums ${index === 2 ? 'text-signal' : ''}`}>{value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
       </div>
-      <p className="mt-4 text-sm font-bold text-slate-900">{item.name}</p>
-      <p className="font-[family-name:var(--font-display)] text-2xl font-bold text-slate-900">{item.primary}</p>
-      <p className="mb-3 text-[11px] text-slate-500">{item.primaryLabel}</p>
-      <div className="space-y-1.5 border-t border-slate-100 pt-3">
+
+      <ol className="relative mt-10 grid gap-8 md:grid-cols-5 md:gap-4">
+        <span
+          aria-hidden
+          className="thread absolute left-0 top-[7px] hidden h-0.5 bg-signal md:block"
+          style={{ right: 'calc((100% - 4rem) / 5)' }}
+        />
+        {stages.map((stage) => {
+          const Icon = icons[stage.id] ?? Inbox
+          return (
+            <li key={stage.id}>
+              <button onClick={() => navigate(`/departments/${stage.id}`)} className="group block w-full text-left cursor-pointer">
+                <span className="relative z-10 block size-4 rounded-full border-2 border-signal bg-panel transition group-hover:bg-signal" />
+                <span className="mt-5 flex items-center gap-2 text-sm text-white/70">
+                  <Icon className="size-4" aria-hidden />
+                  {stage.name}
+                </span>
+                <span className="mt-1 block font-display text-4xl font-extrabold tracking-tight tabular-nums">{stage.primary}</span>
+                <span className="mt-1 block text-xs text-white/60">{stage.primaryLabel}</span>
+                <span className="mt-3 block text-xs font-medium text-signal">{stage.trend}</span>
+              </button>
+            </li>
+          )
+        })}
+      </ol>
+    </section>
+  )
+}
+
+function DepartmentCard({ item }: { item: Department }) {
+  const Icon = icons[item.id] ?? Inbox
+  return (
+    <article className="group relative flex flex-col rounded-2xl border border-line bg-canvas p-5 transition hover:border-fg">
+      <div className="flex items-start justify-between gap-3">
+        <span className="grid size-10 place-items-center rounded-lg bg-fg text-canvas">
+          <Icon className="size-5" aria-hidden />
+        </span>
+        <span className="rounded-full bg-paper px-2.5 py-1 text-xs font-medium">{item.trend}</span>
+      </div>
+      <h3 className="mt-5 text-sm font-semibold text-mute">{item.name}</h3>
+      <p className="font-display text-4xl font-extrabold tracking-tight tabular-nums">{item.primary}</p>
+      <p className="text-xs text-mute">{item.primaryLabel}</p>
+      <dl className="mt-5 flex divide-x divide-line border-t border-line pt-4">
         {item.metrics.map(([label, value]) => (
-          <p key={label} className="flex justify-between text-[11px]">
-            <span className="text-slate-500">{label}</span>
-            <b className="text-slate-800">{value}</b>
-          </p>
+          <div key={label} className="flex flex-1 flex-col-reverse px-3 first:pl-0 last:pr-0">
+            <dt className="text-xs text-mute">{label}</dt>
+            <dd className="font-display text-lg font-bold tabular-nums">{value}</dd>
+          </div>
         ))}
-      </div>
+      </dl>
       <button
         onClick={() => navigate(`/departments/${item.id}`)}
-        className="mt-4 w-full text-left text-xs font-bold text-blue-600 hover:text-blue-700"
+        className="mt-5 flex items-center justify-between text-sm font-semibold after:absolute after:inset-0 after:content-[''] cursor-pointer"
       >
-        View details <span className="float-right">→</span>
+        View details
+        <span className="grid size-8 place-items-center rounded-full border border-line transition group-hover:border-signal group-hover:bg-signal group-hover:text-ink">
+          <ArrowUpRight className="size-4" aria-hidden />
+        </span>
       </button>
     </article>
   )
 }
+
+/* ───────────────────────── Department page ───────────────────────── */
 
 function DepartmentPage({
   details,
@@ -361,79 +505,92 @@ function DepartmentPage({
   onRefresh: () => void
   loading: boolean
 }) {
+  const Icon = icons[item.id] ?? Inbox
+  const noun = singular[item.id] ?? 'record'
+
   return (
     <Page>
-      <p className="mb-4 flex gap-2 text-xs text-slate-500">
-        <button className="text-blue-600 hover:underline" onClick={() => navigate('/')}>
-          Overview
-        </button>
-        /<b>{item.name}</b>
-      </p>
-      <Heading title={details.title} text={details.subtitle} />
-      <FilterBar rangeId={rangeId} onRangeChange={onRangeChange} onRefresh={onRefresh} loading={loading} />
+      <button onClick={() => navigate('/')} className="mb-5 inline-flex items-center gap-1.5 text-sm font-semibold hover:text-signal-deep cursor-pointer">
+        <ArrowLeft className="size-4" aria-hidden />
+        Back to overview
+      </button>
 
-      <section className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 md:flex-row md:items-center">
-        <div className="flex gap-3">
-          <span className={`grid size-10 place-items-center rounded-lg text-xl ${accents[item.accent]}`}>{item.icon}</span>
-          <span>
-            <p className="text-[10px] font-bold tracking-widest text-slate-500">{item.name.toUpperCase()} OVERVIEW</p>
-            <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold text-slate-900">
-              {item.primary} <small className="font-sans text-xs font-normal text-slate-500">{item.primaryLabel}</small>
-            </h2>
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <Heading title={details.title} text={details.subtitle} />
+        <FilterBar rangeId={rangeId} onRangeChange={onRangeChange} onRefresh={onRefresh} loading={loading} />
+      </div>
+
+      <section className="mt-8 flex flex-col gap-6 rounded-2xl bg-panel p-6 text-white md:flex-row md:items-center md:justify-between md:p-8 dark:border dark:border-line">
+        <div className="flex items-center gap-5">
+          <span className="grid size-14 shrink-0 place-items-center rounded-xl bg-signal text-ink">
+            <Icon className="size-7" aria-hidden />
           </span>
+          <div>
+            <p className="text-sm text-white/60">{item.name} overview</p>
+            <p className="font-display text-5xl font-extrabold tracking-tight tabular-nums">{item.primary}</p>
+            <p className="text-sm text-white/60">{item.primaryLabel}</p>
+          </div>
         </div>
         <button
-          onClick={() => alert(`Create new ${item.name.slice(0, -1)} modal dialog`)}
-          className="rounded-md bg-blue-700 px-4 py-2 text-xs font-bold text-white transition hover:bg-blue-800 shadow-sm"
+          onClick={() => alert(`Create new ${noun} modal dialog`)}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-signal px-5 py-3 text-sm font-bold text-ink transition hover:bg-white cursor-pointer"
         >
-          + New {item.name.slice(0, -1)}
+          <Plus className="size-4" aria-hidden />
+          New {noun}
         </button>
       </section>
 
-      <div className="mt-5 grid gap-4 md:grid-cols-3">
+      <div className="mt-4 grid gap-4 md:grid-cols-3">
         {details.stats.map(([label, value, note]) => (
-          <article key={label} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs text-slate-500">{label}</p>
-            <b className="mt-1 block font-[family-name:var(--font-display)] text-2xl text-slate-900">{value}</b>
-            <small className="text-[11px] text-emerald-600 font-medium">{note}</small>
+          <article key={label} className="rounded-2xl border border-line p-5">
+            <p className="text-sm text-mute">{label}</p>
+            <b className="mt-1 block font-display text-4xl font-extrabold tracking-tight tabular-nums">{value}</b>
+            <small className="mt-3 inline-block rounded-full bg-paper px-2.5 py-1 text-xs font-medium">{note}</small>
           </article>
         ))}
       </div>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <Panel title="Weekly activity" action="View report">
-          <Trend />
-        </Panel>
-        <Panel title="Priority queue" action="View all">
-          {details.queue.map((record) => (
-            <div key={record} className="flex items-center gap-3 border-t border-slate-100 py-4">
-              <i className="size-2 rounded-full bg-amber-400" />
-              <b className="flex-1 text-xs text-slate-800">{record}</b>
-              <button
-                onClick={() => alert(`Opening details for ${record}`)}
-                className="text-xs font-bold text-blue-600 hover:text-blue-700"
-              >
-                Open →
-              </button>
-            </div>
-          ))}
-        </Panel>
-      </div>
+      <section className="mt-4 rounded-2xl border border-line p-6">
+        <header className="flex items-center justify-between">
+          <h2 className="font-display text-xl font-bold tracking-tight">Priority queue</h2>
+          <button className="text-sm font-medium text-mute hover:text-fg cursor-pointer">View all</button>
+        </header>
+        <ul className="mt-2 divide-y divide-line">
+          {details.queue.map((record) => {
+            const [code, name] = record.split(' · ')
+            return (
+              <li key={record} className="flex items-center gap-4 py-4">
+                <span className="w-24 font-display text-base font-bold tabular-nums">{code}</span>
+                <span className="flex-1 text-sm text-mute">{name}</span>
+                <button
+                  onClick={() => alert(`Opening details for ${record}`)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm font-semibold transition hover:border-fg cursor-pointer"
+                >
+                  Open
+                  <ArrowUpRight className="size-4" aria-hidden />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </section>
 
       <Notice>Module workspace connected to live database APIs and workflow controllers.</Notice>
     </Page>
   )
 }
 
+/* ───────────────────────── Shared pieces ───────────────────────── */
+
 function Page({ children }: { children: ReactNode }) {
-  return <div className="mx-auto max-w-[1480px] px-5 py-8 lg:px-10">{children}</div>
+  return <div className="mx-auto w-full max-w-[1320px] px-5 py-8 lg:px-10 lg:py-10">{children}</div>
 }
 
 function Heading({ title, text }: { title: string; text: string }) {
   return (
     <div>
-      <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold tracking-tight text-slate-900">{title}</h1>
-      <p className="mt-1 text-sm text-slate-500">{text}</p>
+      <h1 className="font-display text-4xl font-extrabold tracking-tight md:text-5xl">{title}</h1>
+      <p className="mt-2 text-base text-mute">{text}</p>
     </div>
   )
 }
@@ -450,90 +607,46 @@ function FilterBar({
   loading: boolean
 }) {
   return (
-    <div className="my-6 flex gap-2 lg:justify-end lg:-mt-10">
-      <label className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm">
-        ▣{' '}
-        <select className="ml-1 bg-transparent outline-none cursor-pointer" value={rangeId} onChange={(event) => onRangeChange(event.target.value)}>
-          {ranges.map((range) => (
-            <option key={range.id} value={range.id}>
+    <div className="flex flex-wrap items-center gap-2">
+      <div role="group" aria-label="Date range" className="flex rounded-lg bg-paper p-1">
+        {ranges.map((range) => {
+          const active = range.id === rangeId
+          return (
+            <button
+              key={range.id}
+              aria-pressed={active}
+              onClick={() => onRangeChange(range.id)}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition cursor-pointer ${
+                active ? 'bg-fg text-canvas' : 'text-mute hover:text-fg'
+              }`}
+            >
               {range.label}
-            </option>
-          ))}
-        </select>
-      </label>
+            </button>
+          )
+        })}
+      </div>
       <button
         disabled={loading}
         onClick={onRefresh}
-        className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60 cursor-pointer"
+        className="inline-flex items-center gap-2 rounded-lg border border-fg px-3.5 py-2 text-sm font-semibold transition hover:bg-fg hover:text-canvas disabled:opacity-50 cursor-pointer"
       >
-        {loading ? '↻ Refreshing…' : '↻ Refresh'}
+        <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} aria-hidden />
+        {loading ? 'Refreshing' : 'Refresh'}
       </button>
     </div>
   )
 }
 
-function Kpi({ label, value, note, alert = false }: { label: string; value: string; note: string; alert?: boolean }) {
+function Notice({ children, tone = 'info' }: { children: ReactNode; tone?: 'info' | 'alert' }) {
   return (
-    <div className="border-l border-white/20 pl-4 first:border-0 first:pl-0">
-      <p className="text-[10px] text-sky-100 font-medium">{label}</p>
-      <b className={`block font-[family-name:var(--font-display)] text-xl ${alert ? 'text-amber-300' : 'text-white'}`}>{value}</b>
-      <small className="text-[10px] text-sky-200">{note}</small>
-    </div>
-  )
-}
-
-function SectionHeading({ label, title, text }: { label: string; title: string; text?: string }) {
-  return (
-    <div className="mb-4">
-      <p className="text-[10px] font-bold tracking-widest text-slate-500">{label}</p>
-      <h2 className="font-[family-name:var(--font-display)] text-lg font-bold text-slate-900">{title}</h2>
-      {text && <p className="text-sm text-slate-500">{text}</p>}
-    </div>
-  )
-}
-
-function Panel({ title, action, children }: { title: string; action: string; children: ReactNode }) {
-  return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <header className="mb-1 flex justify-between">
-        <h3 className="font-[family-name:var(--font-display)] text-base font-bold text-slate-900">{title}</h3>
-        <button className="text-xs font-semibold text-blue-600 hover:underline">{action} →</button>
-      </header>
+    <div
+      role={tone === 'alert' ? 'alert' : undefined}
+      className={`mt-5 flex items-center gap-3 rounded-lg px-4 py-3 text-sm ${
+        tone === 'alert' ? 'border border-signal bg-canvas font-medium' : 'bg-paper text-mute'
+      }`}
+    >
+      {tone === 'alert' && <AlertTriangle className="size-4 shrink-0 text-signal-deep" aria-hidden />}
       {children}
-    </section>
-  )
-}
-
-function Notice({ children }: { children: ReactNode }) {
-  return <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{children}</div>
-}
-
-function Trend() {
-  const values = [
-    [42, 54, 39],
-    [60, 44, 62],
-    [47, 72, 48],
-    [75, 58, 67],
-    [59, 68, 54],
-    [83, 76, 78],
-    [68, 88, 70],
-  ]
-  return (
-    <div className="mt-4 flex h-40 items-end justify-around gap-3 border-b border-slate-200 bg-[repeating-linear-gradient(to_bottom,transparent_0,transparent_36px,#f1f5f9_37px)] px-2">
-      {values.map((day, index) => (
-        <div key={index} className="flex h-full flex-1 items-end gap-1">
-          <div className="flex h-full flex-1 items-end gap-1 pb-5">
-            {day.map((height, bar) => (
-              <i
-                key={bar}
-                className={`w-2 rounded-t ${bar === 0 ? 'bg-blue-400' : bar === 1 ? 'bg-orange-400' : 'bg-teal-400'}`}
-                style={{ height: `${height}%` }}
-              />
-            ))}
-          </div>
-          <small className="absolute mt-32 text-[9px] text-slate-400">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][index]}</small>
-        </div>
-      ))}
     </div>
   )
 }
