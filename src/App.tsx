@@ -18,7 +18,18 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react'
-import { actionItems, activities, departmentDetails, departments, type Department } from './data/dashboard'
+import {
+  actionItems,
+  actionItemsByRange,
+  activities,
+  activitiesByRange,
+  departmentDetails,
+  departmentDetailsByRange,
+  departments,
+  departmentsByRange,
+  type Department,
+  type RangeKey,
+} from './data/dashboard'
 import { getDashboardOverview, type ApiActionItem, type ApiActivityItem, type ApiSnapshot } from './data/dashboardApi'
 
 const navigate = (path: string) => {
@@ -67,7 +78,7 @@ function dates(id: string) {
       ? new Date(end.getFullYear(), end.getMonth(), 1)
       : new Date(end.getFullYear(), end.getMonth(), end.getDate() - range.days + 1)
   const format = (value: Date) => value.toISOString().slice(0, 10)
-  return { dateFrom: format(start), dateTo: format(end) }
+  return { dateFrom: format(start), dateTo: format(end), rangeId: id }
 }
 
 type OverviewState = {
@@ -84,26 +95,29 @@ type Crumb = { label: string; to?: string }
 
 export default function App() {
   const [path, setPath] = useState(window.location.pathname)
-  const [rangeId, setRangeId] = useState('30d')
+  const [rangeId, setRangeId] = useState<RangeKey>('30d')
   // index.html applies a saved dark choice before first paint; read it back here.
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'))
   const [overview, setOverview] = useState<OverviewState>({
-    departments,
+    departments: departmentsByRange['30d'],
     source: 'mock',
     loading: true,
     error: false,
   })
   const departmentId = path.match(/^\/departments\/([^/]+)/)?.[1]
-  const details = departmentId ? departmentDetails[departmentId] : undefined
+  const currentDetailsMap = departmentDetailsByRange[rangeId] || departmentDetails
+  const details = departmentId ? currentDetailsMap[departmentId] : undefined
   const activeDepartment =
     details && departmentId
-      ? (overview.departments.find((item) => item.id === departmentId) ?? departments.find((item) => item.id === departmentId))
+      ? (overview.departments.find((item) => item.id === departmentId) ??
+        departmentsByRange[rangeId]?.find((item) => item.id === departmentId) ??
+        departments.find((item) => item.id === departmentId))
       : undefined
 
   const refresh = () => {
     setOverview((current) => ({ ...current, loading: true, error: false }))
     // The short wait keeps the spinner visible; mock data otherwise resolves instantly and the click looks like a no-op.
-    Promise.all([getDashboardOverview(dates(rangeId)), new Promise((resolve) => setTimeout(resolve, 600))])
+    Promise.all([getDashboardOverview(dates(rangeId)), new Promise((resolve) => setTimeout(resolve, 400))])
       .then(([data]) =>
         setOverview({
           departments: data.departments,
@@ -117,7 +131,7 @@ export default function App() {
       )
       .catch(() =>
         setOverview({
-          departments,
+          departments: departmentsByRange[rangeId] || departments,
           source: 'mock',
           loading: false,
           error: true,
@@ -296,15 +310,16 @@ function Overview({
   onRangeChange: (value: string) => void
   onRefresh: () => void
 }) {
+  const currentRange = (rangeId as RangeKey) in departmentsByRange ? (rangeId as RangeKey) : '30d'
   const actionsToDisplay: string[][] =
     overview.actionItems && overview.actionItems.length > 0
       ? overview.actionItems.map((item) => [item.title, item.description, item.department_id])
-      : actionItems
+      : (actionItemsByRange[currentRange] || actionItems)
 
   const activitiesToDisplay: string[][] =
     overview.recentActivities && overview.recentActivities.length > 0
       ? overview.recentActivities.map((item) => [item.title, item.category, item.time_ago])
-      : activities
+      : (activitiesByRange[currentRange] || activities)
 
   const badge =
     overview.source === 'database'

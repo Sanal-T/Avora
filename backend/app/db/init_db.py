@@ -209,6 +209,55 @@ def init_db(db: Session) -> None:
             created_at=now - timedelta(days=1),
         )
         db.add(enq3)
+
+    enq4 = db.query(Enquiry).filter(Enquiry.enquiry_number == "ENQ-1035").first()
+    if not enq4:
+        enq4 = Enquiry(
+            enquiry_number="ENQ-1035",
+            customer_id=customer_map["CUST-003"].id,
+            assigned_employee_id=emp.id,
+            status="Qualified",
+            source="Website",
+            requirement_summary="Retail mall kiosk display modular racking.",
+            estimated_budget=Decimal("340000.00"),
+            priority="Medium",
+            qualified_at=now - timedelta(days=12),
+            created_at=now - timedelta(days=14),
+        )
+        db.add(enq4)
+
+    enq5 = db.query(Enquiry).filter(Enquiry.enquiry_number == "ENQ-1028").first()
+    if not enq5:
+        enq5 = Enquiry(
+            enquiry_number="ENQ-1028",
+            customer_id=customer_map["CUST-002"].id,
+            assigned_employee_id=emp.id,
+            status="Converted",
+            source="Referral",
+            requirement_summary="Corporate conference room 16-seater table and credenza.",
+            estimated_budget=Decimal("520000.00"),
+            priority="High",
+            qualified_at=now - timedelta(days=22),
+            converted_at=now - timedelta(days=18),
+            created_at=now - timedelta(days=24),
+        )
+        db.add(enq5)
+
+    enq6 = db.query(Enquiry).filter(Enquiry.enquiry_number == "ENQ-1021").first()
+    if not enq6:
+        enq6 = Enquiry(
+            enquiry_number="ENQ-1021",
+            customer_id=customer_map["CUST-001"].id,
+            assigned_employee_id=emp.id,
+            status="Qualified",
+            source="Exhibition",
+            requirement_summary="Penthouse living room wall panelling and media console.",
+            estimated_budget=Decimal("410000.00"),
+            priority="Low",
+            qualified_at=now - timedelta(days=25),
+            created_at=now - timedelta(days=27),
+        )
+        db.add(enq6)
     db.flush()
 
     # 8. Sample Designs
@@ -240,7 +289,35 @@ def init_db(db: Session) -> None:
             completed_at=now - timedelta(days=2),
             created_at=now - timedelta(days=10),
         )
-        db.add_all([d1, d2])
+        d3 = Design(
+            design_number="D-610",
+            enquiry_id=enq4.id if enq4 else None,
+            assigned_designer_id=emp.id,
+            title="Retail mall kiosk display modular layout",
+            description="Fabrication drawings for display islands.",
+            status="Completed",
+            priority="Medium",
+            estimated_hours=Decimal("28.00"),
+            actual_hours=Decimal("25.00"),
+            expected_completion_date=date.today() - timedelta(days=8),
+            completed_at=now - timedelta(days=8),
+            created_at=now - timedelta(days=14),
+        )
+        d4 = Design(
+            design_number="D-604",
+            enquiry_id=enq5.id if enq5 else None,
+            assigned_designer_id=emp.id,
+            title="Corporate conference table construction drawings",
+            description="Veneer match and wiring grommet plan.",
+            status="Completed",
+            priority="High",
+            estimated_hours=Decimal("30.00"),
+            actual_hours=Decimal("29.00"),
+            expected_completion_date=date.today() - timedelta(days=18),
+            completed_at=now - timedelta(days=18),
+            created_at=now - timedelta(days=24),
+        )
+        db.add_all([d1, d2, d3, d4])
         db.flush()
 
         v1 = DesignVersion(
@@ -330,6 +407,48 @@ def init_db(db: Session) -> None:
         db.add(follow1)
         db.flush()
 
+    q3 = db.query(Quotation).filter(Quotation.quotation_number == "Q-2041").first()
+    if not q3:
+        q3 = Quotation(
+            quotation_number="Q-2041",
+            revision_number=1,
+            enquiry_id=enq4.id if enq4 else None,
+            customer_id=customer_map["CUST-003"].id,
+            status="Approved",
+            subtotal=Decimal("288135.59"),
+            discount_rate=Decimal("0.00"),
+            discount_amount=Decimal("0.00"),
+            tax_rate=Decimal("18.00"),
+            tax_amount=Decimal("51864.41"),
+            total_amount=Decimal("340000.00"),
+            valid_until=date.today() + timedelta(days=5),
+            approved_at=now - timedelta(days=10),
+            created_at=now - timedelta(days=13),
+        )
+        db.add(q3)
+        db.flush()
+
+    q4 = db.query(Quotation).filter(Quotation.quotation_number == "Q-2028").first()
+    if not q4:
+        q4 = Quotation(
+            quotation_number="Q-2028",
+            revision_number=1,
+            enquiry_id=enq5.id if enq5 else None,
+            customer_id=customer_map["CUST-002"].id,
+            status="Converted",
+            subtotal=Decimal("440677.97"),
+            discount_rate=Decimal("0.00"),
+            discount_amount=Decimal("0.00"),
+            tax_rate=Decimal("18.00"),
+            tax_amount=Decimal("79322.03"),
+            total_amount=Decimal("520000.00"),
+            valid_until=date.today() - timedelta(days=2),
+            approved_at=now - timedelta(days=20),
+            created_at=now - timedelta(days=23),
+        )
+        db.add(q4)
+        db.flush()
+
     # 10. Sample Work Orders (Production)
     wo1 = db.query(WorkOrder).filter(WorkOrder.work_order_number == "WO-0842").first()
     if not wo1:
@@ -378,6 +497,44 @@ def init_db(db: Session) -> None:
         db.add_all([task1, task2, inst1])
         db.flush()
 
+    wo2 = db.query(WorkOrder).filter(WorkOrder.work_order_number == "WO-0839").first()
+    if not wo2:
+        wo2 = WorkOrder(
+            work_order_number="WO-0839",
+            quotation_id=q3.id if q3 else None,
+            customer_id=customer_map["CUST-003"].id,
+            title="Lakeview Retail Kiosk Fabrication",
+            status="Completed",
+            priority="Medium",
+            planned_start_date=date.today() - timedelta(days=11),
+            planned_end_date=date.today() - timedelta(days=2),
+            actual_start_date=date.today() - timedelta(days=11),
+            actual_completion_date=date.today() - timedelta(days=2),
+            notes="Delivered and handed over to mall facilities.",
+            created_at=now - timedelta(days=12),
+        )
+        db.add(wo2)
+        db.flush()
+
+    wo3 = db.query(WorkOrder).filter(WorkOrder.work_order_number == "WO-0831").first()
+    if not wo3:
+        wo3 = WorkOrder(
+            work_order_number="WO-0831",
+            quotation_id=q4.id if q4 else None,
+            customer_id=customer_map["CUST-002"].id,
+            title="Acme Spaces Conference Table Assembly",
+            status="Completed",
+            priority="High",
+            planned_start_date=date.today() - timedelta(days=22),
+            planned_end_date=date.today() - timedelta(days=14),
+            actual_start_date=date.today() - timedelta(days=22),
+            actual_completion_date=date.today() - timedelta(days=14),
+            notes="Polishing and acoustic grommets completed.",
+            created_at=now - timedelta(days=22),
+        )
+        db.add(wo3)
+        db.flush()
+
     # 11. Sample Feedback
     if db.query(Feedback).count() == 0:
         fb1 = Feedback(
@@ -388,7 +545,27 @@ def init_db(db: Session) -> None:
             comments="Installation pending; feedback request generated for initial design phase.",
             created_at=now - timedelta(hours=6),
         )
-        db.add(fb1)
+        fb2 = Feedback(
+            customer_id=customer_map["CUST-003"].id,
+            work_order_id=wo2.id if wo2 else None,
+            status="Received",
+            category="Delivery",
+            rating=5,
+            comments="Delivered 2 days ahead of retail mall opening. High quality finish.",
+            created_at=now - timedelta(days=10),
+            received_at=now - timedelta(days=9),
+        )
+        fb3 = Feedback(
+            customer_id=customer_map["CUST-002"].id,
+            work_order_id=wo3.id if wo3 else None,
+            status="Received",
+            category="Product",
+            rating=4,
+            comments="Conference table wood grain looks premium. Very happy with design.",
+            created_at=now - timedelta(days=20),
+            received_at=now - timedelta(days=19),
+        )
+        db.add_all([fb1, fb2, fb3])
         db.flush()
 
     # 12. Sample Workers & Labour

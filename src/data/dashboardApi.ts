@@ -1,4 +1,11 @@
-import { departments, type Department } from './dashboard'
+import {
+  actionItemsByRange,
+  activitiesByRange,
+  departments,
+  departmentsByRange,
+  type Department,
+  type RangeKey,
+} from './dashboard'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -54,9 +61,62 @@ const toDepartment = (summary: ApiSummary): Department => {
   }
 }
 
-export async function getDashboardOverview({ dateFrom, dateTo }: { dateFrom?: string; dateTo?: string } = {}): Promise<DashboardOverviewResponse> {
+export function inferRange(dateFrom?: string, dateTo?: string, rangeId?: string): RangeKey {
+  if (rangeId === '7d' || rangeId === '30d' || rangeId === 'month') {
+    return rangeId
+  }
+  if (!dateFrom || !dateTo) return '30d'
+  const from = new Date(dateFrom).getTime()
+  const to = new Date(dateTo).getTime()
+  const diffDays = Math.round(Math.abs(to - from) / (1000 * 60 * 60 * 24))
+  if (diffDays <= 8) return '7d'
+  if (diffDays <= 22) return 'month'
+  return '30d'
+}
+
+const mockSnapshots: Record<RangeKey, ApiSnapshot> = {
+  '7d': {
+    active_pipeline_value: '₹3.4L',
+    open_work_count: 14,
+    needs_attention_count: 4,
+  },
+  'month': {
+    active_pipeline_value: '₹7.8L',
+    open_work_count: 29,
+    needs_attention_count: 11,
+  },
+  '30d': {
+    active_pipeline_value: '₹12.4L',
+    open_work_count: 47,
+    needs_attention_count: 17,
+  },
+}
+
+export async function getDashboardOverview({
+  dateFrom,
+  dateTo,
+  rangeId,
+}: { dateFrom?: string; dateTo?: string; rangeId?: string } = {}): Promise<DashboardOverviewResponse> {
+  const selectedRange = inferRange(dateFrom, dateTo, rangeId)
+
   if (!apiBaseUrl) {
-    return { source: 'mock', departments }
+    const rawActions = actionItemsByRange[selectedRange] || actionItemsByRange['30d']
+    const rawActivities = activitiesByRange[selectedRange] || activitiesByRange['30d']
+    return {
+      source: 'mock',
+      departments: departmentsByRange[selectedRange] || departmentsByRange['30d'],
+      snapshot: mockSnapshots[selectedRange],
+      actionItems: rawActions.map(([title, description, department_id]) => ({
+        title,
+        description,
+        department_id,
+      })),
+      recentActivities: rawActivities.map(([title, category, time_ago]) => ({
+        title,
+        category,
+        time_ago,
+      })),
+    }
   }
 
   const parameters = new URLSearchParams()
