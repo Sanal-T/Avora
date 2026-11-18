@@ -177,7 +177,7 @@ export default function App() {
 
 function Topbar({ crumbs, dark, onToggleTheme }: { crumbs: Crumb[]; dark: boolean; onToggleTheme: () => void }) {
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-4 border-b border-line bg-canvas px-5 lg:px-10">
+    <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-4 border-b border-line bg-canvas px-5 lg:px-10 2xl:px-14">
       <div className="flex min-w-0 items-center gap-5">
         <a
           href="/"
@@ -188,7 +188,7 @@ function Topbar({ crumbs, dark, onToggleTheme }: { crumbs: Crumb[]; dark: boolea
           className="flex items-center gap-2.5 font-display text-xl font-extrabold tracking-tight"
         >
           <span className="grid size-8 place-items-center rounded-lg bg-signal text-base font-extrabold text-ink">A</span>
-          Avora
+          AVORA ERP
         </a>
         <nav aria-label="Breadcrumb" className="hidden items-center gap-2 border-l border-line pl-5 text-sm text-mute sm:flex">
           {crumbs.map((crumb, index) => (
@@ -399,10 +399,10 @@ function Overview({
 function PipelineBand({ stages, snapshot }: { stages: Department[]; snapshot?: ApiSnapshot }) {
   const figures = snapshot
     ? [
-        ['Active pipeline', snapshot.active_pipeline_value],
-        ['Open work', String(snapshot.open_work_count)],
-        ['Needs attention', String(snapshot.needs_attention_count)],
-      ]
+      ['Active pipeline', snapshot.active_pipeline_value],
+      ['Open work', String(snapshot.open_work_count)],
+      ['Needs attention', String(snapshot.needs_attention_count)],
+    ]
     : []
 
   return (
@@ -583,7 +583,7 @@ function DepartmentPage({
 /* ───────────────────────── Shared pieces ───────────────────────── */
 
 function Page({ children }: { children: ReactNode }) {
-  return <div className="mx-auto w-full max-w-[1320px] px-5 py-8 lg:px-10 lg:py-10">{children}</div>
+  return <div className="w-full px-5 py-8 lg:px-10 lg:py-10 2xl:px-14">{children}</div>
 }
 
 function Heading({ title, text }: { title: string; text: string }) {
@@ -616,9 +616,8 @@ function FilterBar({
               key={range.id}
               aria-pressed={active}
               onClick={() => onRangeChange(range.id)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition cursor-pointer ${
-                active ? 'bg-fg text-canvas' : 'text-mute hover:text-fg'
-              }`}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition cursor-pointer ${active ? 'bg-fg text-canvas' : 'text-mute hover:text-fg'
+                }`}
             >
               {range.label}
             </button>
@@ -641,9 +640,8 @@ function Notice({ children, tone = 'info' }: { children: ReactNode; tone?: 'info
   return (
     <div
       role={tone === 'alert' ? 'alert' : undefined}
-      className={`mt-5 flex items-center gap-3 rounded-lg px-4 py-3 text-sm ${
-        tone === 'alert' ? 'border border-signal bg-canvas font-medium' : 'bg-paper text-mute'
-      }`}
+      className={`mt-5 flex items-center gap-3 rounded-lg px-4 py-3 text-sm ${tone === 'alert' ? 'border border-signal bg-canvas font-medium' : 'bg-paper text-mute'
+        }`}
     >
       {tone === 'alert' && <AlertTriangle className="size-4 shrink-0 text-signal-deep" aria-hidden />}
       {children}
