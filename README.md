@@ -4,7 +4,7 @@ Planning workspace for a modular ERP system with a centralized management dashbo
 
 ## Project status
 
-Requirements intake and dashboard-first architecture planning. The initial scope, KPI definitions, and technology choices are proposals from the project brief and still need business validation. Application code has not started.
+Dashboard prototype and API foundation are implemented. KPI definitions and business workflow rules remain proposals and still need business validation before production data modeling begins.
 
 ## Documents
 
@@ -28,3 +28,15 @@ npm run dev
 ```
 
 Use `npm run build` to create a production bundle in `dist/`.
+
+## API foundation
+
+The FastAPI service exposes prototype dashboard summaries at `/api/dashboard/overview` and `/api/dashboard/{department_id}/summary`. Set `VITE_API_BASE_URL=http://localhost:8000` in a frontend `.env` file to use it; with no value, the UI uses its local mock-data adapter.
+
+Run the API and PostgreSQL locally with Docker:
+
+```powershell
+docker compose up --build
+```
+
+The API carries no production tables or metric calculations yet. Those will be added after the confirmed workflows, KPI formulas, and record lifecycle rules are available.

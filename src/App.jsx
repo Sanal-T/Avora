@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import { actionItems, activities, departmentDetails, departments } from './data/dashboard.js'
+import { getDashboardOverview } from './data/dashboardApi.js'
 
 const navigate = (path) => { window.history.pushState({}, '', path); window.dispatchEvent(new PopStateEvent('popstate')) }
 
 function App() {
   const [path, setPath] = useState(window.location.pathname)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [overview, setOverview] = useState({ departments, error: false })
   useEffect(() => { const listener = () => setPath(window.location.pathname); window.addEventListener('popstate', listener); return () => window.removeEventListener('popstate', listener) }, [])
+  useEffect(() => { getDashboardOverview().then((data) => setOverview({ departments: data.departments, error: false })).catch(() => setOverview({ departments, error: true })) }, [])
   const departmentId = path.match(/^\/departments\/([^/]+)/)?.[1]
   const department = departmentId && departmentDetails[departmentId]
 
@@ -14,7 +17,7 @@ function App() {
     <Sidebar active={departmentId || 'overview'} expanded={menuOpen} onNavigate={(to) => { setMenuOpen(false); navigate(to) }} />
     <main className="content">
       <Topbar onMenu={() => setMenuOpen(!menuOpen)} />
-      {department ? <DepartmentView id={departmentId} data={department} /> : <Overview />}
+      {department ? <DepartmentView id={departmentId} data={department} /> : <Overview overview={overview} />}
     </main>
   </div>
 }
@@ -34,9 +37,9 @@ function NavItem({ icon, label, active, onClick }) { return <button className={`
 
 function Topbar({ onMenu }) { return <header className="topbar"><button className="mobile-menu" onClick={onMenu}>☰</button><div className="crumb"><span>Workspace</span><b>/</b><strong>Dashboard</strong></div><div className="top-actions"><button className="icon-button">⌕</button><button className="notification"><span>♧</span><i /></button><div className="profile"><div className="avatar">SK</div><div><strong>Shiva Kumar</strong><small>Administrator</small></div><span className="chevron">⌄</span></div></div></header> }
 
-function Overview() { return <section className="page"><PageHeading title="Company overview" text="A single view of work across every department." /><FilterBar />
+function Overview({ overview }) { return <section className="page"><PageHeading title="Company overview" text="A single view of work across every department." /><FilterBar />
   <section className="business-summary"><div><p className="eyebrow">OVERALL BUSINESS SNAPSHOT</p><h2>Good morning, Shiva <span>✦</span></h2><p className="summary-copy">Here’s what needs your attention across Avora today.</p></div><div className="summary-kpis"><SummaryKpi label="Active pipeline" value="₹18.7L" note="Proposed metric" /><SummaryKpi label="Open work" value="88" note="Across departments" /><SummaryKpi label="Needs attention" value="17" note="Proposed metric" alert /></div></section>
-  <section><SectionTitle eyebrow="DEPARTMENT OVERVIEW" title="Business at a glance" text="Select any department to explore its activity and work queues." /><div className="department-grid">{departments.map((item) => <DepartmentCard key={item.id} item={item} />)}</div></section>
+  <section><SectionTitle eyebrow="DEPARTMENT OVERVIEW" title="Business at a glance" text="Select any department to explore its activity and work queues." />{overview.error && <div className="inline-notice">Live data is unavailable. Showing prototype data.</div>}<div className="department-grid">{overview.departments.map((item) => <DepartmentCard key={item.id} item={item} />)}</div></section>
   <section className="lower-grid"><Panel title="Pending actions" action="View all">{actionItems.map(([title, detail, id]) => <button className="action-row" key={title} onClick={() => navigate(`/departments/${id}`)}><span className={`mini-icon ${id}`}>!</span><span><strong>{title}</strong><small>{detail}</small></span><b>›</b></button>)}</Panel><Panel title="Recent activity" action="View history">{activities.map(([title, type, time, accent]) => <div className="activity-row" key={title}><span className={`activity-dot ${accent}`} /><span><strong>{title}</strong><small>{type}</small></span><time>{time}</time></div>)}</Panel></section>
   <section className="trend-panel"><div><p className="eyebrow">BUSINESS TRENDS</p><h3>Activity over the last 7 days</h3></div><div className="legend"><span><i className="legend-blue" /> Enquiries</span><span><i className="legend-orange" /> Quotations</span><span><i className="legend-teal" /> Work orders</span></div><TrendChart /></section>
 </section> }
