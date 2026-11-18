@@ -6,6 +6,13 @@ Planning workspace for a modular ERP system with a centralized management dashbo
 
 Dashboard prototype and API foundation are implemented. KPI definitions and business workflow rules remain proposals and still need business validation before production data modeling begins.
 
+## Technology stack
+
+- Frontend: TypeScript, React, Vite, and Tailwind CSS
+- Backend: Python and FastAPI
+- Data layer: PostgreSQL and SQLAlchemy
+- Deployment: Docker
+
 ## Documents
 
 - [Initial scope](docs/requirements/initial-scope.md)
@@ -20,7 +27,7 @@ Finalize the centralized dashboard information architecture and its department v
 
 ## Dashboard prototype
 
-The React prototype implements the centralized overview and the six department dashboard views with isolated mock data. To run it locally:
+The React prototype implements the centralized overview and the six department dashboard views with isolated mock data. It includes a shared date-range control, refresh state, loading state, and API fallback indicator. To run it locally:
 
 ```powershell
 npm install
@@ -31,7 +38,7 @@ Use `npm run build` to create a production bundle in `dist/`.
 
 ## API foundation
 
-The FastAPI service exposes prototype dashboard summaries at `/api/dashboard/overview` and `/api/dashboard/{department_id}/summary`. Set `VITE_API_BASE_URL=http://localhost:8000` in a frontend `.env` file to use it; with no value, the UI uses its local mock-data adapter.
+The FastAPI service exposes prototype dashboard summaries at `/api/dashboard/overview` and `/api/dashboard/{department_id}/summary`. The overview endpoint accepts `date_from` and `date_to` in ISO format and rejects invalid date ranges. Set `VITE_API_BASE_URL=http://localhost:8000` in a frontend `.env` file to use it; with no value, the UI uses its local mock-data adapter.
 
 Run the API and PostgreSQL locally with Docker:
 

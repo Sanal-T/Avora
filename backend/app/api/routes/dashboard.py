@@ -44,6 +44,8 @@ def get_overview(
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
 ) -> DashboardOverview:
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=422, detail="date_from must not be after date_to")
     return DashboardOverview(source="prototype", date_from=date_from, date_to=date_to, departments=_SUMMARIES)
 
 
