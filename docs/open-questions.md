@@ -17,8 +17,16 @@ These questions are for requirements discovery. Answers can be brief; unknown it
 8. Does an approved quotation always create one production work order, or can it create, split, or combine multiple work orders? How are production slots and installation appointments assigned?
 9. Are workers employees, contractors, or both? What do labour requests, confirmations, approvals, suggestions, and allocations mean in the current process? Is payroll in scope?
 
+## Dashboard and metrics
+
+10. Which roles should see the management dashboard and which department cards, values, or actions should each role be allowed to see?
+11. What is the precise meaning of each headline KPI, including its date basis? In particular, define qualified, pending, converted, active, delayed, available, assigned, received, and awaiting.
+12. How should cancelled, rejected, duplicate, archived, revised, and reopened records affect each KPI and conversion rate?
+13. What does the overall business summary need to show? Candidate items include pipeline value, approved quotation value, active work orders, overdue work, and feedback completion; none are confirmed.
+14. Which actions count as important alerts and recent company activity, who owns them, and how quickly must they be surfaced?
+
 ## Access and operations
 
-10. Which roles need access, and should access be limited by department, branch, record ownership, or another boundary?
-11. Which events need reminders, through which channels, and who should receive them? Are there response-time expectations?
-12. What deployment environment, backup/retention expectations, expected user volume, and file-storage constraints should guide the design?
+15. Which roles need access, and should access be limited by department, branch, record ownership, or another boundary?
+16. Which events need reminders, through which channels, and who should receive them? Are there response-time expectations?
+17. What deployment environment, backup/retention expectations, expected user volume, and file-storage constraints should guide the design?

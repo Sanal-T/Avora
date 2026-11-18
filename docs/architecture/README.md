@@ -1,8 +1,8 @@
 # Architecture planning
 
-**Status:** Not finalized. Business workflow clarification is the next step.
+**Status:** Dashboard-first planning. The centralized dashboard structure is the next architecture deliverable; metric semantics and workflows still require validation.
 
-The architecture will be developed after the open business questions are answered. This avoids turning the initial, changeable notes into unverified business rules.
+The dashboard information architecture will be developed before backend and database integration. Do not treat proposed KPI names, status values, calculations, or workflow policies as finalized business rules.
 
 ## Planned deliverables
 
@@ -20,5 +20,7 @@ The architecture will be developed after the open business questions are answere
 12. Deployment architecture.
 13. Recommended project folder structure.
 14. Development roadmap and implementation phases.
+
+See [dashboard architecture](dashboard-architecture.md) for the active dashboard direction.
 
 For each significant decision, record why it is needed, how it works, its benefits, its limitations, and how it supports future expansion. Keep confirmed requirements, proposals, assumptions, and future enhancements distinct.

@@ -2,6 +2,14 @@
 
 This document captures the project brief as received. The source notes that the requirements came from a handwritten business requirements document, may change, and have not yet been validated with the business. Nothing below should be treated as a finalized workflow or policy until confirmed.
 
+## Confirmed dashboard direction
+
+- The default page after login is a centralized main dashboard for management.
+- It presents all six departments together as compact overview cards, then lets users drill into dedicated department dashboards.
+- The main dashboard is for company-wide awareness; it must not become a detailed record list.
+- Dashboard and department views use shared navigation, reusable UI components, responsive layouts, role-based visibility, consistent date filtering, and API-derived data.
+- The dashboard UI is planned before backend and database integration. Any early prototype uses clearly isolated mock data.
+
 ## Initial modules requested
 
 ### Enquiry management
