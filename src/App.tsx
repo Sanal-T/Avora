@@ -36,7 +36,7 @@ const navigate = (path: string) => {
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 
-const ranges = [
+const ranges: { id: RangeKey; label: string; days: number | null }[] = [
   { id: '7d', label: 'Last 7 days', days: 7 },
   { id: '30d', label: 'Last 30 days', days: 30 },
   { id: 'month', label: 'This month', days: null },
@@ -504,8 +504,8 @@ function DepartmentPage({
 }: {
   details: (typeof departmentDetails)[string]
   item: Department
-  rangeId: string
-  onRangeChange: (value: string) => void
+  rangeId: RangeKey
+  onRangeChange: (value: RangeKey) => void
   onRefresh: () => void
   loading: boolean
 }) {
@@ -605,8 +605,8 @@ function FilterBar({
   onRefresh,
   loading,
 }: {
-  rangeId: string
-  onRangeChange: (value: string) => void
+  rangeId: RangeKey
+  onRangeChange: (value: RangeKey) => void
   onRefresh: () => void
   loading: boolean
 }) {
