@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowUpRight,
-  Bell,
   ChevronRight,
   Factory,
   FileText,
@@ -223,10 +222,6 @@ function Topbar({ crumbs, dark, onToggleTheme }: { crumbs: Crumb[]; dark: boolea
         <button aria-label="Search" className="grid size-10 place-items-center rounded-lg hover:bg-paper cursor-pointer">
           <Search className="size-[18px]" />
         </button>
-        <button aria-label="Notifications" className="relative grid size-10 place-items-center rounded-lg hover:bg-paper cursor-pointer">
-          <Bell className="size-[18px]" />
-          <i className="absolute right-2.5 top-2.5 size-2 rounded-full bg-signal ring-2 ring-canvas" />
-        </button>
         <AccountMenu dark={dark} onToggleTheme={onToggleTheme} />
       </div>
     </header>
@@ -306,8 +301,8 @@ function Overview({
   onRefresh,
 }: {
   overview: OverviewState
-  rangeId: string
-  onRangeChange: (value: string) => void
+  rangeId: RangeKey
+  onRangeChange: (value: RangeKey) => void
   onRefresh: () => void
 }) {
   const currentRange = (rangeId as RangeKey) in departmentsByRange ? (rangeId as RangeKey) : '30d'
