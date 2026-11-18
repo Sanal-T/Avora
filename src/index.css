@@ -65,25 +65,7 @@ body {
   outline-offset: 2px;
 }
 
-/* The one orchestrated moment: the pipeline thread draws in once on load. */
-@keyframes thread-draw {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-
-.thread {
-  transform-origin: left center;
-  animation: thread-draw 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) 0.15s both;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .thread {
-    animation: none;
-  }
   *,
   *::before,
   *::after {

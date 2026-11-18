@@ -442,17 +442,11 @@ function PipelineBand({ stages, snapshot }: { stages: Department[]; snapshot?: A
       </div>
 
       <ol className="relative mt-10 grid gap-8 md:grid-cols-5 md:gap-4">
-        <span
-          aria-hidden
-          className="thread absolute left-0 top-[7px] hidden h-0.5 bg-signal md:block"
-          style={{ right: 'calc((100% - 4rem) / 5)' }}
-        />
         {stages.map((stage) => {
           const Icon = icons[stage.id] ?? Inbox
           return (
             <li key={stage.id}>
               <button onClick={() => navigate(`/departments/${stage.id}`)} className="group block w-full text-left cursor-pointer">
-                <span className="relative z-10 block size-4 rounded-full border-2 border-signal bg-panel transition group-hover:bg-signal" />
                 <span className="mt-5 flex items-center gap-2 text-sm text-white/70">
                   <Icon className="size-4" aria-hidden />
                   {stage.name}
