@@ -51,6 +51,14 @@ export function ProductionSchedulePage() {
         description="Daily operational time slots, machine bay allocations, and assembly line routing."
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/production/calendar')}
+            >
+              <Calendar className="size-3.5 mr-1" />
+              <span>Production Calendar</span>
+            </Button>
             <Button variant="outline" size="sm">
               <ChevronLeft className="size-4" />
             </Button>

@@ -236,6 +236,10 @@ export function ProductionCalendarPage() {
             Work Orders
           </Button>
           <span className="text-muted-foreground/40">/</span>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/production/schedule')}>
+            Timeline Schedule
+          </Button>
+          <span className="text-muted-foreground/40">/</span>
           <Button variant="ghost" size="sm" onClick={() => navigate('/production')}>
             Production Overview
           </Button>

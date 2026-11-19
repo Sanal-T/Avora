@@ -6,11 +6,13 @@ import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { mockWorkOrders, type MockWorkOrder } from '../../../data/mockData'
+import { WorkOrderFormModal } from './WorkOrderFormModal'
 
 export function ProductionListPage() {
   const navigate = useNavigate()
-  const [data] = useState<MockWorkOrder[]>(mockWorkOrders)
+  const [data, setData] = useState<MockWorkOrder[]>(() => [...mockWorkOrders])
   const [activeTab, setActiveTab] = useState<string>('all')
+  const [workOrderModalOpen, setWorkOrderModalOpen] = useState(false)
 
   const filterTabs: QuickFilterTab[] = [
     { id: 'all', label: 'All Work Orders', count: data.length },
@@ -134,6 +136,14 @@ export function ProductionListPage() {
               <Calendar className="size-3.5 mr-1" />
               <span>Production Calendar</span>
             </Button>
+            <Button variant="outline" size="sm" onClick={() => navigate('/production/schedule')}>
+              <Calendar className="size-3.5 mr-1" />
+              <span>Timeline Schedule</span>
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setWorkOrderModalOpen(true)}>
+              <Plus className="size-3.5 mr-1" />
+              <span>New Work Order</span>
+            </Button>
           </div>
         }
       />
@@ -147,6 +157,14 @@ export function ProductionListPage() {
         activeFilterTab={activeTab}
         onFilterTabChange={setActiveTab}
         exportFilename="avora_work_orders.csv"
+      />
+
+      <WorkOrderFormModal
+        open={workOrderModalOpen}
+        onClose={() => setWorkOrderModalOpen(false)}
+        onCreateSuccess={(newWo) => {
+          setData([newWo, ...data])
+        }}
       />
     </PageContainer>
   )

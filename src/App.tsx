@@ -16,6 +16,7 @@ import { ProductionListPage } from './pages/departments/production/ProductionLis
 import { WorkOrderDetailPage } from './pages/departments/production/WorkOrderDetailPage'
 import { ProductionSchedulePage } from './pages/departments/production/ProductionSchedulePage'
 import { ProductionCalendarPage } from './pages/departments/production/ProductionCalendarPage'
+import { WorkOrderFormModal } from './pages/departments/production/WorkOrderFormModal'
 import { FeedbackListPage } from './pages/departments/feedback/FeedbackListPage'
 import { FeedbackDetailPage } from './pages/departments/feedback/FeedbackDetailPage'
 import { LabourListPage } from './pages/departments/labour/LabourListPage'
@@ -49,6 +50,7 @@ export default function App() {
   // Modals state for top-level trigger
   const [enquiryModalOpen, setEnquiryModalOpen] = useState(false)
   const [designModalOpen, setDesignModalOpen] = useState(false)
+  const [workOrderModalOpen, setWorkOrderModalOpen] = useState(false)
 
   const refresh = () => {
     setOverview((current) => ({ ...current, loading: true, error: false }))
@@ -147,13 +149,13 @@ export default function App() {
                     <DepartmentDashboardPage
                       departmentId="production"
                       rangeId={rangeId}
-                      onOpenCreate={() => window.location.href = '/production/list'}
+                      onOpenCreate={() => setWorkOrderModalOpen(true)}
                     />
                   }
                 />
                 <Route path="/production/list" element={<ProductionListPage />} />
                 <Route path="/production/calendar" element={<ProductionCalendarPage />} />
-                <Route path="/production/schedule" element={<ProductionCalendarPage />} />
+                <Route path="/production/schedule" element={<ProductionSchedulePage />} />
                 <Route path="/production/:id" element={<WorkOrderDetailPage />} />
 
                 <Route
@@ -199,6 +201,11 @@ export default function App() {
       <DesignFormModal
         open={designModalOpen}
         onClose={() => setDesignModalOpen(false)}
+        onCreateSuccess={() => refresh()}
+      />
+      <WorkOrderFormModal
+        open={workOrderModalOpen}
+        onClose={() => setWorkOrderModalOpen(false)}
         onCreateSuccess={() => refresh()}
       />
     </BrowserRouter>
