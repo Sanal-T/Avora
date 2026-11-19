@@ -19,12 +19,12 @@ export function PageHeader({
   actions?: ReactNode
 }) {
   return (
-    <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between select-none cursor-default">
       <div className="flex items-start gap-3">
         {icon}
         <div>
-          <h1 className="text-page-title">{title}</h1>
-          {description && <p className="mt-1 text-muted-foreground">{description}</p>}
+          <h1 className="text-page-title select-none cursor-default">{title}</h1>
+          {description && <p className="mt-1 text-muted-foreground select-none cursor-default">{description}</p>}
         </div>
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

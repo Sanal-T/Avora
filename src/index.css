@@ -213,6 +213,26 @@ body {
   color: var(--primary-foreground);
 }
 
+/* Prevent accidental text cursor / caret on static UI chrome */
+header,
+nav,
+button,
+label,
+h1, h2, h3, h4, h5, h6,
+.text-page-title,
+.select-none {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+[contenteditable="true"],
+.selectable {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
