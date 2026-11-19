@@ -9,40 +9,51 @@ import {
   CartesianGrid,
   Legend,
 } from 'recharts'
-import { DEPARTMENT_ORDER, DEPARTMENT_META, type DepartmentId } from '../../lib/departments'
+import { DEPARTMENT_META, type DepartmentId } from '../../lib/departments'
 
 export type TrendPoint = {
   date: string
   enquiries: number
-  designs: number
-  quotations: number
   production: number
-  feedback: number
-  labour: number
+  quotations: number
 }
 
-// 7-day or 30-day mock trend series
+// Daily continuous trend dataset from Nov 01 through Nov 19
 export const defaultBusinessTrends: TrendPoint[] = [
-  { date: 'Nov 01', enquiries: 4, designs: 2, quotations: 3, production: 1, feedback: 2, labour: 8 },
-  { date: 'Nov 04', enquiries: 7, designs: 3, quotations: 5, production: 2, feedback: 4, labour: 9 },
-  { date: 'Nov 07', enquiries: 6, designs: 4, quotations: 4, production: 3, feedback: 3, labour: 10 },
-  { date: 'Nov 10', enquiries: 12, designs: 5, quotations: 8, production: 4, feedback: 5, labour: 12 },
-  { date: 'Nov 13', enquiries: 9, designs: 6, quotations: 7, production: 3, feedback: 4, labour: 11 },
-  { date: 'Nov 16', enquiries: 14, designs: 7, quotations: 9, production: 5, feedback: 6, labour: 14 },
-  { date: 'Nov 19', enquiries: 11, designs: 5, quotations: 8, production: 4, feedback: 5, labour: 12 },
+  { date: 'Nov 01', enquiries: 4, production: 1, quotations: 3 },
+  { date: 'Nov 02', enquiries: 5, production: 1, quotations: 4 },
+  { date: 'Nov 03', enquiries: 6, production: 2, quotations: 4 },
+  { date: 'Nov 04', enquiries: 7, production: 2, quotations: 5 },
+  { date: 'Nov 05', enquiries: 7, production: 2, quotations: 5 },
+  { date: 'Nov 06', enquiries: 6, production: 3, quotations: 4 },
+  { date: 'Nov 07', enquiries: 6, production: 3, quotations: 4 },
+  { date: 'Nov 08', enquiries: 8, production: 3, quotations: 6 },
+  { date: 'Nov 09', enquiries: 10, production: 4, quotations: 7 },
+  { date: 'Nov 10', enquiries: 12, production: 4, quotations: 8 },
+  { date: 'Nov 11', enquiries: 11, production: 3, quotations: 7 },
+  { date: 'Nov 12', enquiries: 10, production: 3, quotations: 7 },
+  { date: 'Nov 13', enquiries: 9, production: 3, quotations: 7 },
+  { date: 'Nov 14', enquiries: 11, production: 4, quotations: 8 },
+  { date: 'Nov 15', enquiries: 13, production: 4, quotations: 8 },
+  { date: 'Nov 16', enquiries: 14, production: 5, quotations: 9 },
+  { date: 'Nov 17', enquiries: 13, production: 5, quotations: 9 },
+  { date: 'Nov 18', enquiries: 12, production: 4, quotations: 8 },
+  { date: 'Nov 19', enquiries: 11, production: 4, quotations: 8 },
 ]
 
+// Axis ticks kept exactly as originally displayed
+const AXIS_TICKS = ['Nov 01', 'Nov 04', 'Nov 07', 'Nov 10', 'Nov 13', 'Nov 16', 'Nov 19']
+
+const GRAPH_DEPARTMENTS: DepartmentId[] = ['enquiries', 'production', 'quotations']
+
 export function BusinessTrendsChart({ data = defaultBusinessTrends }: { data?: TrendPoint[] }) {
-  const [activeSeries, setActiveSeries] = useState<Record<DepartmentId, boolean>>({
+  const [activeSeries, setActiveSeries] = useState<Record<string, boolean>>({
     enquiries: true,
-    designs: true,
-    quotations: true,
     production: true,
-    feedback: true,
-    labour: false,
+    quotations: true,
   })
 
-  const toggleSeries = (id: DepartmentId) => {
+  const toggleSeries = (id: string) => {
     setActiveSeries((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
@@ -50,7 +61,7 @@ export function BusinessTrendsChart({ data = defaultBusinessTrends }: { data?: T
     <div className="w-full">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          {DEPARTMENT_ORDER.map((id) => {
+          {GRAPH_DEPARTMENTS.map((id) => {
             const meta = DEPARTMENT_META[id]
             const active = activeSeries[id]
             return (
@@ -80,7 +91,7 @@ export function BusinessTrendsChart({ data = defaultBusinessTrends }: { data?: T
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <defs>
-              {DEPARTMENT_ORDER.map((id) => (
+              {GRAPH_DEPARTMENTS.map((id) => (
                 <linearGradient key={id} id={`grad-${id}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={DEPARTMENT_META[id].color} stopOpacity={0.25} />
                   <stop offset="95%" stopColor={DEPARTMENT_META[id].color} stopOpacity={0.0} />
@@ -90,6 +101,7 @@ export function BusinessTrendsChart({ data = defaultBusinessTrends }: { data?: T
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
             <XAxis
               dataKey="date"
+              ticks={AXIS_TICKS}
               tickLine={false}
               axisLine={false}
               tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
@@ -100,6 +112,7 @@ export function BusinessTrendsChart({ data = defaultBusinessTrends }: { data?: T
               tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
             />
             <Tooltip
+              cursor={{ stroke: 'var(--foreground)', strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.4 }}
               contentStyle={{
                 backgroundColor: 'var(--card)',
                 borderColor: 'var(--border)',
@@ -110,7 +123,7 @@ export function BusinessTrendsChart({ data = defaultBusinessTrends }: { data?: T
               }}
             />
             <Legend wrapperStyle={{ display: 'none' }} />
-            {DEPARTMENT_ORDER.map((id) =>
+            {GRAPH_DEPARTMENTS.map((id) =>
               activeSeries[id] ? (
                 <Area
                   key={id}
@@ -121,6 +134,7 @@ export function BusinessTrendsChart({ data = defaultBusinessTrends }: { data?: T
                   strokeWidth={2}
                   fillOpacity={1}
                   fill={`url(#grad-${id})`}
+                  activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--card)' }}
                 />
               ) : null,
             )}
