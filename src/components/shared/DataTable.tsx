@@ -104,7 +104,7 @@ export function DataTable<T extends Record<string, any>>({
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
-  const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable')
+  const density = 'comfortable'
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false)
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() =>
     columns.reduce((acc, col) => ({ ...acc, [col.key]: true }), {}),
@@ -369,16 +369,6 @@ export function DataTable<T extends Record<string, any>>({
               </div>
             )}
           </div>
-
-          {/* Density Toggle */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setDensity((d) => (d === 'comfortable' ? 'compact' : 'comfortable'))}
-            title={`Density: ${density}`}
-          >
-            <span className="text-xs font-mono">{density === 'comfortable' ? 'Dense' : 'Cozy'}</span>
-          </Button>
 
           {/* CSV Export */}
           <Button variant="outline" size="sm" onClick={handleExportCSV} title="Export CSV">
