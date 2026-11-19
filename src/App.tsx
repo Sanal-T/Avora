@@ -18,11 +18,6 @@ import { ProductionSchedulePage } from './pages/departments/production/Productio
 import { FeedbackListPage } from './pages/departments/feedback/FeedbackListPage'
 import { FeedbackDetailPage } from './pages/departments/feedback/FeedbackDetailPage'
 import { LabourListPage } from './pages/departments/labour/LabourListPage'
-import { ReportsPage } from './pages/reports/ReportsPage'
-import { UsersPage } from './pages/admin/UsersPage'
-import { RolesMatrixPage } from './pages/admin/RolesMatrixPage'
-import { AuditLogPage } from './pages/admin/AuditLogPage'
-import { SettingsPage } from './pages/admin/SettingsPage'
 import { LoginPage } from './pages/auth/LoginPage'
 import { NotFoundPage } from './pages/system/NotFoundPage'
 import { ForbiddenPage } from './pages/system/ForbiddenPage'
@@ -183,18 +178,6 @@ export default function App() {
                   }
                 />
                 <Route path="/labour/list" element={<LabourListPage />} />
-
-                {/* Reports */}
-                <Route path="/reports" element={<ReportsPage />} />
-
-                {/* Administration */}
-                <Route path="/admin/users" element={<UsersPage />} />
-                <Route path="/admin/roles" element={<RolesMatrixPage />} />
-                <Route path="/admin/audit" element={<AuditLogPage />} />
-                <Route path="/admin/settings" element={<SettingsPage />} />
-
-                {/* Redirect any legacy design-system links */}
-                <Route path="/design-system" element={<Navigate to="/" replace />} />
 
                 {/* System & Error Pages */}
                 <Route path="/403" element={<ForbiddenPage />} />

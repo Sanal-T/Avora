@@ -259,9 +259,7 @@ export function MainDashboard({
               <h3 className="text-sm font-semibold text-foreground">Live Activity Feed</h3>
               <p className="text-xs text-muted-foreground">Chronological audit stream of changes</p>
             </div>
-            <Link to="/admin/audit" className="text-xs font-medium text-primary hover:underline">
-              View full audit log
-            </Link>
+            <span className="text-xs text-muted-foreground">Recent events</span>
           </div>
 
           <div className="mt-4">

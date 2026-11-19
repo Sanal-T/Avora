@@ -6,8 +6,6 @@ import {
   Sun,
   ChevronRight,
   LogOut,
-  User,
-  KeyRound,
 } from 'lucide-react'
 import { currentUser } from '../../lib/auth'
 import { useTheme } from '../../lib/hooks'
@@ -67,11 +65,6 @@ export function Topbar({
         })
       } else if (part === 'list') {
         crumbs.push({ label: 'Registry' })
-      } else if (part === 'admin') {
-        crumbs.push({
-          label: 'Administration',
-          to: isLast ? undefined : '/admin/users',
-        })
       } else if (part === 'builder') {
         crumbs.push({ label: 'Quotation Builder' })
       } else if (part === 'schedule') {
@@ -162,33 +155,6 @@ export function Topbar({
                   <p className="text-[11px] text-muted-foreground truncate">{currentUser.role}</p>
                 </div>
               </div>
-
-              <div className="my-1 border-t border-border" />
-
-              {/* Navigation Actions */}
-              <button
-                type="button"
-                onClick={() => {
-                  setAccountMenuOpen(false)
-                  navigate('/admin/users')
-                }}
-                className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
-              >
-                <User className="size-3.5 text-muted-foreground" />
-                <span>Profile & Account</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setAccountMenuOpen(false)
-                  navigate('/login')
-                }}
-                className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
-              >
-                <KeyRound className="size-3.5 text-muted-foreground" />
-                <span>Change Password</span>
-              </button>
 
               <div className="my-1 border-t border-border" />
 

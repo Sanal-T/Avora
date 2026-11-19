@@ -95,18 +95,6 @@ export type MockWorker = {
   totalHours: number
 }
 
-export type MockAuditLog = {
-  id: string
-  timestamp: string
-  userName: string
-  userEmail: string
-  action: string
-  entity: string
-  entityId: string
-  details: string
-  ipAddress: string
-}
-
 export type MockNotification = {
   id: string
   title: string
@@ -519,65 +507,6 @@ export const mockWorkers: MockWorker[] = [
     phone: '+91 98800 11984',
     efficiencyRating: '4.9 / 5',
     totalHours: 172,
-  },
-]
-
-// ──────────────── MOCK AUDIT LOGS ────────────────
-export const mockAuditLogs: MockAuditLog[] = [
-  {
-    id: 'aud-1',
-    timestamp: '2026-11-18 10:45:12',
-    userName: 'Shiva Kumar',
-    userEmail: 'shiva@avora.internal',
-    action: 'STATUS_UPDATE',
-    entity: 'Quotation',
-    entityId: 'Q-2052',
-    details: 'Status transitioned from Pending to Approved by client acceptance signature.',
-    ipAddress: '192.168.1.45',
-  },
-  {
-    id: 'aud-2',
-    timestamp: '2026-11-18 09:30:00',
-    userName: 'Maya Krishnan',
-    userEmail: 'maya@avora.internal',
-    action: 'FILE_UPLOAD',
-    entity: 'Design',
-    entityId: 'D-619',
-    details: 'Uploaded revised production CAD packet (v2.1.dwg, 14.2 MB).',
-    ipAddress: '192.168.1.52',
-  },
-  {
-    id: 'aud-3',
-    timestamp: '2026-11-17 16:15:24',
-    userName: 'Vikram Patel',
-    userEmail: 'vikram@avora.internal',
-    action: 'CREATE',
-    entity: 'Enquiry',
-    entityId: 'ENQ-1048',
-    details: 'Created commercial fit-out enquiry for Acme Spaces.',
-    ipAddress: '192.168.1.33',
-  },
-  {
-    id: 'aud-4',
-    timestamp: '2026-11-17 14:02:18',
-    userName: 'Shiva Kumar',
-    userEmail: 'shiva@avora.internal',
-    action: 'LABOUR_ALLOCATE',
-    entity: 'LabourAssignment',
-    entityId: 'LA-140',
-    details: 'Assigned Ramesh Gowda (Supervisor) to Work Order WO-0842.',
-    ipAddress: '192.168.1.45',
-  },
-  {
-    id: 'aud-5',
-    timestamp: '2026-11-16 11:20:41',
-    userName: 'Murugan S',
-    userEmail: 'murugan@avora.internal',
-    action: 'TASK_COMPLETE',
-    entity: 'ProductionTask',
-    entityId: 'PT-0839-4',
-    details: 'Marked on-site delivery and installation complete for WO-0839.',
-    ipAddress: '192.168.1.80',
   },
 ]
 

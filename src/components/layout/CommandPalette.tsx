@@ -9,9 +9,6 @@ import {
   MessageSquare,
   Users,
   BarChart3,
-  Shield,
-  History,
-  Settings,
   X,
   ArrowRight,
 } from 'lucide-react'
@@ -50,16 +47,12 @@ export function CommandPalette({
 
   const defaultNavigationItems: SearchItem[] = [
     { id: 'nav-overview', title: 'Company Overview', subtitle: 'Global ERP dashboard and KPIs', category: 'Navigation', path: '/', icon: BarChart3 },
-    { id: 'nav-enquiries', title: 'Enquiries', subtitle: 'Sales leads and customer requests', category: 'Navigation', path: '/enquiries', icon: Inbox },
-    { id: 'nav-designs', title: 'Designs', subtitle: 'CAD drawings, renderings and approvals', category: 'Navigation', path: '/designs', icon: PenTool },
-    { id: 'nav-quotations', title: 'Quotations', subtitle: 'Costing, estimates and quote builder', category: 'Navigation', path: '/quotations', icon: FileText },
-    { id: 'nav-production', title: 'Production', subtitle: 'Work orders, tasks and shop floor', category: 'Navigation', path: '/production', icon: Factory },
-    { id: 'nav-feedback', title: 'Feedback', subtitle: 'Customer reviews, ratings and NPS', category: 'Navigation', path: '/feedback', icon: MessageSquare },
-    { id: 'nav-labour', title: 'Labour & Workforce', subtitle: 'Worker availability and team allocation', category: 'Navigation', path: '/labour', icon: Users },
-    { id: 'nav-reports', title: 'Executive Reports', subtitle: 'Financial & operational performance', category: 'Navigation', path: '/reports', icon: BarChart3 },
-    { id: 'nav-users', title: 'User Management', subtitle: 'System users, staff and permissions', category: 'Administration', path: '/admin/users', icon: Shield },
-    { id: 'nav-audit', title: 'Audit Trail', subtitle: 'System security and compliance log', category: 'Administration', path: '/admin/audit', icon: History },
-    { id: 'nav-settings', title: 'System Settings', subtitle: 'ERP configuration, defaults and branding', category: 'Administration', path: '/admin/settings', icon: Settings },
+    { id: 'nav-enquiries', title: 'Enquiries', subtitle: 'Sales leads and customer requests', category: 'Departments', path: '/enquiries', icon: Inbox },
+    { id: 'nav-designs', title: 'Designs', subtitle: 'CAD drawings, renderings and approvals', category: 'Departments', path: '/designs', icon: PenTool },
+    { id: 'nav-quotations', title: 'Quotations', subtitle: 'Costing, estimates and quote builder', category: 'Departments', path: '/quotations', icon: FileText },
+    { id: 'nav-production', title: 'Production', subtitle: 'Work orders, tasks and shop floor', category: 'Departments', path: '/production', icon: Factory },
+    { id: 'nav-feedback', title: 'Feedback', subtitle: 'Customer reviews, ratings and NPS', category: 'Departments', path: '/feedback', icon: MessageSquare },
+    { id: 'nav-labour', title: 'Labour & Workforce', subtitle: 'Worker availability and team allocation', category: 'Departments', path: '/labour', icon: Users },
   ]
 
   // Search records
@@ -149,7 +142,7 @@ export function CommandPalette({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search records, departments, actions… (e.g. ENQ-1048, Aster, Users)"
+            placeholder="Search records, departments, work orders… (e.g. ENQ-1048, Aster, Pods)"
             className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
             autoFocus
           />
