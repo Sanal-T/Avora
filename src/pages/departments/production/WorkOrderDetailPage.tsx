@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -10,6 +10,9 @@ import {
   Calendar,
   Truck,
   CheckCircle2,
+  Plus,
+  Layers,
+  Edit3,
 } from 'lucide-react'
 import { PageContainer } from '../../../components/shared/PageHeader'
 import { Button } from '../../../components/ui/Button'
@@ -20,6 +23,13 @@ import { Checkbox } from '../../../components/ui/Checkbox'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { ActivityTimeline } from '../../../components/shared/ActivityTimeline'
 import { mockWorkOrders, type MockWorkOrder } from '../../../data/mockData'
+import {
+  getProductionSlots,
+  deleteProductionSlot,
+  type MockProductionSlot,
+} from '../../../data/productionSlots'
+import { AllocateSlotModal } from './AllocateSlotModal'
+import { SlotDetailDialog } from './SlotDetailDialog'
 import { toast } from '../../../lib/toast'
 
 export function WorkOrderDetailPage() {
@@ -33,6 +43,23 @@ export function WorkOrderDetailPage() {
   const [delayModalOpen, setDelayModalOpen] = useState(false)
   const [delayReason, setDelayReason] = useState('')
   const [newTargetDate, setNewTargetDate] = useState('2026-11-25')
+
+  // Production Slots State
+  const [allSlots, setAllSlots] = useState<MockProductionSlot[]>(() => getProductionSlots())
+  const [slotModalOpen, setSlotModalOpen] = useState(false)
+  const [editingSlot, setEditingSlot] = useState<MockProductionSlot | null>(null)
+  const [inspectedSlot, setInspectedSlot] = useState<MockProductionSlot | null>(null)
+
+  const workOrderSlots = useMemo(() => {
+    if (!workOrder) return []
+    return allSlots.filter(
+      (s) => s.workOrderId === workOrder.id || s.workOrderCode === workOrder.code,
+    )
+  }, [allSlots, workOrder])
+
+  const refreshSlots = () => {
+    setAllSlots(getProductionSlots())
+  }
 
   if (!workOrder) {
     return (
@@ -81,6 +108,14 @@ export function WorkOrderDetailPage() {
           <span>Back to Work Orders</span>
         </Link>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/production/calendar')}
+          >
+            <Calendar className="size-3.5 mr-1" />
+            Production Calendar
+          </Button>
           {workOrder.status !== 'delayed' && (
             <Button
               variant="outline"
@@ -133,8 +168,145 @@ export function WorkOrderDetailPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left 2 Cols: Manufacturing Task Checklist */}
+        {/* Left 2 Cols: Production Slots & Task Checklist */}
         <div className="space-y-4 lg:col-span-2">
+          {/* Allocated Production Slots Card */}
+          <Card className="p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Factory className="size-4 text-primary" />
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Allocated Production Slots & Machine Bays
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Scheduled shop floor runs with allocated start and end dates.
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditingSlot(null)
+                  setSlotModalOpen(true)
+                }}
+              >
+                <Plus className="size-3.5 mr-1" />
+                Allocate Slot
+              </Button>
+            </div>
+
+            {workOrderSlots.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border p-6 text-center">
+                <p className="text-xs text-muted-foreground">
+                  No production slots currently allocated to this work order.
+                </p>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => {
+                    setEditingSlot(null)
+                    setSlotModalOpen(true)
+                  }}
+                >
+                  <Plus className="size-3.5 mr-1" />
+                  Allocate First Slot
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {workOrderSlots.map((slot) => {
+                  const startD = new Date(slot.startDate)
+                  const endD = new Date(slot.endDate)
+                  const days =
+                    !isNaN(startD.getTime()) && !isNaN(endD.getTime())
+                      ? Math.max(1, Math.round((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+                      : 1
+
+                  return (
+                    <div
+                      key={slot.id}
+                      className="rounded-lg border border-border bg-card p-3.5 shadow-2xs space-y-2"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-primary">{slot.code}</span>
+                            <span className="rounded bg-muted px-2 py-0.5 text-[11px] font-semibold text-foreground">
+                              {slot.bay}
+                            </span>
+                            <span className="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                              Stage: {slot.stage}
+                            </span>
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                                slot.status === 'in_progress'
+                                  ? 'bg-dept-production text-white'
+                                  : slot.status === 'completed'
+                                  ? 'bg-success text-white'
+                                  : slot.status === 'delayed'
+                                  ? 'bg-danger text-white'
+                                  : 'bg-primary text-white'
+                              }`}
+                            >
+                              {slot.status.replace('_', ' ')}
+                            </span>
+                          </div>
+                          <p className="text-xs font-semibold text-foreground mt-1">{slot.title}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => {
+                              setEditingSlot(slot)
+                              setSlotModalOpen(true)
+                            }}
+                          >
+                            <Edit3 className="size-3 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => setInspectedSlot(slot)}
+                          >
+                            Details
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Date Allocation Strip */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded bg-muted/50 p-2 text-xs">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block">Allocated Timeframe</span>
+                          <span className="font-mono font-bold text-foreground">
+                            {slot.startDate} → {slot.endDate}
+                          </span>
+                          <span className="text-[10px] text-primary ml-1 font-semibold">({days}d)</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block">Daily Shift Window</span>
+                          <span className="font-mono text-foreground">
+                            {slot.startTime || '08:00'} – {slot.endTime || '17:00'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block">Floor Supervisor</span>
+                          <span className="text-foreground font-medium">{slot.leadWorker}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </Card>
+
           <Card className="p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
@@ -266,6 +438,37 @@ export function WorkOrderDetailPage() {
           </div>
         </div>
       </Dialog>
+
+      {/* Production Slot Allocation Modal */}
+      <AllocateSlotModal
+        open={slotModalOpen}
+        onClose={() => {
+          setSlotModalOpen(false)
+          setEditingSlot(null)
+        }}
+        existingSlot={editingSlot}
+        preselectedWorkOrderId={workOrder.id}
+        onSaveSuccess={() => {
+          refreshSlots()
+        }}
+      />
+
+      {/* Slot Inspection Dialog */}
+      <SlotDetailDialog
+        open={!!inspectedSlot}
+        onClose={() => setInspectedSlot(null)}
+        slot={inspectedSlot}
+        onEdit={(slot) => {
+          setEditingSlot(slot)
+          setSlotModalOpen(true)
+        }}
+        onDelete={(slotId) => {
+          deleteProductionSlot(slotId)
+          refreshSlots()
+          setInspectedSlot(null)
+          toast.success('Production Slot Removed', 'Slot de-allocated from work order.')
+        }}
+      />
     </PageContainer>
   )
 }

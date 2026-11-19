@@ -130,9 +130,9 @@ export function ProductionListPage() {
         description="Shop floor manufacturing jobs, stage progress, assembly checklist and field installation."
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate('/production/schedule')}>
-              <Calendar className="size-3.5" />
-              <span>Timeline Schedule</span>
+            <Button variant="outline" size="sm" onClick={() => navigate('/production/calendar')}>
+              <Calendar className="size-3.5 mr-1" />
+              <span>Production Calendar</span>
             </Button>
           </div>
         }

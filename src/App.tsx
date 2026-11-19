@@ -15,6 +15,7 @@ import { QuotationBuilderPage } from './pages/departments/quotations/QuotationBu
 import { ProductionListPage } from './pages/departments/production/ProductionListPage'
 import { WorkOrderDetailPage } from './pages/departments/production/WorkOrderDetailPage'
 import { ProductionSchedulePage } from './pages/departments/production/ProductionSchedulePage'
+import { ProductionCalendarPage } from './pages/departments/production/ProductionCalendarPage'
 import { FeedbackListPage } from './pages/departments/feedback/FeedbackListPage'
 import { FeedbackDetailPage } from './pages/departments/feedback/FeedbackDetailPage'
 import { LabourListPage } from './pages/departments/labour/LabourListPage'
@@ -151,7 +152,8 @@ export default function App() {
                   }
                 />
                 <Route path="/production/list" element={<ProductionListPage />} />
-                <Route path="/production/schedule" element={<ProductionSchedulePage />} />
+                <Route path="/production/calendar" element={<ProductionCalendarPage />} />
+                <Route path="/production/schedule" element={<ProductionCalendarPage />} />
                 <Route path="/production/:id" element={<WorkOrderDetailPage />} />
 
                 <Route

@@ -67,8 +67,8 @@ export function Topbar({
         crumbs.push({ label: 'Registry' })
       } else if (part === 'builder') {
         crumbs.push({ label: 'Quotation Builder' })
-      } else if (part === 'schedule') {
-        crumbs.push({ label: 'Production Schedule' })
+      } else if (part === 'schedule' || part === 'calendar') {
+        crumbs.push({ label: 'Production Calendar' })
       } else {
         crumbs.push({
           label: part.toUpperCase(),

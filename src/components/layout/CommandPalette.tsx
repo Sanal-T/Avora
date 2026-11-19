@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Users,
   BarChart3,
+  Calendar,
   X,
   ArrowRight,
 } from 'lucide-react'
@@ -51,6 +52,7 @@ export function CommandPalette({
     { id: 'nav-designs', title: 'Designs', subtitle: 'CAD drawings, renderings and approvals', category: 'Departments', path: '/designs', icon: PenTool },
     { id: 'nav-quotations', title: 'Quotations', subtitle: 'Costing, estimates and quote builder', category: 'Departments', path: '/quotations', icon: FileText },
     { id: 'nav-production', title: 'Production', subtitle: 'Work orders, tasks and shop floor', category: 'Departments', path: '/production', icon: Factory },
+    { id: 'nav-production-calendar', title: 'Production Calendar & Slots', subtitle: 'Shop bays schedule & start/end date allocations', category: 'Production', path: '/production/calendar', icon: Calendar },
     { id: 'nav-feedback', title: 'Feedback', subtitle: 'Customer reviews, ratings and NPS', category: 'Departments', path: '/feedback', icon: MessageSquare },
     { id: 'nav-labour', title: 'Labour & Workforce', subtitle: 'Worker availability and team allocation', category: 'Departments', path: '/labour', icon: Users },
   ]
