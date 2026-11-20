@@ -14,8 +14,6 @@ import { PageContainer, PageHeader } from '../../components/shared/PageHeader'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { StatusBadge } from '../../components/shared/StatusBadge'
-import { DepartmentTrendChart } from '../../components/charts/DepartmentTrendChart'
-import { DepartmentDistributionChart } from '../../components/charts/DepartmentDistributionChart'
 import { DEPARTMENT_META, type DepartmentId } from '../../lib/departments'
 import type { RangeKey } from '../../data/dashboard'
 import {
@@ -130,27 +128,6 @@ export function DepartmentDashboardPage({
           </Card>
         ))}
       </div>
-
-      {/* Two-Column Analytics Area */}
-      {departmentId !== 'production' && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card className="p-5">
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold text-foreground">Weekly Activity Trend</h3>
-              <p className="text-xs text-muted-foreground">Volume progression across weekly buckets</p>
-            </div>
-            <DepartmentTrendChart departmentId={departmentId} data={config.trendData} />
-          </Card>
-
-          <Card className="p-5">
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold text-foreground">{config.distributionTitle}</h3>
-              <p className="text-xs text-muted-foreground">Current category and status allocation</p>
-            </div>
-            <DepartmentDistributionChart data={config.distributionData} />
-          </Card>
-        </div>
-      )}
 
       {/* Two-Column Bottom: Needs Attention & Recent Records Table */}
       <div className="grid gap-6 lg:grid-cols-3">

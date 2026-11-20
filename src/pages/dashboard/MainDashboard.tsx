@@ -17,9 +17,7 @@ import {
 import { PageContainer, PageHeader, DataSourceBadge } from '../../components/shared/PageHeader'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
-import { Sparkline } from '../../components/ui/Sparkline'
 import { Alert } from '../../components/ui/Feedback'
-import { BusinessTrendsChart } from '../../components/charts/BusinessTrendsChart'
 import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
 import { DEPARTMENT_META, type DepartmentId } from '../../lib/departments'
 import type { Department, RangeKey } from '../../data/dashboard'
@@ -129,8 +127,6 @@ export function MainDashboard({
           {overview.departments.map((dept) => {
             const Icon = icons[dept.id] || Inbox
             const meta = DEPARTMENT_META[dept.id as DepartmentId] || DEPARTMENT_META.enquiries
-            const spark = dept.metrics.map(([_, v]) => parseFloat(v.replace(/[^0-9.]/g, '')) || 0)
-            const hasSpark = spark.some((n) => n > 0)
 
             return (
               <Card
@@ -157,15 +153,10 @@ export function MainDashboard({
                   )}
                 </div>
 
-                <div className="mt-4 flex items-baseline justify-between">
+                <div className="mt-4">
                   <span className="font-display text-3xl font-extrabold tracking-tight tabular-nums text-foreground">
                     {dept.primary}
                   </span>
-                  {hasSpark ? (
-                    <div className="w-24 text-primary">
-                      <Sparkline values={spark} />
-                    </div>
-                  ) : null}
                 </div>
 
                 {/* Compact Supporting Metrics */}
@@ -187,23 +178,6 @@ export function MainDashboard({
             )
           })}
         </div>
-      </section>
-
-      {/* Business Trends & Intelligence Chart */}
-      <section aria-labelledby="trends-heading">
-        <Card className="p-5">
-          <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div>
-              <h2 id="trends-heading" className="text-section font-semibold text-foreground">
-                Business & Department Trends
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                Aggregated activity volume across commercial pipeline and manufacturing floors.
-              </p>
-            </div>
-          </div>
-          <BusinessTrendsChart />
-        </Card>
       </section>
 
       {/* Bottom Row: Pending Actions & Recent Activity */}
