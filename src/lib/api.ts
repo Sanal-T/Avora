@@ -346,6 +346,16 @@ export interface WorkOrderListResponse {
   items: WorkOrder[]
 }
 
+export interface WorkOrderCreateInput {
+  title: string
+  priority?: string
+  planned_start_date?: string | null
+  planned_end_date?: string | null
+  notes?: string | null
+  customer_id: string
+  quotation_id?: string | null
+}
+
 export const productionApi = {
   async listWorkOrders(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<WorkOrderListResponse> {
     const query = new URLSearchParams()
@@ -354,6 +364,13 @@ export const productionApi = {
     if (params.status && params.status !== 'all') query.set('status', params.status)
     if (params.search) query.set('search', params.search)
     return apiFetch<WorkOrderListResponse>(`/api/production${query.size ? `?${query.toString()}` : ''}`)
+  },
+
+  async createWorkOrder(data: WorkOrderCreateInput): Promise<WorkOrder> {
+    return apiFetch<WorkOrder>('/api/production', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
   },
 
   async getWorkOrder(id: string): Promise<WorkOrder> {
@@ -401,6 +418,16 @@ export interface DesignListResponse {
   items: Design[]
 }
 
+export interface DesignCreateInput {
+  title: string
+  description?: string | null
+  priority?: string
+  enquiry_id?: string | null
+  assigned_designer_id?: string | null
+  estimated_hours?: number | null
+  expected_completion_date?: string | null
+}
+
 export const designApi = {
   async listDesigns(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<DesignListResponse> {
     const query = new URLSearchParams()
@@ -409,6 +436,13 @@ export const designApi = {
     if (params.status && params.status !== 'all') query.set('status', params.status)
     if (params.search) query.set('search', params.search)
     return apiFetch<DesignListResponse>(`/api/designs${query.size ? `?${query.toString()}` : ''}`)
+  },
+
+  async createDesign(data: DesignCreateInput): Promise<Design> {
+    return apiFetch<Design>('/api/designs', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
   },
 
   async getDesign(id: string): Promise<Design> {
