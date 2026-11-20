@@ -6,6 +6,7 @@ import { Textarea } from '../../../components/ui/Textarea'
 import { Button } from '../../../components/ui/Button'
 import { toast } from '../../../lib/toast'
 import type { MockEnquiry } from '../../../data/mockData'
+import { customerApi, enquiryApi } from '../../../lib/api'
 
 export function EnquiryFormModal({
   open,
@@ -39,20 +40,55 @@ export function EnquiryFormModal({
     return Object.keys(errs).length === 0
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validate()) return
 
     setLoading(true)
-    setTimeout(() => {
+    try {
+      // 1. Find existing customer or create new one in PostgreSQL
+      let customerId = ''
+      try {
+        const existingCusts = await customerApi.list({ search: email.trim() })
+        if (existingCusts.items && existingCusts.items.length > 0) {
+          customerId = existingCusts.items[0].id
+        }
+      } catch (e) {
+        // search failed, proceed to create
+      }
+
+      if (!customerId) {
+        const createdCust = await customerApi.create({
+          customer_code: `CUST-${Date.now().toString().slice(-4)}`,
+          name: customerName.trim(),
+          company_name: company.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+        })
+        customerId = createdCust.id
+      }
+
+      // 2. Parse numeric budget
+      const cleanBudget = budget.replace(/[^0-9.]/g, '')
+      const numericBudget = cleanBudget ? parseFloat(cleanBudget) : undefined
+
+      // 3. Create enquiry in PostgreSQL
+      const createdEnquiry = await enquiryApi.create({
+        customer_id: customerId,
+        requirement_summary: requirement.trim(),
+        estimated_budget: numericBudget,
+        source: source || 'Direct',
+        priority: 'Medium',
+      })
+
       const newEnquiry: MockEnquiry = {
-        id: `enq-${Date.now()}`,
-        code: `ENQ-${Math.floor(1050 + Math.random() * 50)}`,
-        company,
-        customerName,
-        email,
-        phone,
-        requirement,
+        id: createdEnquiry.id,
+        code: createdEnquiry.enquiry_number,
+        company: company.trim(),
+        customerName: customerName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        requirement: requirement.trim(),
         budget: budget.startsWith('₹') ? budget : `₹${budget}`,
         source,
         assignedTo,
@@ -61,18 +97,22 @@ export function EnquiryFormModal({
         updatedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
       }
 
-      setLoading(false)
       onCreateSuccess(newEnquiry)
-      toast.success('Enquiry registered', `Enquiry ${newEnquiry.code} added to queue.`)
+      toast.success('Enquiry Saved to PostgreSQL', `Enquiry ${createdEnquiry.enquiry_number} permanently recorded in database.`)
       onClose()
-      // reset
+
+      // Reset form
       setCompany('')
       setCustomerName('')
       setEmail('')
       setPhone('')
       setRequirement('')
       setBudget('')
-    }, 400)
+    } catch (err: any) {
+      toast.error('Failed to Save Enquiry', err.message || 'Database error occurred while saving enquiry.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

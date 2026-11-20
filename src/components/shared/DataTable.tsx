@@ -104,7 +104,7 @@ export function DataTable<T extends Record<string, any>>({
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
-  const density = 'comfortable'
+  const density: 'comfortable' | 'compact' = 'comfortable'
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false)
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() =>
     columns.reduce((acc, col) => ({ ...acc, [col.key]: true }), {}),
@@ -502,7 +502,7 @@ export function DataTable<T extends Record<string, any>>({
                           key={col.key}
                           className={cn(
                             'px-4 text-foreground',
-                            density === 'compact' ? 'py-2 text-xs' : 'py-3 text-sm',
+                            (density as string) === 'compact' ? 'py-2 text-xs' : 'py-3 text-sm',
                             col.align === 'right' && 'text-right',
                             col.align === 'center' && 'text-center',
                           )}

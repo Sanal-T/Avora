@@ -4,21 +4,27 @@ import { Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { toast } from '../../lib/toast'
+import { authApi } from '../../lib/api'
 
 export function LoginPage() {
   const navigate = useNavigate()
-  const [email, setEmail] = useState('shiva@avora.internal')
-  const [password, setPassword] = useState('••••••••••••')
+  const [email, setEmail] = useState('admin@avora.io')
+  const [password, setPassword] = useState('Admin@123456')
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
-      toast.success('Welcome back, Shiva', 'Logged in to Avora ERP with Administrator credentials.')
+    try {
+      await authApi.login(email, password)
+      const profile = await authApi.getMe()
+      toast.success(`Welcome back, ${profile.full_name || 'Administrator'}`, 'Authenticated successfully against Avora ERP database.')
       navigate('/')
-    }, 400)
+    } catch (err: any) {
+      toast.error('Login Failed', err.message || 'Incorrect email or password.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
