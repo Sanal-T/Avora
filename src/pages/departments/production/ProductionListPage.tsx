@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, ArrowLeft, ArrowUpRight, Calendar, AlertTriangle } from 'lucide-react'
 import { PageContainer, PageHeader } from '../../../components/shared/PageHeader'
@@ -6,13 +6,63 @@ import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { mockWorkOrders, type MockWorkOrder } from '../../../data/mockData'
+import { productionApi, type WorkOrder } from '../../../lib/api'
 import { WorkOrderFormModal } from './WorkOrderFormModal'
+
+function toUiWorkOrder(wo: WorkOrder): MockWorkOrder {
+  const st = (wo.status || '').toLowerCase()
+  let status: MockWorkOrder['status'] = 'active'
+  if (st.includes('complet')) status = 'completed'
+  else if (st.includes('delay')) status = 'delayed'
+
+  let stage: MockWorkOrder['stage'] = 'Assembly'
+  if (status === 'completed') stage = 'Installation'
+  else if (st.includes('cutting')) stage = 'Cutting'
+  else if (st.includes('finish')) stage = 'Finishing'
+
+  let completionRate = 45
+  if (status === 'completed') completionRate = 100
+  else if (st.includes('progress')) completionRate = 65
+
+  return {
+    id: wo.id,
+    code: wo.work_order_number,
+    quotationCode: wo.quotation_id ? 'Linked' : 'Standard',
+    client: wo.customer_company || wo.customer_name || 'Direct Customer',
+    title: wo.title,
+    status,
+    priority: (wo.priority?.toLowerCase() as any) || 'medium',
+    stage,
+    completionRate,
+    leadWorker: 'Production Lead',
+    startDate: wo.planned_start_date || wo.actual_start_date || 'In Progress',
+    deliveryDate: wo.planned_end_date || 'TBD',
+    tasks: (wo.tasks || []).map((t) => ({
+      id: t.id,
+      title: t.task_name,
+      completed: t.status === 'Completed',
+    })),
+  }
+}
 
 export function ProductionListPage() {
   const navigate = useNavigate()
   const [data, setData] = useState<MockWorkOrder[]>(() => [...mockWorkOrders])
   const [activeTab, setActiveTab] = useState<string>('all')
   const [workOrderModalOpen, setWorkOrderModalOpen] = useState(false)
+
+  useEffect(() => {
+    productionApi
+      .listWorkOrders({ page_size: 100 })
+      .then((res) => {
+        if (res.items && res.items.length > 0) {
+          setData(res.items.map(toUiWorkOrder))
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load live work orders from PostgreSQL:', err)
+      })
+  }, [])
 
   const filterTabs: QuickFilterTab[] = [
     { id: 'all', label: 'All Work Orders', count: data.length },

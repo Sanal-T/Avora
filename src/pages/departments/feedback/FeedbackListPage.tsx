@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowUpRight, Star, MessageSquare } from 'lucide-react'
 import { PageContainer, PageHeader } from '../../../components/shared/PageHeader'
@@ -6,11 +6,47 @@ import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { mockFeedback, type MockFeedback } from '../../../data/mockData'
+import { feedbackApi, type Feedback } from '../../../lib/api'
+
+function toUiFeedback(f: Feedback): MockFeedback {
+  const st = (f.status || '').toLowerCase()
+  const status: MockFeedback['status'] = st.includes('await') ? 'awaiting' : 'received'
+  const rating = f.rating ?? 5
+  let sentiment: MockFeedback['sentiment'] = 'positive'
+  if (rating < 3) sentiment = 'negative'
+  else if (rating === 3) sentiment = 'neutral'
+
+  return {
+    id: f.id,
+    code: `FB-${f.id.slice(0, 4).toUpperCase()}`,
+    workOrderCode: f.work_order_number || 'Direct',
+    client: f.customer_company || f.customer_name || 'Client',
+    category: (f.category as any) || 'Quality',
+    rating,
+    status,
+    sentiment,
+    comments: f.comments || 'No remarks provided',
+    date: (f.received_at || f.created_at || '').slice(0, 10),
+  }
+}
 
 export function FeedbackListPage() {
   const navigate = useNavigate()
-  const [data] = useState<MockFeedback[]>(mockFeedback)
+  const [data, setData] = useState<MockFeedback[]>(mockFeedback)
   const [activeTab, setActiveTab] = useState<string>('all')
+
+  useEffect(() => {
+    feedbackApi
+      .listFeedback({ page_size: 100 })
+      .then((res) => {
+        if (res.items && res.items.length > 0) {
+          setData(res.items.map(toUiFeedback))
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load live feedback from PostgreSQL:', err)
+      })
+  }, [])
 
   const filterTabs: QuickFilterTab[] = [
     { id: 'all', label: 'All Responses', count: data.length },

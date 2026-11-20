@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -18,7 +18,33 @@ import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { WorkflowStepper } from '../../../components/shared/WorkflowStepper'
 import { ActivityTimeline } from '../../../components/shared/ActivityTimeline'
 import { mockQuotations, type MockQuotation } from '../../../data/mockData'
+import { quotationApi, type Quotation } from '../../../lib/api'
 import { toast } from '../../../lib/toast'
+
+function toUiQuotation(q: Quotation): MockQuotation {
+  const st = (q.status || '').toLowerCase()
+  let status: MockQuotation['status'] = 'pending'
+  if (st.includes('approv')) status = 'approved'
+  else if (st.includes('convert')) status = 'converted'
+  else if (st.includes('reject')) status = 'rejected'
+
+  return {
+    id: q.id,
+    code: q.quotation_number,
+    enquiryCode: 'Linked',
+    client: q.customer_company || q.customer_name || 'Client',
+    title: `Commercial Quotation for ${q.customer_company || q.customer_name || 'Client'}`,
+    status,
+    version: q.revision_number || 1,
+    subtotal: Number(q.subtotal || 0),
+    discountTotal: Number(q.discount_amount || 0),
+    taxTotal: Number(q.tax_amount || 0),
+    grandTotal: Number(q.total_amount || 0),
+    dueDate: q.valid_until || '30 days',
+    author: 'Estimator',
+    items: [],
+  }
+}
 
 const steps = [
   { id: 'pending', label: 'Draft Estimate' },
@@ -33,7 +59,35 @@ export function QuotationDetailPage() {
   const [quotation, setQuotation] = useState<MockQuotation | undefined>(() =>
     mockQuotations.find((q) => q.id === id || q.code === id) || mockQuotations[0],
   )
+  const [loading, setLoading] = useState(!quotation)
   const [activeTab, setActiveTab] = useState('items')
+
+  useEffect(() => {
+    if (!id) return
+    setLoading(true)
+    quotationApi
+      .getQuotation(id)
+      .then((res) => {
+        setQuotation(toUiQuotation(res))
+      })
+      .catch(() => {
+        quotationApi.listQuotations({ search: id }).then((res) => {
+          const found = res.items.find((item) => item.id === id || item.quotation_number === id)
+          if (found) setQuotation(toUiQuotation(found))
+        }).catch(() => {})
+      })
+      .finally(() => setLoading(false))
+  }, [id])
+
+  if (loading) {
+    return (
+      <PageContainer>
+        <div className="py-16 text-center text-muted-foreground text-sm">
+          Loading quotation details from database…
+        </div>
+      </PageContainer>
+    )
+  }
 
   if (!quotation) {
     return (

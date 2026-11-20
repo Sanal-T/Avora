@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -22,7 +22,31 @@ import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { WorkflowStepper } from '../../../components/shared/WorkflowStepper'
 import { ActivityTimeline } from '../../../components/shared/ActivityTimeline'
 import { mockEnquiries, type MockEnquiry } from '../../../data/mockData'
+import { enquiryApi, type Enquiry } from '../../../lib/api'
 import { toast } from '../../../lib/toast'
+
+function toUiEnquiry(e: Enquiry): MockEnquiry {
+  let uiStatus: 'pending' | 'qualified' | 'converted' = 'pending'
+  const s = (e.status || '').toLowerCase()
+  if (s.includes('qualif')) uiStatus = 'qualified'
+  else if (s.includes('convert')) uiStatus = 'converted'
+
+  return {
+    id: e.id,
+    code: e.enquiry_number,
+    customerName: e.customer_name || 'Direct Customer',
+    company: e.customer_company || e.customer_name || 'Individual',
+    email: '',
+    phone: '',
+    requirement: e.requirement_summary,
+    source: e.source || 'Direct',
+    status: uiStatus,
+    budget: e.estimated_budget ? `₹${Number(e.estimated_budget).toLocaleString('en-IN')}` : '₹0',
+    assignedTo: e.assigned_employee_name || 'Unassigned',
+    createdAt: (e.created_at || '').slice(0, 16).replace('T', ' '),
+    updatedAt: (e.updated_at || '').slice(0, 16).replace('T', ' '),
+  }
+}
 
 const steps = [
   { id: 'pending', label: 'Pending Review' },
@@ -37,8 +61,37 @@ export function EnquiryDetailPage() {
   const [enquiry, setEnquiry] = useState<MockEnquiry | undefined>(() =>
     mockEnquiries.find((e) => e.id === id || e.code === id) || mockEnquiries[0],
   )
+  const [loading, setLoading] = useState(!enquiry)
   const [activeTab, setActiveTab] = useState('overview')
   const [notes, setNotes] = useState('Client requested quotation to include 2 additional phone booths.')
+
+  useEffect(() => {
+    if (!id) return
+    setLoading(true)
+    enquiryApi
+      .get(id)
+      .then((res) => {
+        setEnquiry(toUiEnquiry(res))
+      })
+      .catch(() => {
+        // Fallback search in list
+        enquiryApi.list({ search: id }).then((res) => {
+          const found = res.items.find((item) => item.id === id || item.enquiry_number === id)
+          if (found) setEnquiry(toUiEnquiry(found))
+        }).catch(() => {})
+      })
+      .finally(() => setLoading(false))
+  }, [id])
+
+  if (loading) {
+    return (
+      <PageContainer>
+        <div className="py-16 text-center text-muted-foreground text-sm">
+          Loading enquiry details from database…
+        </div>
+      </PageContainer>
+    )
+  }
 
   if (!enquiry) {
     return (

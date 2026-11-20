@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, ArrowLeft, ArrowUpRight, PenTool } from 'lucide-react'
 import { PageContainer, PageHeader } from '../../../components/shared/PageHeader'
@@ -6,13 +6,51 @@ import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { mockDesigns, type MockDesign } from '../../../data/mockData'
+import { designApi, type Design } from '../../../lib/api'
 import { DesignFormModal } from './DesignFormModal'
+
+function toUiDesign(d: Design): MockDesign {
+  const st = (d.status || '').toLowerCase()
+  let status: MockDesign['status'] = 'in_progress'
+  if (st.includes('complet')) status = 'completed'
+  else if (st.includes('pend')) status = 'pending'
+
+  const completionRate = status === 'completed' ? 100 : status === 'in_progress' ? 65 : 20
+  const versionNum = d.versions && d.versions.length > 0 ? d.versions.length : 1
+
+  return {
+    id: d.id,
+    code: d.design_number,
+    enquiryCode: d.enquiry_number || 'Direct',
+    title: d.title,
+    client: 'Active Account',
+    designer: d.assigned_designer_name || 'Design Studio',
+    version: `v${versionNum}.0`,
+    status,
+    dueDate: d.expected_completion_date || 'TBD',
+    completionRate,
+    filesCount: d.versions?.length || 1,
+  }
+}
 
 export function DesignsListPage() {
   const navigate = useNavigate()
   const [data, setData] = useState<MockDesign[]>(mockDesigns)
   const [activeTab, setActiveTab] = useState<string>('all')
   const [createModalOpen, setCreateModalOpen] = useState(false)
+
+  useEffect(() => {
+    designApi
+      .listDesigns({ page_size: 100 })
+      .then((res) => {
+        if (res.items && res.items.length > 0) {
+          setData(res.items.map(toUiDesign))
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load live designs from PostgreSQL:', err)
+      })
+  }, [])
 
   const filterTabs: QuickFilterTab[] = [
     { id: 'all', label: 'All Designs', count: data.length },

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, ArrowLeft, ArrowUpRight, FileText, CheckCircle2, FileEdit } from 'lucide-react'
 import { PageContainer, PageHeader } from '../../../components/shared/PageHeader'
@@ -6,11 +6,50 @@ import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { mockQuotations, type MockQuotation } from '../../../data/mockData'
+import { quotationApi, type Quotation } from '../../../lib/api'
+
+function toUiQuotation(q: Quotation): MockQuotation {
+  const st = (q.status || '').toLowerCase()
+  let status: MockQuotation['status'] = 'pending'
+  if (st.includes('approv')) status = 'approved'
+  else if (st.includes('convert')) status = 'converted'
+  else if (st.includes('reject')) status = 'rejected'
+
+  return {
+    id: q.id,
+    code: q.quotation_number,
+    enquiryCode: 'Linked',
+    client: q.customer_company || q.customer_name || 'Client',
+    title: `Commercial Quotation for ${q.customer_company || q.customer_name || 'Client'}`,
+    status,
+    version: q.revision_number || 1,
+    subtotal: Number(q.subtotal || 0),
+    discountTotal: Number(q.discount_amount || 0),
+    taxTotal: Number(q.tax_amount || 0),
+    grandTotal: Number(q.total_amount || 0),
+    dueDate: q.valid_until || '30 days',
+    author: 'Estimator',
+    items: [],
+  }
+}
 
 export function QuotationsListPage() {
   const navigate = useNavigate()
-  const [data] = useState<MockQuotation[]>(mockQuotations)
+  const [data, setData] = useState<MockQuotation[]>(mockQuotations)
   const [activeTab, setActiveTab] = useState<string>('all')
+
+  useEffect(() => {
+    quotationApi
+      .listQuotations({ page_size: 100 })
+      .then((res) => {
+        if (res.items && res.items.length > 0) {
+          setData(res.items.map(toUiQuotation))
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load live quotations from PostgreSQL:', err)
+      })
+  }, [])
 
   const filterTabs: QuickFilterTab[] = [
     { id: 'all', label: 'All Quotations', count: data.length },
