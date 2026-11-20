@@ -18,7 +18,7 @@ services:
   api:
     build: ./backend
     environment:
-      DATABASE_URL: postgresql+psycopg://avora:avora@db:5432/avora
+      DATABASE_URL: postgresql+psycopg2://avora:avora@db:5432/avora
       CORS_ORIGINS: http://localhost:5173
     ports:
       - "8000:8000"

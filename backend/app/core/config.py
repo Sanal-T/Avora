@@ -1,5 +1,6 @@
 import os
 from functools import lru_cache
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +17,13 @@ class Settings(BaseSettings):
     admin_password: str = os.getenv("ADMIN_PASSWORD", "Admin@123456")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        if self.app_env.lower() == "production":
+            if "change-in-production" in self.secret_key or self.admin_password == "Admin@123456":
+                raise ValueError("In production, SECRET_KEY and ADMIN_PASSWORD must be explicitly provided with secure values.")
+        return self
 
     @property
     def allowed_origins(self) -> list[str]:

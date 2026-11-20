@@ -6,14 +6,6 @@ backend_path = str(Path(__file__).resolve().parent.parent.parent)
 if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
 
-import sys
-from pathlib import Path
-
-# Ensure backend root is in sys.path
-backend_path = str(Path(__file__).resolve().parent.parent.parent)
-if backend_path not in sys.path:
-    sys.path.insert(0, backend_path)
-
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
@@ -37,6 +29,9 @@ settings = get_settings()
 
 
 def init_db(db: Session) -> None:
+    if settings.app_env.lower() == "production":
+        raise RuntimeError("Safety check: Seeding development sample data is disabled in production environment.")
+
     # 1. Departments
     dept_data = [
         {"id": "enquiries", "name": "Enquiries", "icon": "◌", "accent": "blue", "description": "Track new customer opportunities and conversion progress."},
