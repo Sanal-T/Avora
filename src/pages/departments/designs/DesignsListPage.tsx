@@ -1,19 +1,22 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ArrowLeft, ArrowUpRight, PenTool } from 'lucide-react'
+import { Plus, ArrowLeft, ArrowUpRight } from 'lucide-react'
 import { PageContainer, PageHeader } from '../../../components/shared/PageHeader'
 import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { mockDesigns, type MockDesign } from '../../../data/mockData'
-import { designApi, type DesignItem } from '../../../lib/api'
+import { designApi, type Design } from '../../../lib/api'
 import { DesignFormModal } from './DesignFormModal'
 
-function toUiDesign(d: DesignItem): MockDesign {
-  let uiStatus: 'pending' | 'in_progress' | 'completed' = 'in_progress'
-  const s = (d.status || '').toLowerCase()
-  if (s.includes('complete') || s.includes('approve')) uiStatus = 'completed'
-  else if (s.includes('not started') || s.includes('pending')) uiStatus = 'pending'
+function toUiDesign(d: Design): MockDesign {
+  const st = (d.status || '').toLowerCase().replaceAll('_', ' ')
+  let status: MockDesign['status'] = 'in_progress'
+  if (st.includes('complet') || st.includes('approve')) status = 'completed'
+  else if (st.includes('pend') || st.includes('not started')) status = 'pending'
+
+  const completionRate = status === 'completed' ? 100 : d.actual_hours ? Math.min(Math.round((Number(d.actual_hours) / 8) * 100), 95) : 25
+  const versionNum = d.versions?.[0]?.version_number ?? 1
 
   return {
     id: d.id,
@@ -22,11 +25,11 @@ function toUiDesign(d: DesignItem): MockDesign {
     title: d.title,
     client: d.enquiry_number ? `Ref: ${d.enquiry_number}` : 'Internal Project',
     designer: d.assigned_designer_name || 'Design Team',
-    version: 'v1.0',
-    status: uiStatus,
-    dueDate: d.expected_completion_date || (d.created_at || '').slice(0, 10),
-    completionRate: uiStatus === 'completed' ? 100 : d.actual_hours ? Math.min(Math.round((Number(d.actual_hours) / 8) * 100), 95) : 25,
-    filesCount: 1,
+    version: `v${versionNum}.0`,
+    status,
+    dueDate: d.expected_completion_date || (d.created_at || '').slice(0, 10) || 'TBD',
+    completionRate,
+    filesCount: d.versions?.length ?? 1,
   }
 }
 
@@ -37,10 +40,10 @@ export function DesignsListPage() {
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const loadDesigns = () => {
+  useEffect(() => {
     setLoading(true)
     designApi
-      .list({ page_size: 100 })
+      .listDesigns({ page_size: 100 })
       .then((res) => {
         if (res.items && res.items.length > 0) {
           setData(res.items.map(toUiDesign))
@@ -52,10 +55,6 @@ export function DesignsListPage() {
       .finally(() => {
         setLoading(false)
       })
-  }
-
-  useEffect(() => {
-    loadDesigns()
   }, [])
 
   const filterTabs: QuickFilterTab[] = [
@@ -155,7 +154,7 @@ export function DesignsListPage() {
   ]
 
   const handleCreateSuccess = (newDesign: MockDesign) => {
-    setData([newDesign, ...data])
+    setData((current) => [newDesign, ...current])
   }
 
   return (
@@ -180,6 +179,7 @@ export function DesignsListPage() {
 
       <DataTable
         data={filteredData}
+        loading={loading}
         columns={columns}
         keyExtractor={(row) => row.id}
         searchPlaceholder="Search designs by title, code or designer…"

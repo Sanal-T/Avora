@@ -251,34 +251,185 @@ export const enquiryApi = {
   },
 }
 
-export interface DesignItem {
+// ----------------------------------------------------
+// Labour & Workers
+// ----------------------------------------------------
+export interface Worker {
+  id: string
+  worker_code: string
+  first_name: string
+  last_name: string
+  phone: string | null
+  skill_category: string
+  status: string
+  daily_rate: number | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkerListResponse {
+  total: number
+  page: number
+  page_size: number
+  items: Worker[]
+}
+
+export interface WorkerCreateInput {
+  worker_code?: string
+  first_name: string
+  last_name: string
+  phone?: string | null
+  skill_category?: string
+  status?: string
+  daily_rate?: number | null
+}
+
+export const labourApi = {
+  async listWorkers(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<WorkerListResponse> {
+    const query = new URLSearchParams()
+    if (params.page) query.set('page', params.page.toString())
+    if (params.page_size) query.set('page_size', params.page_size.toString())
+    if (params.status && params.status !== 'all') query.set('status', params.status)
+    if (params.search) query.set('search', params.search)
+    return apiFetch<WorkerListResponse>(`/api/labour/workers${query.size ? `?${query.toString()}` : ''}`)
+  },
+
+  async createWorker(data: WorkerCreateInput): Promise<Worker> {
+    return apiFetch<Worker>('/api/labour/workers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+}
+
+// ----------------------------------------------------
+// Production / Work Orders
+// ----------------------------------------------------
+export interface ProductionTask {
+  id: string
+  work_order_id: string
+  task_name: string
+  sequence_order: number
+  status: string
+  assigned_employee_id?: string | null
+  assigned_employee_name?: string | null
+  planned_hours?: number | null
+  actual_hours?: number | null
+  completion_notes?: string | null
+}
+
+export interface WorkOrder {
+  id: string
+  work_order_number: string
+  quotation_id: string | null
+  customer_id: string
+  title: string
+  priority: string
+  status: string
+  planned_start_date: string | null
+  planned_end_date: string | null
+  actual_start_date: string | null
+  actual_completion_date: string | null
+  notes: string | null
+  customer_name?: string | null
+  customer_company?: string | null
+  tasks?: ProductionTask[]
+  created_at: string
+  updated_at: string
+}
+
+export interface WorkOrderListResponse {
+  total: number
+  page: number
+  page_size: number
+  items: WorkOrder[]
+}
+
+export interface WorkOrderCreateInput {
+  title: string
+  priority?: string
+  planned_start_date?: string | null
+  planned_end_date?: string | null
+  notes?: string | null
+  customer_id: string
+  quotation_id?: string | null
+}
+
+export const productionApi = {
+  async listWorkOrders(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<WorkOrderListResponse> {
+    const query = new URLSearchParams()
+    if (params.page) query.set('page', params.page.toString())
+    if (params.page_size) query.set('page_size', params.page_size.toString())
+    if (params.status && params.status !== 'all') query.set('status', params.status)
+    if (params.search) query.set('search', params.search)
+    return apiFetch<WorkOrderListResponse>(`/api/production${query.size ? `?${query.toString()}` : ''}`)
+  },
+
+  async createWorkOrder(data: WorkOrderCreateInput): Promise<WorkOrder> {
+    return apiFetch<WorkOrder>('/api/production', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async getWorkOrder(id: string): Promise<WorkOrder> {
+    return apiFetch<WorkOrder>(`/api/production/${id}`)
+  },
+}
+
+// ----------------------------------------------------
+// Designs
+// ----------------------------------------------------
+export interface DesignVersion {
+  id: string
+  version_number: number
+  file_name: string
+  file_url: string
+  change_notes?: string | null
+  is_approved: boolean
+  created_at: string
+}
+
+export interface Design {
   id: string
   design_number: string
   enquiry_id: string | null
+  enquiry_number?: string | null
   assigned_designer_id: string | null
+  assigned_designer_name?: string | null
   title: string
   description: string | null
-  status: string
   priority: string
+  status: string
   estimated_hours: number | null
   actual_hours: number | null
   expected_completion_date: string | null
   completed_at: string | null
   created_at: string
   updated_at: string
-  enquiry_number?: string | null
-  assigned_designer_name?: string | null
+  versions?: DesignVersion[]
 }
 
 export interface DesignListResponse {
   total: number
   page: number
   page_size: number
-  items: DesignItem[]
+  items: Design[]
+}
+
+export interface DesignCreateInput {
+  title: string
+  description?: string | null
+  priority?: string
+  enquiry_id?: string | null
+  assigned_designer_id?: string | null
+  estimated_hours?: number | null
+  expected_completion_date?: string | null
 }
 
 export const designApi = {
-  async list(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<DesignListResponse> {
+  async listDesigns(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<DesignListResponse> {
     const query = new URLSearchParams()
     if (params.page) query.set('page', params.page.toString())
     if (params.page_size) query.set('page_size', params.page_size.toString())
@@ -287,16 +438,30 @@ export const designApi = {
     return apiFetch<DesignListResponse>(`/api/designs${query.size ? `?${query.toString()}` : ''}`)
   },
 
-  async get(id: string): Promise<DesignItem> {
-    return apiFetch<DesignItem>(`/api/designs/${id}`)
+  async createDesign(data: DesignCreateInput): Promise<Design> {
+    return apiFetch<Design>('/api/designs', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async getDesign(id: string): Promise<Design> {
+    return apiFetch<Design>(`/api/designs/${id}`)
   },
 }
 
-export interface QuotationItem {
+// ----------------------------------------------------
+// Quotations
+// ----------------------------------------------------
+export interface Quotation {
   id: string
   quotation_number: string
   revision_number: number
+  enquiry_id: string | null
+  enquiry_number?: string | null
   customer_id: string
+  customer_name?: string | null
+  customer_company?: string | null
   status: string
   subtotal: number | string
   discount_rate: number | string
@@ -304,23 +469,21 @@ export interface QuotationItem {
   tax_rate: number | string
   tax_amount: number | string
   total_amount: number | string
-  currency: string
   valid_until: string | null
+  currency: string
   created_at: string
   updated_at: string
-  customer_name?: string | null
-  enquiry_number?: string | null
 }
 
 export interface QuotationListResponse {
   total: number
   page: number
   page_size: number
-  items: QuotationItem[]
+  items: Quotation[]
 }
 
 export const quotationApi = {
-  async list(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<QuotationListResponse> {
+  async listQuotations(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<QuotationListResponse> {
     const query = new URLSearchParams()
     if (params.page) query.set('page', params.page.toString())
     if (params.page_size) query.set('page_size', params.page_size.toString())
@@ -329,7 +492,46 @@ export const quotationApi = {
     return apiFetch<QuotationListResponse>(`/api/quotations${query.size ? `?${query.toString()}` : ''}`)
   },
 
-  async get(id: string): Promise<QuotationItem> {
-    return apiFetch<QuotationItem>(`/api/quotations/${id}`)
+  async getQuotation(id: string): Promise<Quotation> {
+    return apiFetch<Quotation>(`/api/quotations/${id}`)
+  },
+}
+
+// ----------------------------------------------------
+// Feedback
+// ----------------------------------------------------
+export interface Feedback {
+  id: string
+  customer_id: string
+  customer_name?: string | null
+  customer_company?: string | null
+  work_order_id: string | null
+  work_order_number?: string | null
+  category: string
+  rating: number | null
+  comments: string | null
+  status: string
+  resolution_notes?: string | null
+  received_at: string | null
+  resolved_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface FeedbackListResponse {
+  total: number
+  page: number
+  page_size: number
+  items: Feedback[]
+}
+
+export const feedbackApi = {
+  async listFeedback(params: { page?: number; page_size?: number; status?: string; category?: string } = {}): Promise<FeedbackListResponse> {
+    const query = new URLSearchParams()
+    if (params.page) query.set('page', params.page.toString())
+    if (params.page_size) query.set('page_size', params.page_size.toString())
+    if (params.status && params.status !== 'all') query.set('status', params.status)
+    if (params.category) query.set('category', params.category)
+    return apiFetch<FeedbackListResponse>(`/api/feedback${query.size ? `?${query.toString()}` : ''}`)
   },
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Users, UserCheck, Phone, Wrench } from 'lucide-react'
 import { PageContainer, PageHeader } from '../../../components/shared/PageHeader'
@@ -6,12 +6,51 @@ import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { mockWorkers, type MockWorker } from '../../../data/mockData'
+import { labourApi, type Worker } from '../../../lib/api'
 import { toast } from '../../../lib/toast'
+
+function toUiWorker(w: Worker): MockWorker {
+  const tradeMap: Record<string, MockWorker['trade']> = {
+    Carpentry: 'Carpenter',
+    Finishing: 'Painter',
+    Installation: 'Installer',
+    Welding: 'Welder',
+    Electrical: 'Electrician',
+  }
+  const trade = tradeMap[w.skill_category] || 'Carpenter'
+  const st = (w.status || '').toLowerCase()
+  const status: MockWorker['status'] = st === 'assigned' ? 'assigned' : 'available'
+
+  return {
+    id: w.id,
+    code: w.worker_code,
+    name: `${w.first_name} ${w.last_name}`,
+    trade,
+    status,
+    currentAssignment: status === 'assigned' ? 'WO-0842 (On-Site Team)' : undefined,
+    phone: w.phone || '+91 99887 76600',
+    efficiencyRating: '4.8',
+    totalHours: 160,
+  }
+}
 
 export function LabourListPage() {
   const navigate = useNavigate()
   const [data, setData] = useState<MockWorker[]>(mockWorkers)
   const [activeTab, setActiveTab] = useState<string>('all')
+
+  useEffect(() => {
+    labourApi
+      .listWorkers({ page_size: 100 })
+      .then((res) => {
+        if (res.items && res.items.length > 0) {
+          setData(res.items.map(toUiWorker))
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load live workers from PostgreSQL:', err)
+      })
+  }, [])
 
   const filterTabs: QuickFilterTab[] = [
     { id: 'all', label: 'All Workers', count: data.length },

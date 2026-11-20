@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -23,6 +23,7 @@ import { Checkbox } from '../../../components/ui/Checkbox'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { ActivityTimeline } from '../../../components/shared/ActivityTimeline'
 import { mockWorkOrders, type MockWorkOrder } from '../../../data/mockData'
+import { productionApi, type WorkOrder } from '../../../lib/api'
 import {
   getProductionSlots,
   deleteProductionSlot,
@@ -32,6 +33,42 @@ import { AllocateSlotModal } from './AllocateSlotModal'
 import { SlotDetailDialog } from './SlotDetailDialog'
 import { toast } from '../../../lib/toast'
 
+function toUiWorkOrder(wo: WorkOrder): MockWorkOrder {
+  const st = (wo.status || '').toLowerCase()
+  let status: MockWorkOrder['status'] = 'active'
+  if (st.includes('complet')) status = 'completed'
+  else if (st.includes('delay')) status = 'delayed'
+
+  let stage: MockWorkOrder['stage'] = 'Assembly'
+  if (status === 'completed') stage = 'Installation'
+  else if (st.includes('cutting')) stage = 'Cutting'
+  else if (st.includes('finish')) stage = 'Finishing'
+
+  let completionRate = 45
+  if (status === 'completed') completionRate = 100
+  else if (st.includes('progress')) completionRate = 65
+
+  return {
+    id: wo.id,
+    code: wo.work_order_number,
+    quotationCode: wo.quotation_id ? 'Linked' : 'Standard',
+    client: wo.customer_company || wo.customer_name || 'Direct Customer',
+    title: wo.title,
+    status,
+    priority: (wo.priority?.toLowerCase() as any) || 'medium',
+    stage,
+    completionRate,
+    leadWorker: 'Production Lead',
+    startDate: wo.planned_start_date || wo.actual_start_date || 'In Progress',
+    deliveryDate: wo.planned_end_date || 'TBD',
+    tasks: (wo.tasks || []).map((t) => ({
+      id: t.id,
+      title: t.task_name,
+      completed: t.status === 'Completed',
+    })),
+  }
+}
+
 export function WorkOrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -39,10 +76,34 @@ export function WorkOrderDetailPage() {
   const [workOrder, setWorkOrder] = useState<MockWorkOrder | undefined>(() =>
     mockWorkOrders.find((w) => w.id === id || w.code === id) || mockWorkOrders[0],
   )
+  const [loading, setLoading] = useState(!workOrder)
   const [tasks, setTasks] = useState(workOrder?.tasks || [])
   const [delayModalOpen, setDelayModalOpen] = useState(false)
   const [delayReason, setDelayReason] = useState('')
   const [newTargetDate, setNewTargetDate] = useState('2026-11-25')
+
+  useEffect(() => {
+    if (!id) return
+    setLoading(true)
+    productionApi
+      .getWorkOrder(id)
+      .then((res) => {
+        const mapped = toUiWorkOrder(res)
+        setWorkOrder(mapped)
+        setTasks(mapped.tasks)
+      })
+      .catch(() => {
+        productionApi.listWorkOrders({ search: id }).then((res) => {
+          const found = res.items.find((item) => item.id === id || item.work_order_number === id)
+          if (found) {
+            const mapped = toUiWorkOrder(found)
+            setWorkOrder(mapped)
+            setTasks(mapped.tasks)
+          }
+        }).catch(() => {})
+      })
+      .finally(() => setLoading(false))
+  }, [id])
 
   // Production Slots State
   const [allSlots, setAllSlots] = useState<MockProductionSlot[]>(() => getProductionSlots())
@@ -59,6 +120,16 @@ export function WorkOrderDetailPage() {
 
   const refreshSlots = () => {
     setAllSlots(getProductionSlots())
+  }
+
+  if (loading) {
+    return (
+      <PageContainer>
+        <div className="py-16 text-center text-muted-foreground text-sm">
+          Loading work order details from database…
+        </div>
+      </PageContainer>
+    )
   }
 
   if (!workOrder) {

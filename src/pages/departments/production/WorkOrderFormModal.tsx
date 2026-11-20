@@ -19,6 +19,7 @@ import { Textarea } from '../../../components/ui/Textarea'
 import { Checkbox } from '../../../components/ui/Checkbox'
 import { toast } from '../../../lib/toast'
 import { mockWorkOrders, mockWorkers, type MockWorkOrder } from '../../../data/mockData'
+import { customerApi, productionApi, quotationApi } from '../../../lib/api'
 import {
   saveProductionSlot,
   type MockProductionSlot,
@@ -106,20 +107,61 @@ export function WorkOrderFormModal({
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validate()) return
 
     setLoading(true)
 
-    setTimeout(() => {
-      const generatedCode = `WO-0${Math.floor(845 + Math.random() * 50)}`
+    try {
+      // 1. Resolve or create customer in PostgreSQL
+      let customerId = ''
+      try {
+        const custRes = await customerApi.list({ search: client.trim() })
+        if (custRes.items && custRes.items.length > 0) {
+          customerId = custRes.items[0].id
+        }
+      } catch {}
+
+      if (!customerId) {
+        const createdCust = await customerApi.create({
+          customer_code: `CUST-${Date.now().toString().slice(-4)}`,
+          name: client.trim(),
+          company_name: client.trim(),
+          email: `${client.trim().toLowerCase().replace(/[^a-z0-9]/g, '') || 'client'}@example.com`,
+        })
+        customerId = createdCust.id
+      }
+
+      // 2. Resolve quotation if linked
+      let quotationId: string | null = null
+      if (quotationCode && quotationCode.trim() !== 'DIRECT') {
+        try {
+          const qRes = await quotationApi.listQuotations({ search: quotationCode.trim() })
+          if (qRes.items && qRes.items.length > 0) {
+            quotationId = qRes.items[0].id
+          }
+        } catch {}
+      }
+
+      // 3. Create work order in PostgreSQL
+      const priorityCap = (priority.charAt(0).toUpperCase() + priority.slice(1)) as any
+      const createdWo = await productionApi.createWorkOrder({
+        customer_id: customerId,
+        quotation_id: quotationId,
+        title: title.trim(),
+        priority: priorityCap,
+        planned_start_date: startDate,
+        planned_end_date: deliveryDate,
+        notes: `Supervisor: ${leadWorker}. Stage: ${stage}`,
+      })
+
       const newWorkOrder: MockWorkOrder = {
-        id: `wo-${Date.now()}`,
-        code: generatedCode,
+        id: createdWo.id,
+        code: createdWo.work_order_number,
         quotationCode: quotationCode.trim() || 'DIRECT',
         client: client.trim(),
-        title: title.trim(),
+        title: createdWo.title,
         status: 'active',
         priority,
         stage,
@@ -135,7 +177,7 @@ export function WorkOrderFormModal({
         ],
       }
 
-      // Prepend to mock work orders list
+      // Prepend to mock work orders list if still needed as fallback
       mockWorkOrders.unshift(newWorkOrder)
 
       // If user enabled the Option for creating Production Slot
@@ -164,16 +206,15 @@ export function WorkOrderFormModal({
         saveProductionSlot(newSlot)
         toast.success(
           'Work Order & Slot Created',
-          `${newWorkOrder.code} created with Production Slot ${newSlot.code} (${slotStartDate} → ${slotEndDate}) at ${slotBay}.`,
+          `${newWorkOrder.code} saved to database with Slot ${newSlot.code} (${slotStartDate} → ${slotEndDate}) at ${slotBay}.`,
         )
       } else {
         toast.success(
           'Work Order Created',
-          `${newWorkOrder.code} registered. Production slot can be scheduled later.`,
+          `${newWorkOrder.code} saved to database. Production slot can be scheduled later.`,
         )
       }
 
-      setLoading(false)
       onCreateSuccess?.(newWorkOrder)
       onClose()
 
@@ -188,7 +229,11 @@ export function WorkOrderFormModal({
       setDeliveryDate('2026-11-28')
       setSlotNotes('')
       setErrors({})
-    }, 300)
+    } catch (err: any) {
+      toast.error('Failed to create work order', err?.message || 'Server error occurred')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

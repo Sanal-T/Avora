@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -20,7 +20,32 @@ import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { WorkflowStepper } from '../../../components/shared/WorkflowStepper'
 import { ActivityTimeline } from '../../../components/shared/ActivityTimeline'
 import { mockDesigns, type MockDesign } from '../../../data/mockData'
+import { designApi, type Design } from '../../../lib/api'
 import { toast } from '../../../lib/toast'
+
+function toUiDesign(d: Design): MockDesign {
+  const st = (d.status || '').toLowerCase()
+  let status: MockDesign['status'] = 'in_progress'
+  if (st.includes('complet')) status = 'completed'
+  else if (st.includes('pend')) status = 'pending'
+
+  const completionRate = status === 'completed' ? 100 : status === 'in_progress' ? 65 : 20
+  const versionNum = d.versions && d.versions.length > 0 ? d.versions.length : 1
+
+  return {
+    id: d.id,
+    code: d.design_number,
+    enquiryCode: d.enquiry_number || 'Direct',
+    title: d.title,
+    client: 'Active Account',
+    designer: d.assigned_designer_name || 'Design Studio',
+    version: `v${versionNum}.0`,
+    status,
+    dueDate: d.expected_completion_date || 'TBD',
+    completionRate,
+    filesCount: d.versions?.length || 1,
+  }
+}
 
 const steps = [
   { id: 'pending', label: 'Brief Assigned' },
@@ -35,7 +60,35 @@ export function DesignDetailPage() {
   const [design, setDesign] = useState<MockDesign | undefined>(() =>
     mockDesigns.find((d) => d.id === id || d.code === id) || mockDesigns[0],
   )
+  const [loading, setLoading] = useState(!design)
   const [activeTab, setActiveTab] = useState('overview')
+
+  useEffect(() => {
+    if (!id) return
+    setLoading(true)
+    designApi
+      .getDesign(id)
+      .then((res) => {
+        setDesign(toUiDesign(res))
+      })
+      .catch(() => {
+        designApi.listDesigns({ search: id }).then((res) => {
+          const found = res.items.find((item) => item.id === id || item.design_number === id)
+          if (found) setDesign(toUiDesign(found))
+        }).catch(() => {})
+      })
+      .finally(() => setLoading(false))
+  }, [id])
+
+  if (loading) {
+    return (
+      <PageContainer>
+        <div className="py-16 text-center text-muted-foreground text-sm">
+          Loading design specifications from database…
+        </div>
+      </PageContainer>
+    )
+  }
 
   if (!design) {
     return (

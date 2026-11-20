@@ -5,6 +5,7 @@ import { Select } from '../../../components/ui/Select'
 import { Button } from '../../../components/ui/Button'
 import { toast } from '../../../lib/toast'
 import type { MockDesign } from '../../../data/mockData'
+import { designApi, enquiryApi } from '../../../lib/api'
 
 export function DesignFormModal({
   open,
@@ -23,7 +24,7 @@ export function DesignFormModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) {
       setError('Design project title is required')
@@ -31,27 +32,50 @@ export function DesignFormModal({
     }
 
     setLoading(true)
-    setTimeout(() => {
+    try {
+      // 1. Resolve linked enquiry if available
+      let enquiryId: string | null = null
+      if (enquiryCode && enquiryCode.trim()) {
+        try {
+          const enqRes = await enquiryApi.list({ search: enquiryCode.trim() })
+          if (enqRes.items && enqRes.items.length > 0) {
+            enquiryId = enqRes.items[0].id
+          }
+        } catch {}
+      }
+
+      // 2. Create design in PostgreSQL
+      const created = await designApi.createDesign({
+        title: title.trim(),
+        description: `Client: ${client.trim()}. Assigned Lead: ${designer}`,
+        priority: 'Medium',
+        enquiry_id: enquiryId,
+        expected_completion_date: dueDate || null,
+      })
+
       const newDesign: MockDesign = {
-        id: `des-${Date.now()}`,
-        code: `D-${Math.floor(620 + Math.random() * 40)}`,
-        title,
+        id: created.id,
+        code: created.design_number,
+        title: created.title,
         client,
-        enquiryCode,
+        enquiryCode: created.enquiry_number || enquiryCode,
         designer,
         version: 'v1.0',
         status: 'pending',
-        dueDate,
+        dueDate: created.expected_completion_date || dueDate,
         completionRate: 0,
         filesCount: 1,
       }
 
-      setLoading(false)
       onCreateSuccess(newDesign)
-      toast.success('Design Assigned', `${newDesign.code} assigned to ${designer}`)
+      toast.success('Design Assigned', `${newDesign.code} saved to database and assigned to ${designer}`)
       onClose()
       setTitle('')
-    }, 400)
+    } catch (err: any) {
+      toast.error('Failed to create design', err?.message || 'Server error occurred')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

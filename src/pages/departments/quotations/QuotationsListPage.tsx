@@ -1,32 +1,32 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ArrowLeft, ArrowUpRight, FileText, CheckCircle2, FileEdit } from 'lucide-react'
+import { Plus, ArrowLeft, ArrowUpRight, FileEdit } from 'lucide-react'
 import { PageContainer, PageHeader } from '../../../components/shared/PageHeader'
 import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { mockQuotations, type MockQuotation } from '../../../data/mockData'
-import { quotationApi, type QuotationItem } from '../../../lib/api'
+import { quotationApi, type Quotation } from '../../../lib/api'
 
-function toUiQuotation(q: QuotationItem): MockQuotation {
-  let uiStatus: 'pending' | 'approved' | 'converted' | 'rejected' = 'pending'
-  const s = (q.status || '').toLowerCase()
-  if (s.includes('approve')) uiStatus = 'approved'
-  else if (s.includes('convert')) uiStatus = 'converted'
-  else if (s.includes('reject')) uiStatus = 'rejected'
+function toUiQuotation(q: Quotation): MockQuotation {
+  const st = (q.status || '').toLowerCase()
+  let status: MockQuotation['status'] = 'pending'
+  if (st.includes('approv')) status = 'approved'
+  else if (st.includes('convert')) status = 'converted'
+  else if (st.includes('reject')) status = 'rejected'
 
-  const total = Number(q.total_amount || q.subtotal || 0)
-  const sub = Number(q.subtotal || total)
+  const client = q.customer_company || q.customer_name
+  const total = Number(q.total_amount ?? q.subtotal ?? 0)
 
   return {
     id: q.id,
     code: q.quotation_number,
-    enquiryCode: q.enquiry_number || 'Direct',
-    client: q.customer_name || 'Client',
-    title: `Estimate for ${q.customer_name || 'Project'}`,
-    status: uiStatus,
+    enquiryCode: q.enquiry_number || (q.enquiry_id ? 'Linked' : 'Direct'),
+    client: client || 'Client',
+    title: `Estimate for ${client || 'Project'}`,
+    status,
     version: q.revision_number || 1,
-    subtotal: sub,
+    subtotal: Number(q.subtotal ?? total),
     discountTotal: Number(q.discount_amount || 0),
     taxTotal: Number(q.tax_amount || 0),
     grandTotal: total,
@@ -42,10 +42,10 @@ export function QuotationsListPage() {
   const [activeTab, setActiveTab] = useState<string>('all')
   const [loading, setLoading] = useState(false)
 
-  const loadQuotations = () => {
+  useEffect(() => {
     setLoading(true)
     quotationApi
-      .list({ page_size: 100 })
+      .listQuotations({ page_size: 100 })
       .then((res) => {
         if (res.items && res.items.length > 0) {
           setData(res.items.map(toUiQuotation))
@@ -57,10 +57,6 @@ export function QuotationsListPage() {
       .finally(() => {
         setLoading(false)
       })
-  }
-
-  useEffect(() => {
-    loadQuotations()
   }, [])
 
   const filterTabs: QuickFilterTab[] = [
@@ -182,6 +178,7 @@ export function QuotationsListPage() {
 
       <DataTable
         data={filteredData}
+        loading={loading}
         columns={columns}
         keyExtractor={(row) => row.id}
         searchPlaceholder="Search quotations by title, client or reference…"
