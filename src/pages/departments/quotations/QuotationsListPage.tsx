@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ArrowLeft, ArrowUpRight, FileText, CheckCircle2, FileEdit } from 'lucide-react'
+import { Plus, ArrowLeft, ArrowUpRight, FileEdit } from 'lucide-react'
 import { PageContainer, PageHeader } from '../../../components/shared/PageHeader'
 import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
@@ -15,20 +15,23 @@ function toUiQuotation(q: Quotation): MockQuotation {
   else if (st.includes('convert')) status = 'converted'
   else if (st.includes('reject')) status = 'rejected'
 
+  const client = q.customer_company || q.customer_name
+  const total = Number(q.total_amount ?? q.subtotal ?? 0)
+
   return {
     id: q.id,
     code: q.quotation_number,
-    enquiryCode: 'Linked',
-    client: q.customer_company || q.customer_name || 'Client',
-    title: `Commercial Quotation for ${q.customer_company || q.customer_name || 'Client'}`,
+    enquiryCode: q.enquiry_number || (q.enquiry_id ? 'Linked' : 'Direct'),
+    client: client || 'Client',
+    title: `Estimate for ${client || 'Project'}`,
     status,
     version: q.revision_number || 1,
-    subtotal: Number(q.subtotal || 0),
+    subtotal: Number(q.subtotal ?? total),
     discountTotal: Number(q.discount_amount || 0),
     taxTotal: Number(q.tax_amount || 0),
-    grandTotal: Number(q.total_amount || 0),
-    dueDate: q.valid_until || '30 days',
-    author: 'Estimator',
+    grandTotal: total,
+    dueDate: q.valid_until || (q.created_at || '').slice(0, 10),
+    author: 'Sales Team',
     items: [],
   }
 }
@@ -37,8 +40,10 @@ export function QuotationsListPage() {
   const navigate = useNavigate()
   const [data, setData] = useState<MockQuotation[]>(mockQuotations)
   const [activeTab, setActiveTab] = useState<string>('all')
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    setLoading(true)
     quotationApi
       .listQuotations({ page_size: 100 })
       .then((res) => {
@@ -47,7 +52,10 @@ export function QuotationsListPage() {
         }
       })
       .catch((err) => {
-        console.warn('Could not load live quotations from PostgreSQL:', err)
+        console.warn('Could not load live quotations from PostgreSQL, fallback to mock:', err)
+      })
+      .finally(() => {
+        setLoading(false)
       })
   }, [])
 
@@ -170,6 +178,7 @@ export function QuotationsListPage() {
 
       <DataTable
         data={filteredData}
+        loading={loading}
         columns={columns}
         keyExtractor={(row) => row.id}
         searchPlaceholder="Search quotations by title, client or reference…"

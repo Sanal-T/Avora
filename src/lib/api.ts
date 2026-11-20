@@ -458,16 +458,17 @@ export interface Quotation {
   quotation_number: string
   revision_number: number
   enquiry_id: string | null
+  enquiry_number?: string | null
   customer_id: string
   customer_name?: string | null
   customer_company?: string | null
   status: string
-  subtotal: number
-  discount_rate: number
-  discount_amount: number
-  tax_rate: number
-  tax_amount: number
-  total_amount: number
+  subtotal: number | string
+  discount_rate: number | string
+  discount_amount: number | string
+  tax_rate: number | string
+  tax_amount: number | string
+  total_amount: number | string
   valid_until: string | null
   currency: string
   created_at: string
