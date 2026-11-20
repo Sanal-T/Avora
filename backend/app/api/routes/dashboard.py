@@ -230,8 +230,8 @@ def build_recent_activities(db: Session) -> list[ActivityItem]:
 @router.get("/overview", response_model=DashboardOverview)
 def get_overview(
     db: Annotated[Session, Depends(get_db)],
-    date_from: date | None = Query(default=None),
-    date_to: date | None = Query(default=None),
+    date_from: Annotated[date | None, Query()] = None,
+    date_to: Annotated[date | None, Query()] = None,
 ) -> DashboardOverview:
     if date_from and date_to and date_from > date_to:
         raise HTTPException(status_code=422, detail="date_from must not be after date_to")

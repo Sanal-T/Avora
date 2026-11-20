@@ -123,26 +123,26 @@ export async function getDashboardOverview({
 }: { dateFrom?: string; dateTo?: string; rangeId?: string } = {}): Promise<DashboardOverviewResponse> {
   const selectedRange = inferRange(dateFrom, dateTo, rangeId)
 
-  if (!apiBaseUrl) {
-    return getMockOverview(selectedRange)
-  }
-
   const parameters = new URLSearchParams()
   if (dateFrom) parameters.set('date_from', dateFrom)
   if (dateTo) parameters.set('date_to', dateTo)
 
-  const url = `${apiBaseUrl}/api/dashboard/overview${parameters.size ? `?${parameters.toString()}` : ''}`
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error('Dashboard information is unavailable.')
+  const url = `/api/dashboard/overview${parameters.size ? `?${parameters.toString()}` : ''}`
+  try {
+    const response = await fetch(url)
+    if (response.ok) {
+      const overview = await response.json()
+      return {
+        source: overview.source || 'database',
+        departments: overview.departments.map(toDepartment),
+        snapshot: overview.snapshot,
+        actionItems: overview.action_items,
+        recentActivities: overview.recent_activities,
+      }
+    }
+  } catch (err) {
+    console.warn('Backend overview endpoint unreachable:', err)
   }
 
-  const overview = await response.json()
-  return {
-    source: overview.source || 'database',
-    departments: overview.departments.map(toDepartment),
-    snapshot: overview.snapshot,
-    actionItems: overview.action_items,
-    recentActivities: overview.recent_activities,
-  }
+  return getMockOverview(selectedRange)
 }
