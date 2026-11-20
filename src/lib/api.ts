@@ -250,3 +250,86 @@ export const enquiryApi = {
     })
   },
 }
+
+export interface DesignItem {
+  id: string
+  design_number: string
+  enquiry_id: string | null
+  assigned_designer_id: string | null
+  title: string
+  description: string | null
+  status: string
+  priority: string
+  estimated_hours: number | null
+  actual_hours: number | null
+  expected_completion_date: string | null
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+  enquiry_number?: string | null
+  assigned_designer_name?: string | null
+}
+
+export interface DesignListResponse {
+  total: number
+  page: number
+  page_size: number
+  items: DesignItem[]
+}
+
+export const designApi = {
+  async list(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<DesignListResponse> {
+    const query = new URLSearchParams()
+    if (params.page) query.set('page', params.page.toString())
+    if (params.page_size) query.set('page_size', params.page_size.toString())
+    if (params.status && params.status !== 'all') query.set('status', params.status)
+    if (params.search) query.set('search', params.search)
+    return apiFetch<DesignListResponse>(`/api/designs${query.size ? `?${query.toString()}` : ''}`)
+  },
+
+  async get(id: string): Promise<DesignItem> {
+    return apiFetch<DesignItem>(`/api/designs/${id}`)
+  },
+}
+
+export interface QuotationItem {
+  id: string
+  quotation_number: string
+  revision_number: number
+  customer_id: string
+  status: string
+  subtotal: number | string
+  discount_rate: number | string
+  discount_amount: number | string
+  tax_rate: number | string
+  tax_amount: number | string
+  total_amount: number | string
+  currency: string
+  valid_until: string | null
+  created_at: string
+  updated_at: string
+  customer_name?: string | null
+  enquiry_number?: string | null
+}
+
+export interface QuotationListResponse {
+  total: number
+  page: number
+  page_size: number
+  items: QuotationItem[]
+}
+
+export const quotationApi = {
+  async list(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<QuotationListResponse> {
+    const query = new URLSearchParams()
+    if (params.page) query.set('page', params.page.toString())
+    if (params.page_size) query.set('page_size', params.page_size.toString())
+    if (params.status && params.status !== 'all') query.set('status', params.status)
+    if (params.search) query.set('search', params.search)
+    return apiFetch<QuotationListResponse>(`/api/quotations${query.size ? `?${query.toString()}` : ''}`)
+  },
+
+  async get(id: string): Promise<QuotationItem> {
+    return apiFetch<QuotationItem>(`/api/quotations/${id}`)
+  },
+}

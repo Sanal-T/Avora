@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, ArrowLeft, ArrowUpRight, PenTool } from 'lucide-react'
 import { PageContainer, PageHeader } from '../../../components/shared/PageHeader'
@@ -6,13 +6,57 @@ import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { mockDesigns, type MockDesign } from '../../../data/mockData'
+import { designApi, type DesignItem } from '../../../lib/api'
 import { DesignFormModal } from './DesignFormModal'
+
+function toUiDesign(d: DesignItem): MockDesign {
+  let uiStatus: 'pending' | 'in_progress' | 'completed' = 'in_progress'
+  const s = (d.status || '').toLowerCase()
+  if (s.includes('complete') || s.includes('approve')) uiStatus = 'completed'
+  else if (s.includes('not started') || s.includes('pending')) uiStatus = 'pending'
+
+  return {
+    id: d.id,
+    code: d.design_number,
+    enquiryCode: d.enquiry_number || 'Direct',
+    title: d.title,
+    client: d.enquiry_number ? `Ref: ${d.enquiry_number}` : 'Internal Project',
+    designer: d.assigned_designer_name || 'Design Team',
+    version: 'v1.0',
+    status: uiStatus,
+    dueDate: d.expected_completion_date || (d.created_at || '').slice(0, 10),
+    completionRate: uiStatus === 'completed' ? 100 : d.actual_hours ? Math.min(Math.round((Number(d.actual_hours) / 8) * 100), 95) : 25,
+    filesCount: 1,
+  }
+}
 
 export function DesignsListPage() {
   const navigate = useNavigate()
   const [data, setData] = useState<MockDesign[]>(mockDesigns)
   const [activeTab, setActiveTab] = useState<string>('all')
   const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  const loadDesigns = () => {
+    setLoading(true)
+    designApi
+      .list({ page_size: 100 })
+      .then((res) => {
+        if (res.items && res.items.length > 0) {
+          setData(res.items.map(toUiDesign))
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load live designs from PostgreSQL, fallback to mock:', err)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }
+
+  useEffect(() => {
+    loadDesigns()
+  }, [])
 
   const filterTabs: QuickFilterTab[] = [
     { id: 'all', label: 'All Designs', count: data.length },

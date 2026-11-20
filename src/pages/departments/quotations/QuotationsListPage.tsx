@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, ArrowLeft, ArrowUpRight, FileText, CheckCircle2, FileEdit } from 'lucide-react'
 import { PageContainer, PageHeader } from '../../../components/shared/PageHeader'
@@ -6,11 +6,62 @@ import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { mockQuotations, type MockQuotation } from '../../../data/mockData'
+import { quotationApi, type QuotationItem } from '../../../lib/api'
+
+function toUiQuotation(q: QuotationItem): MockQuotation {
+  let uiStatus: 'pending' | 'approved' | 'converted' | 'rejected' = 'pending'
+  const s = (q.status || '').toLowerCase()
+  if (s.includes('approve')) uiStatus = 'approved'
+  else if (s.includes('convert')) uiStatus = 'converted'
+  else if (s.includes('reject')) uiStatus = 'rejected'
+
+  const total = Number(q.total_amount || q.subtotal || 0)
+  const sub = Number(q.subtotal || total)
+
+  return {
+    id: q.id,
+    code: q.quotation_number,
+    enquiryCode: q.enquiry_number || 'Direct',
+    client: q.customer_name || 'Client',
+    title: `Estimate for ${q.customer_name || 'Project'}`,
+    status: uiStatus,
+    version: q.revision_number || 1,
+    subtotal: sub,
+    discountTotal: Number(q.discount_amount || 0),
+    taxTotal: Number(q.tax_amount || 0),
+    grandTotal: total,
+    dueDate: q.valid_until || (q.created_at || '').slice(0, 10),
+    author: 'Sales Team',
+    items: [],
+  }
+}
 
 export function QuotationsListPage() {
   const navigate = useNavigate()
-  const [data] = useState<MockQuotation[]>(mockQuotations)
+  const [data, setData] = useState<MockQuotation[]>(mockQuotations)
   const [activeTab, setActiveTab] = useState<string>('all')
+  const [loading, setLoading] = useState(false)
+
+  const loadQuotations = () => {
+    setLoading(true)
+    quotationApi
+      .list({ page_size: 100 })
+      .then((res) => {
+        if (res.items && res.items.length > 0) {
+          setData(res.items.map(toUiQuotation))
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load live quotations from PostgreSQL, fallback to mock:', err)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }
+
+  useEffect(() => {
+    loadQuotations()
+  }, [])
 
   const filterTabs: QuickFilterTab[] = [
     { id: 'all', label: 'All Quotations', count: data.length },
