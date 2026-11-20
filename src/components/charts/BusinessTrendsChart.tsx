@@ -18,31 +18,10 @@ export type TrendPoint = {
   quotations: number
 }
 
-// Daily continuous trend dataset from Nov 01 through Nov 19
-export const defaultBusinessTrends: TrendPoint[] = [
-  { date: 'Nov 01', enquiries: 4, production: 1, quotations: 3 },
-  { date: 'Nov 02', enquiries: 5, production: 1, quotations: 4 },
-  { date: 'Nov 03', enquiries: 6, production: 2, quotations: 4 },
-  { date: 'Nov 04', enquiries: 7, production: 2, quotations: 5 },
-  { date: 'Nov 05', enquiries: 7, production: 2, quotations: 5 },
-  { date: 'Nov 06', enquiries: 6, production: 3, quotations: 4 },
-  { date: 'Nov 07', enquiries: 6, production: 3, quotations: 4 },
-  { date: 'Nov 08', enquiries: 8, production: 3, quotations: 6 },
-  { date: 'Nov 09', enquiries: 10, production: 4, quotations: 7 },
-  { date: 'Nov 10', enquiries: 12, production: 4, quotations: 8 },
-  { date: 'Nov 11', enquiries: 11, production: 3, quotations: 7 },
-  { date: 'Nov 12', enquiries: 10, production: 3, quotations: 7 },
-  { date: 'Nov 13', enquiries: 9, production: 3, quotations: 7 },
-  { date: 'Nov 14', enquiries: 11, production: 4, quotations: 8 },
-  { date: 'Nov 15', enquiries: 13, production: 4, quotations: 8 },
-  { date: 'Nov 16', enquiries: 14, production: 5, quotations: 9 },
-  { date: 'Nov 17', enquiries: 13, production: 5, quotations: 9 },
-  { date: 'Nov 18', enquiries: 12, production: 4, quotations: 8 },
-  { date: 'Nov 19', enquiries: 11, production: 4, quotations: 8 },
-]
+export const defaultBusinessTrends: TrendPoint[] = []
 
 // Axis ticks kept exactly as originally displayed
-const AXIS_TICKS = ['Nov 01', 'Nov 04', 'Nov 07', 'Nov 10', 'Nov 13', 'Nov 16', 'Nov 19']
+const AXIS_TICKS: string[] = []
 
 const GRAPH_DEPARTMENTS: DepartmentId[] = ['enquiries', 'production', 'quotations']
 
@@ -55,6 +34,17 @@ export function BusinessTrendsChart({ data = defaultBusinessTrends }: { data?: T
 
   const toggleSeries = (id: string) => {
     setActiveSeries((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex h-56 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card/40 p-6 text-center">
+        <p className="text-sm font-semibold text-foreground">No Historical Trends Recorded Yet</p>
+        <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+          Continuous trends will populate automatically as enquiries, quotations, and work orders are created and processed in PostgreSQL.
+        </p>
+      </div>
+    )
   }
 
   return (

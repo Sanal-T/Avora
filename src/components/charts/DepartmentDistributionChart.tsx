@@ -14,6 +14,14 @@ export type DistributionItem = {
 }
 
 export function DepartmentDistributionChart({ data }: { data: DistributionItem[] }) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex h-56 w-full flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card/30 p-4 text-center">
+        <p className="text-xs font-medium text-foreground">No Distribution Categories Yet</p>
+        <p className="mt-1 text-[11px] text-muted-foreground">Category proportions will render as records are assigned.</p>
+      </div>
+    )
+  }
   return (
     <div className="h-56 w-full">
       <ResponsiveContainer width="100%" height="100%">

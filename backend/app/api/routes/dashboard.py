@@ -266,8 +266,8 @@ def get_overview(
 def get_department_summary(
     department_id: str,
     db: Annotated[Session, Depends(get_db)],
-    date_from: date | None = Query(default=None),
-    date_to: date | None = Query(default=None),
+    date_from: Annotated[date | None, Query()] = None,
+    date_to: Annotated[date | None, Query()] = None,
 ) -> DepartmentSummary:
     summaries = build_department_summaries(db, date_from, date_to)
     for summary in summaries:

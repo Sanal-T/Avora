@@ -34,16 +34,6 @@ const icons: Record<string, LucideIcon> = {
   labour: Users,
 }
 
-// Sparkline trends for department cards
-const sparklineData: Record<string, number[]> = {
-  enquiries: [20, 24, 28, 26, 32, 35, 38],
-  designs: [10, 12, 14, 13, 16, 17, 18],
-  quotations: [1.8, 2.1, 2.4, 2.8, 2.9, 3.2, 3.4],
-  production: [6, 7, 8, 9, 8, 10, 11],
-  feedback: [12, 14, 15, 18, 19, 20, 22],
-  labour: [48, 50, 52, 51, 53, 54, 54],
-}
-
 export function MainDashboard({
   overview,
   rangeId,
@@ -56,24 +46,21 @@ export function MainDashboard({
   const navigate = useNavigate()
 
   const snapshot = overview.snapshot || {
-    active_pipeline_value: '₹12.4L',
-    open_work_count: 47,
-    needs_attention_count: 17,
+    active_pipeline_value: '₹0',
+    open_work_count: 0,
+    needs_attention_count: 0,
   }
 
-  // Summary Strip KPIs
+  // Summary Strip KPIs (Strictly derived from live PostgreSQL database)
+  const quotationDept = overview.departments?.find((d) => d.id === 'quotations')
   const companyKpis = [
-    { label: 'Active Pipeline', value: snapshot.active_pipeline_value, sub: '+14% this month', highlight: true },
-    { label: 'Open Work Items', value: String(snapshot.open_work_count), sub: 'Across 6 departments' },
-    { label: 'Needs Attention', value: String(snapshot.needs_attention_count), sub: 'Delayed or overdue', alert: true },
-    { label: 'Approved Value', value: '₹3.1L', sub: 'Ready for production' },
+    { label: 'Active Pipeline', value: snapshot.active_pipeline_value || '₹0', sub: 'Open commercial quotes', highlight: true },
+    { label: 'Open Work Items', value: String(snapshot.open_work_count ?? 0), sub: 'Active manufacturing tasks' },
+    { label: 'Needs Attention', value: String(snapshot.needs_attention_count ?? 0), sub: 'Delayed or pending actions', alert: Boolean(snapshot.needs_attention_count) },
+    { label: 'Quotation Volume', value: quotationDept?.primary || '₹0', sub: 'Live from database' },
   ]
 
-  const actions = overview.actionItems || [
-    { title: '6 delayed work orders', description: 'Review production schedule and line bottlenecks', department_id: 'production' },
-    { title: '11 quotations need follow-up', description: 'Contact customers regarding proposal approvals', department_id: 'quotations' },
-    { title: '14 designs awaiting completion', description: 'Review design assignments and CAD drafting', department_id: 'designs' },
-  ]
+  const actions = overview.actionItems || []
 
   const activities = (overview.recentActivities || []).map((act, index) => ({
     id: `act-${index}`,
@@ -142,7 +129,8 @@ export function MainDashboard({
           {overview.departments.map((dept) => {
             const Icon = icons[dept.id] || Inbox
             const meta = DEPARTMENT_META[dept.id as DepartmentId] || DEPARTMENT_META.enquiries
-            const spark = sparklineData[dept.id] || [10, 15, 20, 18, 25]
+            const spark = dept.metrics.map(([_, v]) => parseFloat(v.replace(/[^0-9.]/g, '')) || 0)
+            const hasSpark = spark.some((n) => n > 0)
 
             return (
               <Card
@@ -162,18 +150,22 @@ export function MainDashboard({
                       <p className="text-[11px] text-muted-foreground">{dept.primaryLabel}</p>
                     </div>
                   </div>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                    {dept.trend}
-                  </span>
+                  {dept.trend && (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      {dept.trend}
+                    </span>
+                  )}
                 </div>
 
                 <div className="mt-4 flex items-baseline justify-between">
                   <span className="font-display text-3xl font-extrabold tracking-tight tabular-nums text-foreground">
                     {dept.primary}
                   </span>
-                  <div className="w-24 text-primary">
-                    <Sparkline values={spark} />
-                  </div>
+                  {hasSpark ? (
+                    <div className="w-24 text-primary">
+                      <Sparkline values={spark} />
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Compact Supporting Metrics */}
