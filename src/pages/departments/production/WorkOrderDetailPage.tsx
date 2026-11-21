@@ -3,16 +3,15 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft,
   Factory,
-  CheckSquare,
   AlertTriangle,
-  Clock,
-  UserCheck,
   Calendar,
   Truck,
   CheckCircle2,
   Plus,
-  Layers,
   Edit3,
+  Play,
+  Loader2,
+  CheckSquare,
 } from 'lucide-react'
 import { PageContainer } from '../../../components/shared/PageHeader'
 import { Button } from '../../../components/ui/Button'
@@ -44,14 +43,20 @@ function toUiWorkOrder(wo: WorkOrder): MockWorkOrder {
   else if (st.includes('cutting')) stage = 'Cutting'
   else if (st.includes('finish')) stage = 'Finishing'
 
-  let completionRate = 45
-  if (status === 'completed') completionRate = 100
-  else if (st.includes('progress')) completionRate = 65
+  let completionRate = 0
+  if (status === 'completed') {
+    completionRate = 100
+  } else if (wo.tasks && wo.tasks.length > 0) {
+    const done = wo.tasks.filter((t) => t.status === 'Completed').length
+    completionRate = Math.round((done / wo.tasks.length) * 100)
+  } else if (st.includes('progress')) {
+    completionRate = 50
+  }
 
   return {
     id: wo.id,
     code: wo.work_order_number,
-    quotationCode: wo.quotation_id ? 'Linked' : 'Standard',
+    quotationCode: wo.quotation_id ? 'Linked' : 'Direct',
     client: wo.customer_company || wo.customer_name || 'Direct Customer',
     title: wo.title,
     status,
@@ -73,14 +78,21 @@ export function WorkOrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const [workOrder, setWorkOrder] = useState<MockWorkOrder | undefined>(() =>
-    mockWorkOrders.find((w) => w.id === id || w.code === id) || mockWorkOrders[0],
-  )
-  const [loading, setLoading] = useState(!workOrder)
-  const [tasks, setTasks] = useState(workOrder?.tasks || [])
+  const [rawWorkOrder, setRawWorkOrder] = useState<WorkOrder | null>(null)
+  const [workOrder, setWorkOrder] = useState<MockWorkOrder | undefined>(undefined)
+  const [loading, setLoading] = useState(true)
+  const [tasks, setTasks] = useState<{ id: string; title: string; completed: boolean }[]>([])
+
+  // Action modals
   const [delayModalOpen, setDelayModalOpen] = useState(false)
   const [delayReason, setDelayReason] = useState('')
-  const [newTargetDate, setNewTargetDate] = useState('2026-11-25')
+  const [newTargetDate, setNewTargetDate] = useState('2026-12-10')
+  const [actionLoading, setActionLoading] = useState(false)
+
+  // Task creation
+  const [addTaskModalOpen, setAddTaskModalOpen] = useState(false)
+  const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [newTaskHours, setNewTaskHours] = useState(8)
 
   useEffect(() => {
     if (!id) return
@@ -88,19 +100,36 @@ export function WorkOrderDetailPage() {
     productionApi
       .getWorkOrder(id)
       .then((res) => {
+        setRawWorkOrder(res)
         const mapped = toUiWorkOrder(res)
         setWorkOrder(mapped)
         setTasks(mapped.tasks)
       })
       .catch(() => {
-        productionApi.listWorkOrders({ search: id }).then((res) => {
-          const found = res.items.find((item) => item.id === id || item.work_order_number === id)
-          if (found) {
-            const mapped = toUiWorkOrder(found)
-            setWorkOrder(mapped)
-            setTasks(mapped.tasks)
-          }
-        }).catch(() => {})
+        productionApi
+          .listWorkOrders({ search: id })
+          .then((res) => {
+            const found = res.items.find((item) => item.id === id || item.work_order_number === id)
+            if (found) {
+              setRawWorkOrder(found)
+              const mapped = toUiWorkOrder(found)
+              setWorkOrder(mapped)
+              setTasks(mapped.tasks)
+            } else {
+              const mock = mockWorkOrders.find((w) => w.id === id || w.code === id)
+              if (mock) {
+                setWorkOrder(mock)
+                setTasks(mock.tasks)
+              }
+            }
+          })
+          .catch(() => {
+            const mock = mockWorkOrders.find((w) => w.id === id || w.code === id)
+            if (mock) {
+              setWorkOrder(mock)
+              setTasks(mock.tasks)
+            }
+          })
       })
       .finally(() => setLoading(false))
   }, [id])
@@ -122,11 +151,201 @@ export function WorkOrderDetailPage() {
     setAllSlots(getProductionSlots())
   }
 
+  // Task toggle wired to PostgreSQL
+  const toggleTask = async (taskId: string) => {
+    const current = tasks.find((t) => t.id === taskId)
+    if (!current) return
+
+    const nextCompleted = !current.completed
+    const nextStatus = nextCompleted ? 'Completed' : 'Pending'
+
+    // Optimistic local update
+    const updated = tasks.map((t) => (t.id === taskId ? { ...t, completed: nextCompleted } : t))
+    setTasks(updated)
+
+    if (rawWorkOrder) {
+      try {
+        const res = await productionApi.updateTaskStatus(rawWorkOrder.id, taskId, {
+          status: nextStatus,
+        })
+        setRawWorkOrder(res)
+        const mapped = toUiWorkOrder(res)
+        setWorkOrder(mapped)
+        setTasks(mapped.tasks)
+        toast.success(
+          nextCompleted ? 'Task Completed' : 'Task Reopened',
+          `Progress: ${mapped.completionRate}% (synced with PostgreSQL)`,
+        )
+      } catch (err: any) {
+        toast.error('Task update failed', err.message || 'Could not update task')
+      }
+    } else {
+      const completedCount = updated.filter((t) => t.completed).length
+      const newProgress = Math.round((completedCount / updated.length) * 100)
+      if (workOrder) setWorkOrder({ ...workOrder, completionRate: newProgress })
+    }
+  }
+
+  // Add single task to PostgreSQL
+  const handleAddTask = async () => {
+    if (!newTaskTitle.trim()) {
+      toast.warning('Title Required', 'Please enter a task title.')
+      return
+    }
+    if (!rawWorkOrder) {
+      const newTask = { id: `t-${Date.now()}`, title: newTaskTitle.trim(), completed: false }
+      setTasks([...tasks, newTask])
+      setAddTaskModalOpen(false)
+      setNewTaskTitle('')
+      return
+    }
+
+    setActionLoading(true)
+    try {
+      const res = await productionApi.addProductionTask(rawWorkOrder.id, {
+        task_name: newTaskTitle.trim(),
+        planned_hours: newTaskHours,
+        status: 'Pending',
+      })
+      setRawWorkOrder(res)
+      const mapped = toUiWorkOrder(res)
+      setWorkOrder(mapped)
+      setTasks(mapped.tasks)
+      setAddTaskModalOpen(false)
+      setNewTaskTitle('')
+      toast.success('Task Added', `Production task persisted to PostgreSQL.`)
+    } catch (err: any) {
+      toast.error('Failed to add task', err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // Initialize standard checkpoints if empty
+  const handleInitializeDefaultTasks = async () => {
+    if (!rawWorkOrder) return
+    setActionLoading(true)
+    const defaultTasks = [
+      'Raw timber / board calibration & cut list issue',
+      'Component profiling & precision joint fabrication',
+      'Assembly & acoustic/hardware integration',
+      'Final shop QC and packaging inspection',
+    ]
+
+    try {
+      let lastRes = rawWorkOrder
+      for (const tName of defaultTasks) {
+        lastRes = await productionApi.addProductionTask(rawWorkOrder.id, {
+          task_name: tName,
+          planned_hours: 8,
+          status: 'Pending',
+        })
+      }
+      setRawWorkOrder(lastRes)
+      const mapped = toUiWorkOrder(lastRes)
+      setWorkOrder(mapped)
+      setTasks(mapped.tasks)
+      toast.success('Checkpoints Initialized', 'Standard 4-stage shop checkpoints registered.')
+    } catch (err: any) {
+      toast.error('Initialization failed', err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // Record Delay in PostgreSQL
+  const handleRecordDelay = async () => {
+    if (!delayReason.trim()) {
+      toast.warning('Reason Required', 'Please provide cause of fabrication bottleneck.')
+      return
+    }
+
+    if (rawWorkOrder) {
+      setActionLoading(true)
+      try {
+        await productionApi.updateWorkOrderStatus(rawWorkOrder.id, {
+          status: 'Delayed',
+          notes: delayReason,
+        })
+        const updated = await productionApi.updateWorkOrder(rawWorkOrder.id, {
+          planned_end_date: newTargetDate,
+          notes: `Delay recorded: ${delayReason}`,
+        })
+        setRawWorkOrder(updated)
+        setWorkOrder(toUiWorkOrder(updated))
+        setDelayModalOpen(false)
+        toast.error('Delay Recorded', `Work order marked Delayed; new target: ${newTargetDate}`)
+      } catch (err: any) {
+        toast.error('Failed to record delay', err.message)
+      } finally {
+        setActionLoading(false)
+      }
+    } else if (workOrder) {
+      setWorkOrder({
+        ...workOrder,
+        status: 'delayed',
+        deliveryDate: newTargetDate,
+      })
+      setDelayModalOpen(false)
+      toast.error('Delay Recorded', `New target handover: ${newTargetDate}`)
+    }
+  }
+
+  // Start Production Run
+  const handleStartProduction = async () => {
+    if (rawWorkOrder) {
+      setActionLoading(true)
+      try {
+        const updated = await productionApi.updateWorkOrderStatus(rawWorkOrder.id, {
+          status: 'In Progress',
+          notes: 'Production started on shop floor.',
+        })
+        setRawWorkOrder(updated)
+        setWorkOrder(toUiWorkOrder(updated))
+        toast.success('Production Started', `${updated.work_order_number} is now In Progress.`)
+      } catch (err: any) {
+        toast.error('Failed to start production', err.message)
+      } finally {
+        setActionLoading(false)
+      }
+    } else if (workOrder) {
+      setWorkOrder({ ...workOrder, status: 'active' })
+      toast.success('Production Started', 'Work order is now active.')
+    }
+  }
+
+  // Complete Work Order in PostgreSQL
+  const handleCompleteWorkOrder = async () => {
+    if (rawWorkOrder) {
+      setActionLoading(true)
+      try {
+        const updated = await productionApi.updateWorkOrderStatus(rawWorkOrder.id, {
+          status: 'Completed',
+          notes: 'Completed by shop floor manager.',
+        })
+        setRawWorkOrder(updated)
+        setWorkOrder(toUiWorkOrder(updated))
+        toast.success(
+          'Work Order Completed',
+          `${updated.work_order_number} marked 100% Completed in PostgreSQL!`,
+        )
+      } catch (err: any) {
+        toast.error('Failed to complete work order', err.message)
+      } finally {
+        setActionLoading(false)
+      }
+    } else if (workOrder) {
+      setWorkOrder({ ...workOrder, status: 'completed', completionRate: 100 })
+      toast.success('Work Order Completed', 'Dispatched to customer feedback loop!')
+    }
+  }
+
   if (loading) {
     return (
       <PageContainer>
-        <div className="py-16 text-center text-muted-foreground text-sm">
-          Loading work order details from database…
+        <div className="py-20 flex flex-col items-center justify-center gap-3 text-muted-foreground text-sm">
+          <Loader2 className="size-6 animate-spin text-primary" />
+          <span>Loading work order details from database…</span>
         </div>
       </PageContainer>
     )
@@ -145,28 +364,7 @@ export function WorkOrderDetailPage() {
     )
   }
 
-  const toggleTask = (taskId: string) => {
-    const updated = tasks.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t))
-    setTasks(updated)
-    const completedCount = updated.filter((t) => t.completed).length
-    const newProgress = Math.round((completedCount / updated.length) * 100)
-    setWorkOrder({ ...workOrder, completionRate: newProgress })
-    toast.success('Checklist Updated', `Work Order progress: ${newProgress}%`)
-  }
-
-  const handleRecordDelay = () => {
-    if (!delayReason.trim()) {
-      toast.warning('Reason required', 'Please provide cause of fabrication bottleneck.')
-      return
-    }
-    setWorkOrder({
-      ...workOrder,
-      status: 'delayed',
-      deliveryDate: newTargetDate,
-    })
-    setDelayModalOpen(false)
-    toast.error('Delay Recorded', `New target handover: ${newTargetDate}`)
-  }
+  const rawStatus = rawWorkOrder?.status || workOrder.status
 
   return (
     <PageContainer>
@@ -187,28 +385,41 @@ export function WorkOrderDetailPage() {
             <Calendar className="size-3.5 mr-1" />
             Production Calendar
           </Button>
-          {workOrder.status !== 'delayed' && (
+
+          {(rawStatus === 'Pending' || rawStatus === 'Scheduled') && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleStartProduction}
+              disabled={actionLoading}
+              className="text-primary border-primary/30 hover:bg-primary-soft"
+            >
+              <Play className="size-3.5 mr-1" />
+              <span>Start Production</span>
+            </Button>
+          )}
+
+          {rawStatus !== 'Delayed' && rawStatus !== 'Completed' && (
             <Button
               variant="outline"
               size="sm"
               onClick={() => setDelayModalOpen(true)}
-              className="text-danger hover:bg-danger-soft"
+              className="text-danger hover:bg-danger-soft border-danger/30"
             >
               <AlertTriangle className="size-3.5 mr-1" />
-              Record Delay
+              <span>Record Delay</span>
             </Button>
           )}
-          {workOrder.status !== 'completed' && (
+
+          {rawStatus !== 'Completed' && (
             <Button
               variant="primary"
               size="sm"
-              onClick={() => {
-                setWorkOrder({ ...workOrder, status: 'completed', completionRate: 100 })
-                toast.success('Work Order Completed', 'Dispatched to customer feedback loop!')
-              }}
+              onClick={handleCompleteWorkOrder}
+              disabled={actionLoading}
             >
-              <CheckCircle2 className="size-3.5 mr-1" />
-              Complete Work Order
+              {actionLoading ? <Loader2 className="size-3.5 animate-spin mr-1" /> : <CheckCircle2 className="size-3.5 mr-1" />}
+              <span>Complete Work Order</span>
             </Button>
           )}
         </div>
@@ -351,7 +562,6 @@ export function WorkOrderDetailPage() {
                         </div>
                       </div>
 
-                      {/* Date Allocation Strip */}
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded bg-muted/50 p-2 text-xs">
                         <div>
                           <span className="text-[10px] text-muted-foreground block">Allocated Timeframe</span>
@@ -378,43 +588,72 @@ export function WorkOrderDetailPage() {
             )}
           </Card>
 
+          {/* Manufacturing Task Checklist */}
           <Card className="p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
                 <h3 className="text-sm font-semibold text-foreground">Manufacturing Task Checklist</h3>
                 <p className="text-xs text-muted-foreground">
-                  Shop floor production checkpoints verified by QA supervisor.
+                  Shop floor production checkpoints verified in PostgreSQL database.
                 </p>
               </div>
-              <span className="text-xs font-mono font-bold text-primary">
-                {tasks.filter((t) => t.completed).length} / {tasks.length} Done
-              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAddTaskModalOpen(true)}
+                  className="h-7 text-xs"
+                >
+                  <Plus className="size-3 mr-1" />
+                  Add Task
+                </Button>
+                <span className="text-xs font-mono font-bold text-primary">
+                  {tasks.filter((t) => t.completed).length} / {tasks.length} Done
+                </span>
+              </div>
             </div>
 
-            <div className="space-y-3 pt-1">
-              {tasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="flex items-start gap-3 rounded-lg border border-border p-3 hover:bg-muted/30 transition-colors"
+            {tasks.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border p-6 text-center space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  No checkpoints currently tracked for this work order.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleInitializeDefaultTasks}
+                  disabled={actionLoading}
                 >
-                  <Checkbox
-                    checked={task.completed}
-                    onChange={() => toggleTask(task.id)}
-                    id={task.id}
-                  />
-                  <div className="flex-1">
-                    <label
-                      htmlFor={task.id}
-                      className={`text-xs font-medium cursor-pointer ${
-                        task.completed ? 'line-through text-muted-foreground' : 'text-foreground'
-                      }`}
-                    >
-                      {task.title}
-                    </label>
+                  <CheckSquare className="size-3.5 mr-1" />
+                  Initialize 4-Stage Shop Checkpoints
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3 pt-1">
+                {tasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex items-start gap-3 rounded-lg border border-border p-3 hover:bg-muted/30 transition-colors"
+                  >
+                    <Checkbox
+                      checked={task.completed}
+                      onChange={() => toggleTask(task.id)}
+                      id={task.id}
+                    />
+                    <div className="flex-1">
+                      <label
+                        htmlFor={task.id}
+                        className={`text-xs font-medium cursor-pointer ${
+                          task.completed ? 'line-through text-muted-foreground' : 'text-foreground'
+                        }`}
+                      >
+                        {task.title}
+                      </label>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </Card>
 
           {/* Installation Section */}
@@ -440,15 +679,15 @@ export function WorkOrderDetailPage() {
           </Card>
         </div>
 
-        {/* Right 1 Col: Assignment & Status */}
+        {/* Right 1 Col: Metadata & Timeline */}
         <div className="space-y-4">
           <Card className="p-5 space-y-3 text-xs">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Work Order Metadata
             </h3>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Lead Worker:</span>
-              <span className="font-semibold text-foreground">{workOrder.leadWorker}</span>
+              <span className="text-muted-foreground">Status in PostgreSQL:</span>
+              <span className="font-mono font-bold text-foreground">{rawStatus}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Current Stage:</span>
@@ -462,15 +701,38 @@ export function WorkOrderDetailPage() {
               <span className="text-muted-foreground">Quotation Ref:</span>
               <span className="font-mono text-foreground">{workOrder.quotationCode}</span>
             </div>
+            {rawWorkOrder?.actual_start_date && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Actual Started:</span>
+                <span className="font-mono text-foreground">{rawWorkOrder.actual_start_date}</span>
+              </div>
+            )}
+            {rawWorkOrder?.actual_completion_date && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Completed Date:</span>
+                <span className="font-mono text-success">{rawWorkOrder.actual_completion_date}</span>
+              </div>
+            )}
           </Card>
 
           <Card className="p-5">
             <h3 className="text-sm font-semibold text-foreground mb-3">Shop Floor Timeline</h3>
             <ActivityTimeline
               events={[
-                { id: '1', title: 'Task Progress Logged', description: 'Electrical conduit fitted', timeAgo: '3 hrs ago', tone: 'info' },
-                { id: '2', title: 'Timber Cut List Machined', description: 'CNC edge banding passed QA', timeAgo: '1 day ago', tone: 'success' },
-                { id: '3', title: 'Work Order Dispatched to Floor', description: 'Lead assigned: Ramesh Gowda', timeAgo: '5 days ago', tone: 'primary' },
+                {
+                  id: '1',
+                  title: `Status: ${rawStatus}`,
+                  description: rawWorkOrder?.notes || 'Work order active on shop floor',
+                  timeAgo: workOrder.deliveryDate,
+                  tone: rawStatus === 'Completed' ? 'success' : rawStatus === 'Delayed' ? 'danger' : 'info',
+                },
+                {
+                  id: '2',
+                  title: `Checkpoints: ${tasks.filter((t) => t.completed).length}/${tasks.length} Completed`,
+                  description: `Shop floor fabrication progress at ${workOrder.completionRate}%`,
+                  timeAgo: 'Latest',
+                  tone: 'primary',
+                },
               ]}
             />
           </Card>
@@ -482,7 +744,7 @@ export function WorkOrderDetailPage() {
         open={delayModalOpen}
         onClose={() => setDelayModalOpen(false)}
         title="Record Production Delay"
-        description="Flag manufacturing bottleneck and revise target customer handover date."
+        description="Flag manufacturing bottleneck and revise target customer handover date in PostgreSQL."
       >
         <div className="space-y-4">
           <Input
@@ -503,8 +765,49 @@ export function WorkOrderDetailPage() {
             <Button variant="outline" size="sm" onClick={() => setDelayModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" size="sm" className="bg-danger text-white hover:bg-danger/90" onClick={handleRecordDelay}>
+            <Button
+              variant="primary"
+              size="sm"
+              className="bg-danger text-white hover:bg-danger/90"
+              onClick={handleRecordDelay}
+              disabled={actionLoading}
+            >
+              {actionLoading ? <Loader2 className="size-3.5 animate-spin mr-1" /> : null}
               Confirm Delay
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Add Task Modal */}
+      <Dialog
+        open={addTaskModalOpen}
+        onClose={() => setAddTaskModalOpen(false)}
+        title="Add Production Checkpoint"
+        description="Record a specific manufacturing step or QA checkpoint for this work order."
+      >
+        <div className="space-y-4">
+          <Input
+            label="Task Description"
+            placeholder="e.g. CNC profile routering & edge chamfering"
+            required
+            value={newTaskTitle}
+            onChange={(e) => setNewTaskTitle(e.target.value)}
+          />
+          <Input
+            type="number"
+            label="Planned Labor Hours"
+            min="1"
+            value={newTaskHours}
+            onChange={(e) => setNewTaskHours(Math.max(1, Number(e.target.value)))}
+          />
+          <div className="flex justify-end gap-2 border-t border-border pt-4">
+            <Button variant="outline" size="sm" onClick={() => setAddTaskModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleAddTask} disabled={actionLoading}>
+              {actionLoading ? <Loader2 className="size-3.5 animate-spin mr-1" /> : null}
+              Add Checkpoint
             </Button>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime, time, timezone
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -12,6 +12,7 @@ from app.schemas.production import (
     ProductionSummaryResponse,
     ProductionTaskCreate,
     ProductionTaskRead,
+    ProductionTaskUpdate,
     WorkOrderCreate,
     WorkOrderRead,
     WorkOrderStatusUpdate,
@@ -151,6 +152,26 @@ def create_work_order(db: Session, data: WorkOrderCreate, user_id: uuid.UUID | N
     return _to_work_order_read(wo)
 
 
+def update_work_order(db: Session, work_order_id: uuid.UUID, data: WorkOrderUpdate, user_id: uuid.UUID | None = None) -> WorkOrderRead:
+    wo = get_work_order(db, work_order_id)
+    if data.title is not None:
+        wo.title = data.title
+    if data.priority is not None:
+        wo.priority = data.priority
+    if data.planned_start_date is not None:
+        wo.planned_start_date = data.planned_start_date
+    if data.planned_end_date is not None:
+        wo.planned_end_date = data.planned_end_date
+    if data.actual_start_date is not None:
+        wo.actual_start_date = data.actual_start_date
+    if data.notes is not None:
+        wo.notes = data.notes
+
+    db.commit()
+    db.refresh(wo)
+    return _to_work_order_read(wo)
+
+
 def update_work_order_status(db: Session, work_order_id: uuid.UUID, data: WorkOrderStatusUpdate, user_id: uuid.UUID | None = None) -> WorkOrderRead:
     if data.status not in VALID_PRODUCTION_STATUSES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid status: {data.status}")
@@ -198,6 +219,39 @@ def add_production_task(db: Session, work_order_id: uuid.UUID, data: ProductionT
     return _to_work_order_read(wo)
 
 
+def update_task_status(db: Session, work_order_id: uuid.UUID, task_id: uuid.UUID, data: ProductionTaskUpdate, user_id: uuid.UUID | None = None) -> WorkOrderRead:
+    wo = get_work_order(db, work_order_id)
+    task = db.query(ProductionTask).filter(ProductionTask.id == task_id, ProductionTask.work_order_id == wo.id).first()
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Production task not found.")
+
+    if data.status is not None:
+        task.status = data.status
+    if data.actual_hours is not None:
+        task.actual_hours = data.actual_hours
+    if data.completion_notes is not None:
+        task.completion_notes = data.completion_notes
+
+    # Auto-complete work order if all tasks are completed
+    total_tasks = len(wo.tasks)
+    completed_tasks = sum(1 for t in wo.tasks if t.status == "Completed")
+    if total_tasks > 0 and completed_tasks == total_tasks and wo.status not in ["Completed", "Cancelled"]:
+        wo.status = "Completed"
+        wo.actual_completion_date = date.today()
+        history = WorkOrderStatusHistory(
+            work_order_id=wo.id,
+            from_status="In Progress",
+            to_status="Completed",
+            changed_by_id=user_id,
+            notes="All production tasks completed.",
+        )
+        db.add(history)
+
+    db.commit()
+    db.refresh(wo)
+    return _to_work_order_read(wo)
+
+
 def add_installation(db: Session, work_order_id: uuid.UUID, data: InstallationCreate) -> WorkOrderRead:
     wo = get_work_order(db, work_order_id)
     inst = Installation(
@@ -225,15 +279,20 @@ def get_production_summary(db: Session, date_from: date | None = None, date_to: 
     total = query.count()
     active = query.filter(WorkOrder.status.in_(["Scheduled", "In Progress"])).count()
     completed = query.filter(WorkOrder.status == "Completed").count()
-    delayed = query.filter(WorkOrder.status == "Delayed").count()
 
     today = date.today()
-    auto_delayed = query.filter(
-        WorkOrder.status.in_(["Scheduled", "In Progress"]),
-        WorkOrder.planned_end_date != None,
-        WorkOrder.planned_end_date < today,
+    # Resolve delayed status: distinct count of either manually marked Delayed OR overdue active work order
+    # avoids counting manually delayed and overdue work twice
+    total_delayed = query.filter(
+        or_(
+            WorkOrder.status == "Delayed",
+            and_(
+                WorkOrder.status.in_(["Scheduled", "In Progress", "Pending"]),
+                WorkOrder.planned_end_date != None,
+                WorkOrder.planned_end_date < today,
+            ),
+        )
     ).count()
-    total_delayed = max(delayed, auto_delayed)
 
     rate = round(((completed) / total * 100), 1) if total > 0 else 100.0
 

@@ -369,6 +369,39 @@ export interface WorkOrderListResponse {
   items: WorkOrder[]
 }
 
+export interface ProductionTaskCreateInput {
+  task_name: string
+  sequence_order?: number
+  status?: string
+  assigned_employee_id?: string | null
+  planned_hours?: number | null
+  actual_hours?: number | null
+  completion_notes?: string | null
+}
+
+export interface ProductionTaskUpdateInput {
+  status?: string
+  actual_hours?: number | null
+  completion_notes?: string | null
+}
+
+export interface WorkOrderUpdateInput {
+  title?: string
+  priority?: string
+  planned_start_date?: string | null
+  planned_end_date?: string | null
+  actual_start_date?: string | null
+  notes?: string | null
+}
+
+export interface ProductionSummaryResponse {
+  total_work_orders: number
+  active_work_orders: number
+  completed_work_orders: number
+  delayed_work_orders: number
+  on_time_completion_rate: number
+}
+
 export interface WorkOrderCreateInput {
   title: string
   priority?: string
@@ -394,6 +427,41 @@ export const productionApi = {
       method: 'POST',
       body: JSON.stringify(data),
     })
+  },
+
+  async updateWorkOrder(id: string, data: WorkOrderUpdateInput): Promise<WorkOrder> {
+    return apiFetch<WorkOrder>(`/api/production/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async updateWorkOrderStatus(id: string, data: { status: string; notes?: string }): Promise<WorkOrder> {
+    return apiFetch<WorkOrder>(`/api/production/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async addProductionTask(id: string, data: ProductionTaskCreateInput): Promise<WorkOrder> {
+    return apiFetch<WorkOrder>(`/api/production/${id}/tasks`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async updateTaskStatus(workOrderId: string, taskId: string, data: ProductionTaskUpdateInput): Promise<WorkOrder> {
+    return apiFetch<WorkOrder>(`/api/production/${workOrderId}/tasks/${taskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async getProductionSummary(params: { date_from?: string; date_to?: string } = {}): Promise<ProductionSummaryResponse> {
+    const query = new URLSearchParams()
+    if (params.date_from) query.set('date_from', params.date_from)
+    if (params.date_to) query.set('date_to', params.date_to)
+    return apiFetch<ProductionSummaryResponse>(`/api/production/summary${query.size ? `?${query.toString()}` : ''}`)
   },
 
   async getWorkOrder(id: string): Promise<WorkOrder> {

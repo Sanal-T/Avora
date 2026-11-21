@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ArrowLeft, ArrowUpRight, Calendar, AlertTriangle } from 'lucide-react'
+import { Plus, ArrowLeft, ArrowUpRight, Calendar, AlertTriangle, RefreshCw } from 'lucide-react'
 import { PageContainer, PageHeader } from '../../../components/shared/PageHeader'
 import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
@@ -23,6 +23,10 @@ function toUiWorkOrder(wo: WorkOrder): MockWorkOrder {
   let completionRate = 45
   if (status === 'completed') completionRate = 100
   else if (st.includes('progress')) completionRate = 65
+  else if (wo.tasks && wo.tasks.length > 0) {
+    const done = wo.tasks.filter((t) => t.status === 'Completed').length
+    completionRate = Math.round((done / wo.tasks.length) * 100)
+  }
 
   return {
     id: wo.id,
@@ -47,32 +51,53 @@ function toUiWorkOrder(wo: WorkOrder): MockWorkOrder {
 
 export function ProductionListPage() {
   const navigate = useNavigate()
-  const [data, setData] = useState<MockWorkOrder[]>(() => [...mockWorkOrders])
+  const [data, setData] = useState<MockWorkOrder[]>([])
   const [activeTab, setActiveTab] = useState<string>('all')
+  const [loading, setLoading] = useState(false)
   const [workOrderModalOpen, setWorkOrderModalOpen] = useState(false)
 
-  useEffect(() => {
+  const fetchWorkOrders = () => {
+    setLoading(true)
     productionApi
       .listWorkOrders({ page_size: 100 })
       .then((res) => {
         if (res.items && res.items.length > 0) {
           setData(res.items.map(toUiWorkOrder))
+        } else if (res.items) {
+          setData([])
         }
       })
       .catch((err) => {
-        console.warn('Could not load live work orders from PostgreSQL:', err)
+        console.warn('Could not load live work orders from PostgreSQL, fallback to mock:', err)
+        setData(mockWorkOrders)
       })
+      .finally(() => {
+        setLoading(false)
+      })
+  }
+
+  useEffect(() => {
+    fetchWorkOrders()
   }, [])
+
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const isDelayed = (w: MockWorkOrder) =>
+    w.status === 'delayed' ||
+    (w.status !== 'completed' && w.deliveryDate && w.deliveryDate < todayStr && w.deliveryDate !== 'TBD')
 
   const filterTabs: QuickFilterTab[] = [
     { id: 'all', label: 'All Work Orders', count: data.length },
     { id: 'active', label: 'Active Shop Floor', count: data.filter((w) => w.status === 'active').length },
-    { id: 'delayed', label: 'Delayed / Attention', count: data.filter((w) => w.status === 'delayed').length },
+    { id: 'delayed', label: 'Delayed / Attention', count: data.filter(isDelayed).length },
     { id: 'completed', label: 'Completed', count: data.filter((w) => w.status === 'completed').length },
   ]
 
   const filteredData =
-    activeTab === 'all' ? data : data.filter((w) => w.status === activeTab)
+    activeTab === 'all'
+      ? data
+      : activeTab === 'delayed'
+      ? data.filter(isDelayed)
+      : data.filter((w) => w.status === activeTab)
 
   const columns: ColumnDef<MockWorkOrder>[] = [
     {
@@ -182,6 +207,10 @@ export function ProductionListPage() {
         description="Shop floor manufacturing jobs, stage progress, assembly checklist and field installation."
         actions={
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={fetchWorkOrders} disabled={loading}>
+              <RefreshCw className={`size-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </Button>
             <Button variant="outline" size="sm" onClick={() => navigate('/production/calendar')}>
               <Calendar className="size-3.5 mr-1" />
               <span>Production Calendar</span>

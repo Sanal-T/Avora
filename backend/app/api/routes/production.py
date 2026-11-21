@@ -10,6 +10,7 @@ from app.schemas.production import (
     InstallationCreate,
     ProductionSummaryResponse,
     ProductionTaskCreate,
+    ProductionTaskUpdate,
     WorkOrderCreate,
     WorkOrderListResponse,
     WorkOrderRead,
@@ -73,7 +74,19 @@ def get_work_order(
     return production_service._to_work_order_read(wo)
 
 
+@router.put("/{work_order_id}", response_model=WorkOrderRead)
+@router.patch("/{work_order_id}", response_model=WorkOrderRead)
+def update_work_order(
+    work_order_id: uuid.UUID,
+    data: WorkOrderUpdate,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> WorkOrderRead:
+    return production_service.update_work_order(db, work_order_id, data, user_id=current_user.id)
+
+
 @router.post("/{work_order_id}/status", response_model=WorkOrderRead)
+@router.patch("/{work_order_id}/status", response_model=WorkOrderRead)
 def update_work_order_status(
     work_order_id: uuid.UUID,
     data: WorkOrderStatusUpdate,
@@ -91,6 +104,18 @@ def add_production_task(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> WorkOrderRead:
     return production_service.add_production_task(db, work_order_id, data)
+
+
+@router.put("/{work_order_id}/tasks/{task_id}", response_model=WorkOrderRead)
+@router.patch("/{work_order_id}/tasks/{task_id}", response_model=WorkOrderRead)
+def update_production_task(
+    work_order_id: uuid.UUID,
+    task_id: uuid.UUID,
+    data: ProductionTaskUpdate,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> WorkOrderRead:
+    return production_service.update_task_status(db, work_order_id, task_id, data, user_id=current_user.id)
 
 
 @router.post("/{work_order_id}/installations", response_model=WorkOrderRead)

@@ -18,6 +18,12 @@ class ProductionTaskCreate(ProductionTaskBase):
     pass
 
 
+class ProductionTaskUpdate(BaseModel):
+    status: str | None = None
+    actual_hours: Decimal | None = None
+    completion_notes: str | None = None
+
+
 class ProductionTaskRead(ProductionTaskBase):
     id: uuid.UUID
     work_order_id: uuid.UUID
