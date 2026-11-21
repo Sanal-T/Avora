@@ -52,7 +52,24 @@ def test_feedback_and_labour(client):
         "comments": "Excellent woodwork and precision fitting."
     }, headers=headers)
     assert res_fb.status_code == 201
-    assert res_fb.json()["status"] == "Received"
+    fb_data = res_fb.json()
+    assert fb_data["status"] == "Received"
+    fb_id = fb_data["id"]
+
+    # 1b. Get feedback by ID
+    res_get_fb = client.get(f"/api/feedback/{fb_id}", headers=headers)
+    assert res_get_fb.status_code == 200
+    assert res_get_fb.json()["id"] == fb_id
+
+    # 1c. Update feedback (resolve & close)
+    res_patch_fb = client.patch(f"/api/feedback/{fb_id}", json={
+        "status": "Closed",
+        "resolution_notes": "Client signed off on final inspection."
+    }, headers=headers)
+    assert res_patch_fb.status_code == 200
+    assert res_patch_fb.json()["status"] == "Closed"
+    assert res_patch_fb.json()["resolution_notes"] == "Client signed off on final inspection."
+    assert res_patch_fb.json()["resolved_at"] is not None
 
     # 2. Create worker
     res_w = client.post("/api/labour/workers", json={

@@ -833,11 +833,33 @@ export interface Feedback {
   updated_at: string
 }
 
+export interface FeedbackCreateInput {
+  customer_id: string
+  work_order_id?: string | null
+  category?: string
+  rating?: number | null
+  comments?: string | null
+}
+
+export interface FeedbackUpdateInput {
+  status?: string
+  rating?: number | null
+  comments?: string | null
+  resolution_notes?: string | null
+}
+
 export interface FeedbackListResponse {
   total: number
   page: number
   page_size: number
   items: Feedback[]
+}
+
+export interface FeedbackSummaryResponse {
+  total_feedback: number
+  received_feedback: number
+  awaiting_feedback: number
+  response_rate: number
 }
 
 export const feedbackApi = {
@@ -848,5 +870,27 @@ export const feedbackApi = {
     if (params.status && params.status !== 'all') query.set('status', params.status)
     if (params.category) query.set('category', params.category)
     return apiFetch<FeedbackListResponse>(`/api/feedback${query.size ? `?${query.toString()}` : ''}`)
+  },
+
+  async getFeedback(id: string): Promise<Feedback> {
+    return apiFetch<Feedback>(`/api/feedback/${id}`)
+  },
+
+  async createFeedback(data: FeedbackCreateInput): Promise<Feedback> {
+    return apiFetch<Feedback>('/api/feedback', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async updateFeedback(id: string, data: FeedbackUpdateInput): Promise<Feedback> {
+    return apiFetch<Feedback>(`/api/feedback/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async getFeedbackSummary(): Promise<FeedbackSummaryResponse> {
+    return apiFetch<FeedbackSummaryResponse>('/api/feedback/summary')
   },
 }

@@ -54,6 +54,13 @@ def list_feedback(
     return total, [_to_feedback_read(item) for item in items]
 
 
+def get_feedback(db: Session, feedback_id: uuid.UUID) -> FeedbackRead:
+    fb = db.query(Feedback).filter(Feedback.id == feedback_id, Feedback.is_deleted == False).first()
+    if not fb:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feedback record not found.")
+    return _to_feedback_read(fb)
+
+
 def create_feedback(db: Session, data: FeedbackCreate) -> FeedbackRead:
     fb = Feedback(
         customer_id=data.customer_id,

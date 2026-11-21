@@ -255,7 +255,7 @@ export function DepartmentDashboardPage({
               subtitle: f.comments || 'Feedback entry',
               status: (f.status || '').toLowerCase().includes('await') ? 'awaiting' : 'received',
               date: (f.received_at || f.created_at || '').slice(0, 10),
-              link: `/feedback`,
+              link: `/feedback/${f.id}`,
             }))
           }
           return mockFeedback.map((m) => ({

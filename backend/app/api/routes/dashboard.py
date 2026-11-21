@@ -201,30 +201,102 @@ def build_action_items(db: Session) -> list[ActionItem]:
     return actions
 
 
+def _format_time_ago(dt: datetime | None) -> str:
+    if not dt:
+        return "Recently"
+    if dt.tzinfo is not None:
+        now = datetime.now(dt.tzinfo)
+    else:
+        now = datetime.utcnow()
+    diff = now - dt
+    total_seconds = int(diff.total_seconds())
+
+    if total_seconds < 0:
+        return dt.strftime("%b %d, %I:%M %p")
+    elif total_seconds < 60:
+        return "Just now"
+    elif total_seconds < 3600:
+        mins = total_seconds // 60
+        return f"{mins}m ago"
+    elif total_seconds < 86400 and dt.date() == now.date():
+        hours = total_seconds // 3600
+        return f"{hours}h ago"
+    elif (now.date() - dt.date()).days == 1:
+        return f"Yesterday, {dt.strftime('%I:%M %p')}"
+    elif total_seconds < 7 * 86400:
+        days = (now.date() - dt.date()).days
+        return f"{days}d ago"
+    else:
+        return dt.strftime("%b %d, %I:%M %p")
+
+
+def _normalize_dt(dt: datetime | None) -> datetime:
+    if dt is None:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def build_recent_activities(db: Session) -> list[ActivityItem]:
-    activities: list[ActivityItem] = []
+    items: list[tuple[datetime | None, ActivityItem]] = []
 
     # Recent quotation status changes
-    recent_quotes = db.query(Quotation).order_by(Quotation.updated_at.desc()).limit(2).all()
+    recent_quotes = db.query(Quotation).order_by(Quotation.updated_at.desc()).limit(4).all()
     for q in recent_quotes:
-        activities.append(ActivityItem(title=f"Quotation {q.quotation_number} status is {q.status}", category="Quotation", time_ago="Recently"))
+        ts = q.updated_at or q.created_at
+        items.append((
+            ts,
+            ActivityItem(
+                title=f"Quotation {q.quotation_number} status is {q.status}",
+                category="Quotation",
+                time_ago=_format_time_ago(ts),
+            ),
+        ))
 
     # Recent designs
-    recent_designs = db.query(Design).order_by(Design.updated_at.desc()).limit(2).all()
+    recent_designs = db.query(Design).order_by(Design.updated_at.desc()).limit(4).all()
     for d in recent_designs:
-        activities.append(ActivityItem(title=f"Design {d.design_number} '{d.title[:30]}' {d.status.lower()}", category="Design", time_ago="Recently"))
+        ts = d.updated_at or d.created_at
+        items.append((
+            ts,
+            ActivityItem(
+                title=f"Design {d.design_number} '{d.title[:30]}' {d.status.lower()}",
+                category="Design",
+                time_ago=_format_time_ago(ts),
+            ),
+        ))
 
     # Recent work orders
-    recent_wos = db.query(WorkOrder).order_by(WorkOrder.updated_at.desc()).limit(2).all()
+    recent_wos = db.query(WorkOrder).order_by(WorkOrder.updated_at.desc()).limit(4).all()
     for w in recent_wos:
-        activities.append(ActivityItem(title=f"Work order {w.work_order_number} is {w.status.lower()}", category="Production", time_ago="Recently"))
+        ts = w.updated_at or w.created_at
+        items.append((
+            ts,
+            ActivityItem(
+                title=f"Work order {w.work_order_number} is {w.status.lower()}",
+                category="Production",
+                time_ago=_format_time_ago(ts),
+            ),
+        ))
 
     # Recent enquiries
-    recent_enqs = db.query(Enquiry).order_by(Enquiry.created_at.desc()).limit(2).all()
+    recent_enqs = db.query(Enquiry).order_by(Enquiry.created_at.desc()).limit(4).all()
     for e in recent_enqs:
-        activities.append(ActivityItem(title=f"New enquiry {e.enquiry_number} from {e.customer.name}", category="Enquiry", time_ago="Recently"))
+        ts = e.created_at
+        cust_name = e.customer.name if e.customer else (e.customer_name or "Client")
+        items.append((
+            ts,
+            ActivityItem(
+                title=f"New enquiry {e.enquiry_number} from {cust_name}",
+                category="Enquiry",
+                time_ago=_format_time_ago(ts),
+            ),
+        ))
 
-    return activities[:6]
+    # Sort in true chronological order (newest first)
+    items.sort(key=lambda x: _normalize_dt(x[0]), reverse=True)
+    return [act for _, act in items[:6]]
 
 
 @router.get("/overview", response_model=DashboardOverview)

@@ -54,6 +54,16 @@ def create_feedback(
     return feedback_service.create_feedback(db, data)
 
 
+@router.get("/{feedback_id}", response_model=FeedbackRead)
+def get_feedback(
+    feedback_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> FeedbackRead:
+    return feedback_service.get_feedback(db, feedback_id)
+
+
+@router.put("/{feedback_id}", response_model=FeedbackRead)
 @router.patch("/{feedback_id}", response_model=FeedbackRead)
 def update_feedback(
     feedback_id: uuid.UUID,
