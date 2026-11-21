@@ -15,6 +15,7 @@ from app.schemas.labour import (
     WorkerCreate,
     WorkerListResponse,
     WorkerRead,
+    WorkerUpdate,
 )
 from app.services import labour_service
 
@@ -51,6 +52,26 @@ def create_worker(
     return labour_service.create_worker(db, data)
 
 
+@router.get("/workers/{worker_id}", response_model=WorkerRead)
+def get_worker(
+    worker_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> WorkerRead:
+    return labour_service.get_worker(db, worker_id)
+
+
+@router.put("/workers/{worker_id}", response_model=WorkerRead)
+@router.patch("/workers/{worker_id}", response_model=WorkerRead)
+def update_worker(
+    worker_id: uuid.UUID,
+    data: WorkerUpdate,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> WorkerRead:
+    return labour_service.update_worker(db, worker_id, data)
+
+
 @router.get("/requests", response_model=LabourRequestListResponse)
 def list_labour_requests(
     db: Annotated[Session, Depends(get_db)],
@@ -73,6 +94,7 @@ def create_labour_request(
 
 
 @router.post("/requests/{request_id}/status", response_model=LabourRequestRead)
+@router.patch("/requests/{request_id}/status", response_model=LabourRequestRead)
 def update_labour_request_status(
     request_id: uuid.UUID,
     data: LabourRequestStatusUpdate,

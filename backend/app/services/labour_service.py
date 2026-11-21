@@ -14,6 +14,7 @@ from app.schemas.labour import (
     LabourSummaryResponse,
     WorkerCreate,
     WorkerRead,
+    WorkerUpdate,
 )
 
 
@@ -108,6 +109,36 @@ def create_worker(db: Session, data: WorkerCreate) -> WorkerRead:
         is_active=True,
     )
     db.add(worker)
+    db.commit()
+    db.refresh(worker)
+    return _to_worker_read(worker)
+
+
+def get_worker(db: Session, worker_id: uuid.UUID) -> WorkerRead:
+    worker = db.query(Worker).filter(Worker.id == worker_id, Worker.is_active == True).first()
+    if not worker:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Worker not found.")
+    return _to_worker_read(worker)
+
+
+def update_worker(db: Session, worker_id: uuid.UUID, data: WorkerUpdate) -> WorkerRead:
+    worker = db.query(Worker).filter(Worker.id == worker_id).first()
+    if not worker:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Worker not found.")
+    if data.first_name is not None:
+        worker.first_name = data.first_name
+    if data.last_name is not None:
+        worker.last_name = data.last_name
+    if data.phone is not None:
+        worker.phone = data.phone
+    if data.skill_category is not None:
+        worker.skill_category = data.skill_category
+    if data.status is not None:
+        worker.status = data.status
+    if data.daily_rate is not None:
+        worker.daily_rate = data.daily_rate
+    if data.is_active is not None:
+        worker.is_active = data.is_active
     db.commit()
     db.refresh(worker)
     return _to_worker_read(worker)

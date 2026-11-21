@@ -308,6 +308,58 @@ export interface WorkerCreateInput {
   daily_rate?: number | null
 }
 
+export interface WorkerUpdateInput {
+  first_name?: string
+  last_name?: string
+  phone?: string | null
+  skill_category?: string
+  status?: string
+  daily_rate?: number | null
+  is_active?: boolean
+}
+
+export interface LabourAssignment {
+  id: string
+  labour_request_id?: string | null
+  worker_id: string
+  worker_name?: string | null
+  work_order_id?: string | null
+  start_date: string
+  end_date?: string | null
+  status: string
+  created_at: string
+}
+
+export interface LabourRequest {
+  id: string
+  request_number: string
+  work_order_id?: string | null
+  department_id?: string | null
+  required_workers_count: number
+  required_date: string
+  skill_category: string
+  status: string
+  notes?: string | null
+  created_at: string
+  updated_at: string
+  assignments?: LabourAssignment[]
+}
+
+export interface LabourRequestListResponse {
+  total: number
+  page: number
+  page_size: number
+  items: LabourRequest[]
+}
+
+export interface LabourSummaryResponse {
+  total_workers: number
+  available_workers: number
+  assigned_workers: number
+  pending_requests: number
+  utilization_rate: number
+}
+
 export const labourApi = {
   async listWorkers(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<WorkerListResponse> {
     const query = new URLSearchParams()
@@ -318,11 +370,65 @@ export const labourApi = {
     return apiFetch<WorkerListResponse>(`/api/labour/workers${query.size ? `?${query.toString()}` : ''}`)
   },
 
+  async getWorker(id: string): Promise<Worker> {
+    return apiFetch<Worker>(`/api/labour/workers/${id}`)
+  },
+
   async createWorker(data: WorkerCreateInput): Promise<Worker> {
     return apiFetch<Worker>('/api/labour/workers', {
       method: 'POST',
       body: JSON.stringify(data),
     })
+  },
+
+  async updateWorker(id: string, data: WorkerUpdateInput): Promise<Worker> {
+    return apiFetch<Worker>(`/api/labour/workers/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async listRequests(params: { page?: number; page_size?: number; status?: string } = {}): Promise<LabourRequestListResponse> {
+    const query = new URLSearchParams()
+    if (params.page) query.set('page', params.page.toString())
+    if (params.page_size) query.set('page_size', params.page_size.toString())
+    if (params.status && params.status !== 'all') query.set('status', params.status)
+    return apiFetch<LabourRequestListResponse>(`/api/labour/requests${query.size ? `?${query.toString()}` : ''}`)
+  },
+
+  async createRequest(data: {
+    work_order_id?: string | null
+    department_id?: string | null
+    required_workers_count: number
+    required_date: string
+    skill_category: string
+    notes?: string
+  }): Promise<LabourRequest> {
+    return apiFetch<LabourRequest>('/api/labour/requests', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async updateRequestStatus(id: string, data: { status: string }): Promise<LabourRequest> {
+    return apiFetch<LabourRequest>(`/api/labour/requests/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async assignWorker(
+    requestId: string,
+    data: { worker_id: string; work_order_id?: string | null; start_date: string; end_date?: string | null },
+  ): Promise<LabourRequest> {
+    return apiFetch<LabourRequest>(`/api/labour/requests/${requestId}/assign`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async getLabourSummary(): Promise<LabourSummaryResponse> {
+    return apiFetch<LabourSummaryResponse>('/api/labour/summary')
   },
 }
 

@@ -17,6 +17,16 @@ class WorkerCreate(WorkerBase):
     worker_code: str | None = None
 
 
+class WorkerUpdate(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    phone: str | None = None
+    skill_category: str | None = None
+    status: str | None = None
+    daily_rate: Decimal | None = None
+    is_active: bool | None = None
+
+
 class WorkerRead(WorkerBase):
     id: uuid.UUID
     worker_code: str
