@@ -293,3 +293,68 @@ def test_complete_end_to_end_pilot_lifecycle(db_session):
 
     _, fb_audits = audit_service.list_audit_logs(db_session, entity_type="feedback")
     assert any(l.entity_id == str(feedback.id) and l.action == "CREATE" for l in fb_audits)
+
+
+def test_form_validation_and_edge_cases(db_session):
+    # 1. Invalid line item quantity <= 0 rejected by Pydantic schema validation
+    with pytest.raises(Exception):
+        QuotationItemCreate(
+            description="Bad Item",
+            quantity=Decimal("0.00"),
+            unit="pcs",
+            unit_price=Decimal("100.00"),
+        )
+
+    # 2. Invalid discount > 100% rejected
+    with pytest.raises(Exception):
+        QuotationCreate(
+            customer_id=uuid.uuid4(),
+            discount_rate=Decimal("150.00"),
+            items=[],
+        )
+
+    # 3. Invalid rating > 5 rejected
+    with pytest.raises(Exception):
+        FeedbackCreate(
+            customer_id=uuid.uuid4(),
+            rating=6,
+        )
+
+    # 4. Invalid rating < 1 rejected
+    with pytest.raises(Exception):
+        FeedbackCreate(
+            customer_id=uuid.uuid4(),
+            rating=0,
+        )
+
+
+def test_nonexistent_records_return_404(db_session):
+    fake_id = uuid.uuid4()
+    
+    with pytest.raises(Exception) as exc_cust:
+        customer_service.get_customer(db_session, fake_id)
+    assert exc_cust.value.status_code == 404
+
+    with pytest.raises(Exception) as exc_enq:
+        enquiry_service.get_enquiry(db_session, fake_id)
+    assert exc_enq.value.status_code == 404
+
+    with pytest.raises(Exception) as exc_des:
+        design_service.get_design(db_session, fake_id)
+    assert exc_des.value.status_code == 404
+
+    with pytest.raises(Exception) as exc_q:
+        quotation_service.get_quotation(db_session, fake_id)
+    assert exc_q.value.status_code == 404
+
+    with pytest.raises(Exception) as exc_wo:
+        production_service.get_work_order(db_session, fake_id)
+    assert exc_wo.value.status_code == 404
+
+    with pytest.raises(Exception) as exc_fb:
+        feedback_service.get_feedback(db_session, fake_id)
+    assert exc_fb.value.status_code == 404
+
+    with pytest.raises(Exception) as exc_wrk:
+        labour_service.get_worker(db_session, fake_id)
+    assert exc_wrk.value.status_code == 404

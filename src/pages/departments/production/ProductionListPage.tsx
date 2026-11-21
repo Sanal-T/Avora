@@ -68,8 +68,8 @@ export function ProductionListPage() {
         }
       })
       .catch((err) => {
-        console.warn('Could not load live work orders from PostgreSQL, fallback to mock:', err)
-        setData(mockWorkOrders)
+        console.warn('Could not load live work orders from PostgreSQL:', err)
+        setData([])
       })
       .finally(() => {
         setLoading(false)

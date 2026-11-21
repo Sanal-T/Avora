@@ -1,13 +1,13 @@
 import uuid
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class FeedbackBase(BaseModel):
     customer_id: uuid.UUID
     work_order_id: uuid.UUID | None = None
     category: str = "General"
-    rating: int | None = None
+    rating: int | None = Field(default=None, ge=1, le=5)
     comments: str | None = None
 
 
@@ -17,7 +17,7 @@ class FeedbackCreate(FeedbackBase):
 
 class FeedbackUpdate(BaseModel):
     status: str | None = None
-    rating: int | None = None
+    rating: int | None = Field(default=None, ge=1, le=5)
     comments: str | None = None
     resolution_notes: str | None = None
 

@@ -114,8 +114,8 @@ export function LabourListPage() {
         }
       })
       .catch((err) => {
-        console.warn('Could not load live workers from PostgreSQL, fallback to mock:', err)
-        setData(mockWorkers)
+        console.warn('Could not load live workers from PostgreSQL:', err)
+        setData([])
       })
       .finally(() => {
         setLoading(false)

@@ -38,6 +38,132 @@ function DepartmentRedirect() {
   return <Navigate to={`/${id}`} replace />
 }
 
+function AppShellInner({
+  rangeId,
+  setRangeId,
+  overview,
+  refresh,
+  setEnquiryModalOpen,
+  setDesignModalOpen,
+  setWorkOrderModalOpen,
+}: {
+  rangeId: RangeKey
+  setRangeId: (r: RangeKey) => void
+  overview: DashboardOverviewResponse & { loading?: boolean; error?: boolean }
+  refresh: () => void
+  setEnquiryModalOpen: (open: boolean) => void
+  setDesignModalOpen: (open: boolean) => void
+  setWorkOrderModalOpen: (open: boolean) => void
+}) {
+  const navigate = useNavigate()
+
+  return (
+    <AppShell rangeId={rangeId} onRangeChange={setRangeId}>
+      <Routes>
+        {/* Main Dashboard */}
+        <Route
+          path="/"
+          element={
+            <MainDashboard
+              overview={overview}
+              rangeId={rangeId}
+              onRefresh={refresh}
+            />
+          }
+        />
+
+        {/* Legacy route compatibility */}
+        <Route path="/departments/:id" element={<DepartmentRedirect />} />
+
+        {/* Department Dashboards */}
+        <Route
+          path="/enquiries"
+          element={
+            <DepartmentDashboardPage
+              departmentId="enquiries"
+              rangeId={rangeId}
+              onOpenCreate={() => setEnquiryModalOpen(true)}
+            />
+          }
+        />
+        <Route path="/enquiries/list" element={<EnquiriesListPage />} />
+        <Route path="/enquiries/:id" element={<EnquiryDetailPage />} />
+
+        <Route
+          path="/designs"
+          element={
+            <DepartmentDashboardPage
+              departmentId="designs"
+              rangeId={rangeId}
+              onOpenCreate={() => setDesignModalOpen(true)}
+            />
+          }
+        />
+        <Route path="/designs/list" element={<DesignsListPage />} />
+        <Route path="/designs/:id" element={<DesignDetailPage />} />
+
+        <Route
+          path="/quotations"
+          element={
+            <DepartmentDashboardPage
+              departmentId="quotations"
+              rangeId={rangeId}
+              onOpenCreate={() => navigate('/quotations/builder')}
+            />
+          }
+        />
+        <Route path="/quotations/list" element={<QuotationsListPage />} />
+        <Route path="/quotations/builder" element={<QuotationBuilderPage />} />
+        <Route path="/quotations/:id" element={<QuotationDetailPage />} />
+
+        <Route
+          path="/production"
+          element={
+            <DepartmentDashboardPage
+              departmentId="production"
+              rangeId={rangeId}
+              onOpenCreate={() => setWorkOrderModalOpen(true)}
+            />
+          }
+        />
+        <Route path="/production/list" element={<ProductionListPage />} />
+        <Route path="/production/calendar" element={<ProductionCalendarPage />} />
+        <Route path="/production/schedule" element={<ProductionSchedulePage />} />
+        <Route path="/production/:id" element={<WorkOrderDetailPage />} />
+
+        <Route
+          path="/feedback"
+          element={
+            <DepartmentDashboardPage
+              departmentId="feedback"
+              rangeId={rangeId}
+              onOpenCreate={() => navigate('/feedback/list')}
+            />
+          }
+        />
+        <Route path="/feedback/list" element={<FeedbackListPage />} />
+        <Route path="/feedback/:id" element={<FeedbackDetailPage />} />
+
+        <Route
+          path="/labour"
+          element={
+            <DepartmentDashboardPage
+              departmentId="labour"
+              rangeId={rangeId}
+              onOpenCreate={() => navigate('/labour/list')}
+            />
+          }
+        />
+        <Route path="/labour/list" element={<LabourListPage />} />
+
+        {/* System & Error Pages */}
+        <Route path="/403" element={<ForbiddenPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </AppShell>
+  )
+}
+
 export default function App() {
   const [rangeId, setRangeId] = useState<RangeKey>('30d')
   const [overview, setOverview] = useState<DashboardOverviewResponse & { loading?: boolean; error?: boolean }>({
@@ -85,109 +211,15 @@ export default function App() {
         <Route
           path="*"
           element={
-            <AppShell rangeId={rangeId} onRangeChange={setRangeId}>
-              <Routes>
-                {/* Main Dashboard */}
-                <Route
-                  path="/"
-                  element={
-                    <MainDashboard
-                      overview={overview}
-                      rangeId={rangeId}
-                      onRefresh={refresh}
-                    />
-                  }
-                />
-
-                {/* Legacy route compatibility */}
-                <Route path="/departments/:id" element={<DepartmentRedirect />} />
-
-                {/* Department Dashboards */}
-                <Route
-                  path="/enquiries"
-                  element={
-                    <DepartmentDashboardPage
-                      departmentId="enquiries"
-                      rangeId={rangeId}
-                      onOpenCreate={() => setEnquiryModalOpen(true)}
-                    />
-                  }
-                />
-                <Route path="/enquiries/list" element={<EnquiriesListPage />} />
-                <Route path="/enquiries/:id" element={<EnquiryDetailPage />} />
-
-                <Route
-                  path="/designs"
-                  element={
-                    <DepartmentDashboardPage
-                      departmentId="designs"
-                      rangeId={rangeId}
-                      onOpenCreate={() => setDesignModalOpen(true)}
-                    />
-                  }
-                />
-                <Route path="/designs/list" element={<DesignsListPage />} />
-                <Route path="/designs/:id" element={<DesignDetailPage />} />
-
-                <Route
-                  path="/quotations"
-                  element={
-                    <DepartmentDashboardPage
-                      departmentId="quotations"
-                      rangeId={rangeId}
-                      onOpenCreate={() => window.location.href = '/quotations/builder'}
-                    />
-                  }
-                />
-                <Route path="/quotations/list" element={<QuotationsListPage />} />
-                <Route path="/quotations/builder" element={<QuotationBuilderPage />} />
-                <Route path="/quotations/:id" element={<QuotationDetailPage />} />
-
-                <Route
-                  path="/production"
-                  element={
-                    <DepartmentDashboardPage
-                      departmentId="production"
-                      rangeId={rangeId}
-                      onOpenCreate={() => setWorkOrderModalOpen(true)}
-                    />
-                  }
-                />
-                <Route path="/production/list" element={<ProductionListPage />} />
-                <Route path="/production/calendar" element={<ProductionCalendarPage />} />
-                <Route path="/production/schedule" element={<ProductionSchedulePage />} />
-                <Route path="/production/:id" element={<WorkOrderDetailPage />} />
-
-                <Route
-                  path="/feedback"
-                  element={
-                    <DepartmentDashboardPage
-                      departmentId="feedback"
-                      rangeId={rangeId}
-                      onOpenCreate={() => window.location.href = '/feedback/list'}
-                    />
-                  }
-                />
-                <Route path="/feedback/list" element={<FeedbackListPage />} />
-                <Route path="/feedback/:id" element={<FeedbackDetailPage />} />
-
-                <Route
-                  path="/labour"
-                  element={
-                    <DepartmentDashboardPage
-                      departmentId="labour"
-                      rangeId={rangeId}
-                      onOpenCreate={() => window.location.href = '/labour/list'}
-                    />
-                  }
-                />
-                <Route path="/labour/list" element={<LabourListPage />} />
-
-                {/* System & Error Pages */}
-                <Route path="/403" element={<ForbiddenPage />} />
-                <Route path="*" element={<NotFoundPage />} />
-              </Routes>
-            </AppShell>
+            <AppShellInner
+              rangeId={rangeId}
+              setRangeId={setRangeId}
+              overview={overview}
+              refresh={refresh}
+              setEnquiryModalOpen={setEnquiryModalOpen}
+              setDesignModalOpen={setDesignModalOpen}
+              setWorkOrderModalOpen={setWorkOrderModalOpen}
+            />
           }
         />
       </Routes>

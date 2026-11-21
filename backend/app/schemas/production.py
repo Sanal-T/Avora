@@ -1,16 +1,16 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProductionTaskBase(BaseModel):
-    task_name: str
+    task_name: str = Field(min_length=1)
     sequence_order: int = 1
     status: str = "Pending"
     assigned_employee_id: uuid.UUID | None = None
-    planned_hours: Decimal | None = None
-    actual_hours: Decimal | None = None
+    planned_hours: Decimal | None = Field(default=None, ge=Decimal("0.00"))
+    actual_hours: Decimal | None = Field(default=None, ge=Decimal("0.00"))
     completion_notes: str | None = None
 
 

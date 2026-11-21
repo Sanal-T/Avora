@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class EnquiryStatusHistoryRead(BaseModel):
@@ -19,8 +19,8 @@ class EnquiryBase(BaseModel):
     customer_id: uuid.UUID
     assigned_employee_id: uuid.UUID | None = None
     source: str | None = "Direct"
-    requirement_summary: str
-    estimated_budget: Decimal | None = None
+    requirement_summary: str = Field(min_length=1)
+    estimated_budget: Decimal | None = Field(default=None, ge=Decimal("0.00"))
     priority: str = "Medium"
 
 

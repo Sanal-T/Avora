@@ -1,15 +1,15 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class QuotationItemBase(BaseModel):
     item_code: str | None = None
     description: str
-    quantity: Decimal
+    quantity: Decimal = Field(gt=Decimal("0.00"), description="Quantity must be greater than zero")
     unit: str = "unit"
-    unit_price: Decimal
+    unit_price: Decimal = Field(ge=Decimal("0.00"), description="Unit price cannot be negative")
     sort_order: int = 0
 
 
@@ -58,16 +58,16 @@ class QuotationRevisionRead(BaseModel):
 class QuotationCreate(BaseModel):
     enquiry_id: uuid.UUID | None = None
     customer_id: uuid.UUID
-    discount_rate: Decimal = Decimal("0.00")
-    tax_rate: Decimal = Decimal("18.00")
+    discount_rate: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"), le=Decimal("100.00"))
+    tax_rate: Decimal = Field(default=Decimal("18.00"), ge=Decimal("0.00"), le=Decimal("100.00"))
     valid_until: date | None = None
     currency: str = "INR"
     items: list[QuotationItemCreate] = []
 
 
 class QuotationUpdate(BaseModel):
-    discount_rate: Decimal | None = None
-    tax_rate: Decimal | None = None
+    discount_rate: Decimal | None = Field(default=None, ge=Decimal("0.00"), le=Decimal("100.00"))
+    tax_rate: Decimal | None = Field(default=None, ge=Decimal("0.00"), le=Decimal("100.00"))
     valid_until: date | None = None
     currency: str | None = None
     items: list[QuotationItemCreate] | None = None
@@ -82,8 +82,8 @@ class QuotationStatusUpdate(BaseModel):
 class QuotationRevisionCreate(BaseModel):
     change_summary: str
     items: list[QuotationItemCreate]
-    discount_rate: Decimal = Decimal("0.00")
-    tax_rate: Decimal = Decimal("18.00")
+    discount_rate: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"), le=Decimal("100.00"))
+    tax_rate: Decimal = Field(default=Decimal("18.00"), ge=Decimal("0.00"), le=Decimal("100.00"))
 
 
 class QuotationRead(BaseModel):

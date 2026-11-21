@@ -1,10 +1,10 @@
 import uuid
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class CustomerContactBase(BaseModel):
-    name: str
+    name: str = Field(min_length=1)
     email: EmailStr | None = None
     phone: str | None = None
     designation: str | None = None
@@ -24,7 +24,7 @@ class CustomerContactRead(CustomerContactBase):
 
 
 class CustomerBase(BaseModel):
-    name: str
+    name: str = Field(min_length=1)
     company_name: str | None = None
     email: EmailStr
     phone: str | None = None

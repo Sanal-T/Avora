@@ -116,19 +116,13 @@ export function WorkOrderDetailPage() {
               setWorkOrder(mapped)
               setTasks(mapped.tasks)
             } else {
-              const mock = mockWorkOrders.find((w) => w.id === id || w.code === id)
-              if (mock) {
-                setWorkOrder(mock)
-                setTasks(mock.tasks)
-              }
+              setWorkOrder(undefined)
+              setTasks([])
             }
           })
           .catch(() => {
-            const mock = mockWorkOrders.find((w) => w.id === id || w.code === id)
-            if (mock) {
-              setWorkOrder(mock)
-              setTasks(mock.tasks)
-            }
+            setWorkOrder(undefined)
+            setTasks([])
           })
       })
       .finally(() => setLoading(false))

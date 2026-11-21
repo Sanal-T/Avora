@@ -207,11 +207,15 @@ def assign_worker_to_request(db: Session, request_id: uuid.UUID, data: LabourAss
         end_date=data.end_date,
         status="Assigned",
     )
-    worker.status = "Assigned"
-    db.add(assignment)
-    db.commit()
-    db.refresh(req)
-    return _to_labour_request_read(req)
+    try:
+        worker.status = "Assigned"
+        db.add(assignment)
+        db.commit()
+        db.refresh(req)
+        return _to_labour_request_read(req)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def get_labour_summary(db: Session) -> LabourSummaryResponse:
