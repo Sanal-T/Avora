@@ -18,15 +18,9 @@ import { StatusBadge } from '../../components/shared/StatusBadge'
 import { DEPARTMENT_META, type DepartmentId } from '../../lib/departments'
 import type { RangeKey } from '../../data/dashboard'
 import { cn } from '../../lib/cn'
+import { rangeDates } from '../../lib/dates'
 import {
-  mockEnquiries,
-  mockDesigns,
-  mockQuotations,
-  mockWorkOrders,
-  mockFeedback,
-  mockWorkers,
-} from '../../data/mockData'
-import {
+  apiFetch,
   enquiryApi,
   designApi,
   quotationApi,
@@ -98,12 +92,15 @@ export function DepartmentDashboardPage({
 
   // Load summary KPIs
   useEffect(() => {
-    fetch(`/api/dashboard/${departmentId}/summary`)
-      .then((res) => (res.ok ? res.json() : null))
+    const { dateFrom, dateTo } = rangeDates(rangeId)
+    const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo })
+    apiFetch<any>(`/api/dashboard/${departmentId}/summary?${params.toString()}`)
       .then((data) => {
         if (data) setLiveSummary(data)
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.warn(`Could not load live summary for ${departmentId}:`, err)
+      })
   }, [departmentId, rangeId, refreshTrigger])
 
   // Load actual department data

@@ -175,13 +175,19 @@ def build_department_summaries(db: Session, date_from: date | None = None, date_
 
 def build_action_items(db: Session) -> list[ActionItem]:
     actions: list[ActionItem] = []
-    # Delayed work orders
-    delayed_wo = db.query(WorkOrder).filter(WorkOrder.is_deleted == False, WorkOrder.status == "Delayed").count()
+    # Delayed work orders (aligned with production service calculation)
+    prod_summary = production_service.get_production_summary(db)
+    delayed_wo = prod_summary.delayed_work_orders
     if delayed_wo > 0:
         actions.append(ActionItem(title=f"{delayed_wo} delayed work orders", description="Review production schedules & resources", department_id="production"))
 
-    # Quotation follow-ups due
-    pending_follow_ups = db.query(QuotationFollowUp).filter(QuotationFollowUp.is_completed == False).count()
+    # Quotation follow-ups due (ensure parent quotation is not deleted)
+    pending_follow_ups = (
+        db.query(QuotationFollowUp)
+        .join(Quotation, QuotationFollowUp.quotation_id == Quotation.id)
+        .filter(Quotation.is_deleted == False, QuotationFollowUp.is_completed == False)
+        .count()
+    )
     if pending_follow_ups > 0:
         actions.append(ActionItem(title=f"{pending_follow_ups} quotations need follow-up", description="Contact clients on awaiting proposals", department_id="quotations"))
 

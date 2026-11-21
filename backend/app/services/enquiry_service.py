@@ -179,7 +179,7 @@ def get_enquiry_summary(db: Session, date_from: date | None = None, date_to: dat
 
     total = query.count()
     qualified = query.filter(Enquiry.status == "Qualified").count()
-    pending = query.filter(Enquiry.status.in_(["New", "Pending"])).count()
+    pending = query.filter(Enquiry.status.in_(["New", "Pending", "Under Review"])).count()
     converted = query.filter(Enquiry.status == "Converted").count()
     rejected = query.filter(Enquiry.status.in_(["Rejected", "Cancelled"])).count()
     rate = round((converted / total * 100), 1) if total > 0 else 0.0

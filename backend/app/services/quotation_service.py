@@ -439,7 +439,12 @@ def get_quotation_summary(db: Session, date_from: date | None = None, date_to: d
     pending_count = query.filter(Quotation.status.in_(["Draft", "Sent", "Awaiting Response", "Revision Requested"])).count()
     converted_count = query.filter(Quotation.status == "Converted").count()
 
-    pending_follow_ups = db.query(QuotationFollowUp).filter(QuotationFollowUp.is_completed == False).count()
+    pending_follow_ups = (
+        db.query(QuotationFollowUp)
+        .join(Quotation, QuotationFollowUp.quotation_id == Quotation.id)
+        .filter(Quotation.is_deleted == False, QuotationFollowUp.is_completed == False)
+        .count()
+    )
 
     return QuotationSummaryResponse(
         total_quotations=total_count,

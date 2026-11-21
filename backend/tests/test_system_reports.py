@@ -36,6 +36,22 @@ def test_dashboard_auth_and_access_control(client):
     assert res_auth.status_code == 200
     assert "departments" in res_auth.json()
 
+    # Authenticated request with date range
+    res_range = client.get("/api/dashboard/overview?date_from=2026-01-01&date_to=2026-12-31", headers=headers)
+    assert res_range.status_code == 200
+    data = res_range.json()
+    assert data["date_from"] == "2026-01-01"
+    assert data["date_to"] == "2026-12-31"
+
+    # Invalid date range rejected with 422
+    res_inv = client.get("/api/dashboard/overview?date_from=2026-12-31&date_to=2026-01-01", headers=headers)
+    assert res_inv.status_code == 422
+
+    # Department summary with date filter
+    res_dept = client.get("/api/dashboard/enquiries/summary?date_from=2026-01-01&date_to=2026-12-31", headers=headers)
+    assert res_dept.status_code == 200
+    assert res_dept.json()["id"] == "enquiries"
+
 
 def test_reports_csv_exports(client):
     token = get_auth_token(client)

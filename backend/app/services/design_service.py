@@ -173,7 +173,7 @@ def get_design_summary(db: Session, date_from: date | None = None, date_to: date
     in_progress = query.filter(Design.status == "In Progress").count()
     completed = query.filter(Design.status.in_(["Approved", "Completed"])).count()
     today = date.today()
-    overdue = query.filter(Design.status != "Completed", Design.expected_completion_date != None, Design.expected_completion_date < today).count()
+    overdue = query.filter(Design.status.notin_(["Approved", "Completed"]), Design.expected_completion_date != None, Design.expected_completion_date < today).count()
 
     return DesignSummaryResponse(
         total_designs=total,

@@ -294,7 +294,16 @@ def get_production_summary(db: Session, date_from: date | None = None, date_to: 
         )
     ).count()
 
-    rate = round(((completed) / total * 100), 1) if total > 0 else 100.0
+    completed_on_time = query.filter(
+        WorkOrder.status == "Completed",
+        or_(
+            WorkOrder.actual_completion_date == None,
+            WorkOrder.planned_end_date == None,
+            WorkOrder.actual_completion_date <= WorkOrder.planned_end_date,
+        ),
+    ).count()
+
+    rate = round(((completed_on_time) / completed * 100), 1) if completed > 0 else 100.0
 
     return ProductionSummaryResponse(
         total_work_orders=total,

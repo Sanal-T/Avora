@@ -9,6 +9,7 @@ import {
 } from './dashboard'
 import type { DepartmentDetail } from './types'
 import { apiFetch } from '../lib/api'
+import { rangeDates } from '../lib/dates'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -124,9 +125,17 @@ export async function getDashboardOverview({
 }: { dateFrom?: string; dateTo?: string; rangeId?: string } = {}): Promise<DashboardOverviewResponse> {
   const selectedRange = inferRange(dateFrom, dateTo, rangeId)
 
+  let effectiveFrom = dateFrom
+  let effectiveTo = dateTo
+  if (!effectiveFrom && !effectiveTo && rangeId) {
+    const dates = rangeDates(selectedRange)
+    effectiveFrom = dates.dateFrom
+    effectiveTo = dates.dateTo
+  }
+
   const parameters = new URLSearchParams()
-  if (dateFrom) parameters.set('date_from', dateFrom)
-  if (dateTo) parameters.set('date_to', dateTo)
+  if (effectiveFrom) parameters.set('date_from', effectiveFrom)
+  if (effectiveTo) parameters.set('date_to', effectiveTo)
 
   const url = `/api/dashboard/overview${parameters.size ? `?${parameters.toString()}` : ''}`
   try {
