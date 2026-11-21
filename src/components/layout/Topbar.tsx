@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Search,
   Moon,
   Sun,
   ChevronRight,
@@ -48,11 +47,11 @@ export function Topbar({
 
   // Dynamic breadcrumbs from route path
   const pathParts = location.pathname.split('/').filter(Boolean)
-  const crumbs: { label: string; to?: string }[] = [{ label: 'Workspace', to: '/' }]
+  const crumbs: { label: string; to?: string }[] = [
+    { label: 'Overview', to: pathParts.length === 0 ? undefined : '/' },
+  ]
 
-  if (pathParts.length === 0) {
-    crumbs.push({ label: 'Overview' })
-  } else {
+  if (pathParts.length > 0) {
     let currentPath = ''
     pathParts.forEach((part, index) => {
       currentPath += `/${part}`
@@ -110,19 +109,6 @@ export function Topbar({
 
       {/* Right Controls */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* Command Palette Button */}
-        <button
-          type="button"
-          onClick={onOpenCommandPalette}
-          className="flex items-center gap-2 rounded-lg border border-input bg-background px-3 py-1.5 text-xs text-muted-foreground shadow-xs hover:border-foreground/30 hover:text-foreground cursor-pointer transition-colors"
-        >
-          <Search className="size-3.5" />
-          <span className="hidden sm:inline">Search ERP…</span>
-          <kbd className="hidden sm:inline-block rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-            Ctrl K
-          </kbd>
-        </button>
-
         {/* Date Range Control (Shown only on dashboard views) */}
         {showDateRange && (
           <DateRangeControl value={rangeId} onChange={onRangeChange} />
