@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ArrowLeft, ArrowUpRight } from 'lucide-react'
+import { Plus, ArrowLeft, ArrowUpRight, RefreshCw } from 'lucide-react'
 import { PageContainer, PageHeader } from '../../../components/shared/PageHeader'
 import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
@@ -35,27 +35,30 @@ function toUiDesign(d: Design): MockDesign {
 
 export function DesignsListPage() {
   const navigate = useNavigate()
-  const [data, setData] = useState<MockDesign[]>(mockDesigns)
+  const [data, setData] = useState<MockDesign[]>([])
   const [activeTab, setActiveTab] = useState<string>('all')
   const [createModalOpen, setCreateModalOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const loadDesigns = useCallback(() => {
     setLoading(true)
     designApi
       .listDesigns({ page_size: 100 })
       .then((res) => {
-        if (res.items && res.items.length > 0) {
-          setData(res.items.map(toUiDesign))
-        }
+        setData((res.items || []).map(toUiDesign))
       })
       .catch((err) => {
-        console.warn('Could not load live designs from PostgreSQL, fallback to mock:', err)
+        console.warn('Could not load live designs from PostgreSQL:', err)
+        setData([])
       })
       .finally(() => {
         setLoading(false)
       })
   }, [])
+
+  useEffect(() => {
+    loadDesigns()
+  }, [loadDesigns])
 
   const filterTabs: QuickFilterTab[] = [
     { id: 'all', label: 'All Designs', count: data.length },
@@ -170,10 +173,16 @@ export function DesignsListPage() {
         title="Designs Registry"
         description="CAD drawings, 3D renderings, material finishes, and technical drafting packets."
         actions={
-          <Button variant="primary" size="sm" onClick={() => setCreateModalOpen(true)}>
-            <Plus className="size-3.5" />
-            <span>New Design</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={loadDesigns} disabled={loading} title="Reload from PostgreSQL">
+              <RefreshCw className={`size-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setCreateModalOpen(true)}>
+              <Plus className="size-3.5" />
+              <span>New Design</span>
+            </Button>
+          </div>
         }
       />
 

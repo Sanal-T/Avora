@@ -21,6 +21,22 @@ def test_notifications_and_audit_logs(client):
     assert "items" in res_audit.json()
 
 
+def test_dashboard_auth_and_access_control(client):
+    # Anonymous request must be rejected with 401
+    res_anon = client.get("/api/dashboard/overview")
+    assert res_anon.status_code == 401
+
+    res_dept_anon = client.get("/api/dashboard/enquiries/summary")
+    assert res_dept_anon.status_code == 401
+
+    # Authenticated request succeeds
+    token = get_auth_token(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    res_auth = client.get("/api/dashboard/overview", headers=headers)
+    assert res_auth.status_code == 200
+    assert "departments" in res_auth.json()
+
+
 def test_reports_csv_exports(client):
     token = get_auth_token(client)
     headers = {"Authorization": f"Bearer {token}"}

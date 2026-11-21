@@ -58,10 +58,8 @@ export function EnquiryDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const [enquiry, setEnquiry] = useState<MockEnquiry | undefined>(() =>
-    mockEnquiries.find((e) => e.id === id || e.code === id) || mockEnquiries[0],
-  )
-  const [loading, setLoading] = useState(!enquiry)
+  const [enquiry, setEnquiry] = useState<MockEnquiry | undefined>(undefined)
+  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
   const [notes, setNotes] = useState('Client requested quotation to include 2 additional phone booths.')
 

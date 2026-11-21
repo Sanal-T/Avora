@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_current_active_user, get_db, require_roles
 from app.models.auth import User
 from app.schemas.quotation import (
     QuotationCreate,
@@ -110,7 +110,7 @@ def create_quotation_revision(
 def convert_to_work_order(
     quotation_id: uuid.UUID,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Sales / Accounts", "Production Manager"]))],
 ) -> dict[str, str]:
     wo = quotation_service.convert_quotation_to_work_order(db, quotation_id, user_id=current_user.id)
     return {"message": "Quotation converted to work order successfully.", "work_order_id": str(wo.id), "work_order_number": wo.work_order_number}

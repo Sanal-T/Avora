@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_current_active_user, get_db, require_roles
 from app.models.auth import User
 from app.models.enquiry import Enquiry
 from app.models.production import WorkOrder
@@ -17,7 +17,7 @@ router = APIRouter()
 @router.get("/enquiries/export")
 def export_enquiries_csv(
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Sales / Accounts", "Enquiry Staff"]))],
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
 ) -> Response:
@@ -47,7 +47,7 @@ def export_enquiries_csv(
 @router.get("/quotations/export")
 def export_quotations_csv(
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Sales / Accounts"]))],
 ) -> Response:
     items = db.query(Quotation).filter(Quotation.is_deleted == False).all()
     output = io.StringIO()
@@ -75,7 +75,7 @@ def export_quotations_csv(
 @router.get("/production/export")
 def export_production_csv(
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Production Manager"]))],
 ) -> Response:
     items = db.query(WorkOrder).filter(WorkOrder.is_deleted == False).all()
     output = io.StringIO()

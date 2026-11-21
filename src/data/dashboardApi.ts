@@ -8,6 +8,7 @@ import {
   type RangeKey,
 } from './dashboard'
 import type { DepartmentDetail } from './types'
+import { apiFetch } from '../lib/api'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
@@ -129,9 +130,8 @@ export async function getDashboardOverview({
 
   const url = `/api/dashboard/overview${parameters.size ? `?${parameters.toString()}` : ''}`
   try {
-    const response = await fetch(url)
-    if (response.ok) {
-      const overview = await response.json()
+    const overview = await apiFetch<any>(url)
+    if (overview && overview.departments) {
       return {
         source: overview.source || 'database',
         departments: overview.departments.map(toDepartment),
@@ -141,7 +141,7 @@ export async function getDashboardOverview({
       }
     }
   } catch (err) {
-    console.warn('Backend overview endpoint unreachable:', err)
+    console.warn('Backend overview endpoint unreachable or unauthorized:', err)
   }
 
   return getMockOverview(selectedRange)

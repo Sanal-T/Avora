@@ -57,10 +57,8 @@ export function DesignDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const [design, setDesign] = useState<MockDesign | undefined>(() =>
-    mockDesigns.find((d) => d.id === id || d.code === id) || mockDesigns[0],
-  )
-  const [loading, setLoading] = useState(!design)
+  const [design, setDesign] = useState<MockDesign | undefined>(undefined)
+  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
 
   useEffect(() => {

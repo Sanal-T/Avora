@@ -34,8 +34,8 @@ function toUiEnquiry(e: Enquiry): MockEnquiry {
 
 export function EnquiriesListPage() {
   const navigate = useNavigate()
-  const [data, setData] = useState<MockEnquiry[]>(mockEnquiries)
-  const [loading, setLoading] = useState(false)
+  const [data, setData] = useState<MockEnquiry[]>([])
+  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<string>('all')
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -45,12 +45,11 @@ export function EnquiriesListPage() {
     enquiryApi
       .list({ page_size: 100 })
       .then((res) => {
-        if (res.items && res.items.length > 0) {
-          setData(res.items.map(toUiEnquiry))
-        }
+        setData((res.items || []).map(toUiEnquiry))
       })
       .catch((err) => {
-        console.warn('Could not load live enquiries from PostgreSQL, fallback to mock:', err)
+        console.warn('Could not load live enquiries from PostgreSQL:', err)
+        setData([])
       })
       .finally(() => {
         setLoading(false)

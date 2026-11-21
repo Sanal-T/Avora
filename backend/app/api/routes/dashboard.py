@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
-from app.models.auth import Department
+from app.api.deps import get_current_active_user, get_db
+from app.models.auth import Department, User
 from app.models.customer import Customer
 from app.models.design import Design
 from app.models.enquiry import Enquiry, EnquiryStatusHistory
@@ -302,6 +302,7 @@ def build_recent_activities(db: Session) -> list[ActivityItem]:
 @router.get("/overview", response_model=DashboardOverview)
 def get_overview(
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
     date_from: Annotated[date | None, Query()] = None,
     date_to: Annotated[date | None, Query()] = None,
 ) -> DashboardOverview:
@@ -338,6 +339,7 @@ def get_overview(
 def get_department_summary(
     department_id: str,
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
     date_from: Annotated[date | None, Query()] = None,
     date_to: Annotated[date | None, Query()] = None,
 ) -> DepartmentSummary:

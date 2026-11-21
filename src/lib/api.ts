@@ -28,16 +28,19 @@ export class ApiError extends Error {
   }
 }
 
-async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   let token = getToken()
 
   // In development, automatically ensure an active admin session if no token exists yet
-  if (!token && !endpoint.includes('/api/auth/login')) {
+  const devEmail = import.meta.env.VITE_DEV_ADMIN_EMAIL || (import.meta.env.DEV ? 'admin@avora.io' : '')
+  const devPassword = import.meta.env.VITE_DEV_ADMIN_PASSWORD || (import.meta.env.DEV ? 'Admin@123456' : '')
+
+  if (!token && !endpoint.includes('/api/auth/login') && devEmail && devPassword) {
     try {
       const loginRes = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'admin@avora.io', password: 'Admin@123456' }),
+        body: JSON.stringify({ email: devEmail, password: devPassword }),
       })
       if (loginRes.ok) {
         const tokenData = await loginRes.json()
@@ -65,13 +68,13 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   let response = await fetch(url, { ...options, headers })
 
   // Auto-recover if token expired or invalid from database switch
-  if (response.status === 401 && !endpoint.includes('/api/auth/login')) {
+  if (response.status === 401 && !endpoint.includes('/api/auth/login') && devEmail && devPassword) {
     removeToken()
     try {
       const loginRes = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'admin@avora.io', password: 'Admin@123456' }),
+        body: JSON.stringify({ email: devEmail, password: devPassword }),
       })
       if (loginRes.ok) {
         const tokenData = await loginRes.json()

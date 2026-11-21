@@ -116,7 +116,7 @@ export function DepartmentDashboardPage({
       try {
         if (departmentId === 'enquiries') {
           const res = await enquiryApi.list({ page_size: 100 })
-          if (res.items && res.items.length > 0) {
+          if (res.items) {
             return res.items.map((e) => {
               let uiStatus = 'pending'
               const s = (e.status || '').toLowerCase()
@@ -138,20 +138,9 @@ export function DepartmentDashboardPage({
               }
             })
           }
-          return mockEnquiries.map((m) => ({
-            id: m.id,
-            code: m.code,
-            title: m.company,
-            subtitle: m.requirement,
-            status: m.status,
-            date: m.createdAt.slice(0, 10),
-            budget: m.budget,
-            assignedTo: m.assignedTo,
-            link: `/enquiries/${m.id}`,
-          }))
         } else if (departmentId === 'designs') {
           const res = await designApi.listDesigns({ page_size: 100 })
-          if (res.items && res.items.length > 0) {
+          if (res.items) {
             return res.items.map((d) => {
               const st = (d.status || '').toLowerCase().replaceAll('_', ' ')
               let status = 'in_progress'
@@ -170,19 +159,9 @@ export function DepartmentDashboardPage({
               }
             })
           }
-          return mockDesigns.map((m) => ({
-            id: m.id,
-            code: m.code,
-            title: m.title,
-            subtitle: m.client,
-            status: m.status,
-            date: m.dueDate,
-            assignedTo: m.designer,
-            link: `/designs/${m.id}`,
-          }))
         } else if (departmentId === 'quotations') {
           const res = await quotationApi.listQuotations({ page_size: 100 })
-          if (res.items && res.items.length > 0) {
+          if (res.items) {
             return res.items.map((q) => {
               const st = (q.status || '').toLowerCase()
               let status = 'pending'
@@ -204,19 +183,9 @@ export function DepartmentDashboardPage({
               }
             })
           }
-          return mockQuotations.map((m) => ({
-            id: m.id,
-            code: m.code,
-            title: m.client,
-            subtitle: m.title,
-            status: m.status,
-            budget: `₹${m.grandTotal.toLocaleString('en-IN')}`,
-            date: m.dueDate,
-            link: `/quotations/${m.id}`,
-          }))
         } else if (departmentId === 'production') {
           const res = await productionApi.listWorkOrders({ page_size: 100 })
-          if (res.items && res.items.length > 0) {
+          if (res.items) {
             return res.items.map((wo) => {
               const st = (wo.status || '').toLowerCase()
               let status = 'active'
@@ -235,19 +204,9 @@ export function DepartmentDashboardPage({
               }
             })
           }
-          return mockWorkOrders.map((m) => ({
-            id: m.id,
-            code: m.code,
-            title: m.title,
-            subtitle: m.client,
-            status: m.status,
-            date: m.deliveryDate,
-            assignedTo: m.leadWorker,
-            link: `/production/${m.id}`,
-          }))
         } else if (departmentId === 'feedback') {
           const res = await feedbackApi.listFeedback({ page_size: 100 })
-          if (res.items && res.items.length > 0) {
+          if (res.items) {
             return res.items.map((f) => ({
               id: f.id,
               code: `FB-${f.id.slice(0, 4).toUpperCase()}`,
@@ -258,37 +217,20 @@ export function DepartmentDashboardPage({
               link: `/feedback/${f.id}`,
             }))
           }
-          return mockFeedback.map((m) => ({
-            id: m.id,
-            code: m.code,
-            title: m.client,
-            subtitle: m.comments,
-            status: m.status,
-            date: m.date,
-            link: `/feedback`,
-          }))
         } else if (departmentId === 'labour') {
           const res = await labourApi.listWorkers({ page_size: 100 })
-          if (res.items && res.items.length > 0) {
+          if (res.items) {
             return res.items.map((w) => ({
               id: w.id,
               code: w.worker_code,
-              title: `${w.first_name} ${w.last_name}`,
-              subtitle: w.skill_category || 'Worker',
+              title: `${w.first_name} ${w.last_name}`.trim(),
+              subtitle: w.skill_category,
               status: (w.status || '').toLowerCase() === 'assigned' ? 'assigned' : 'available',
-              assignedTo: w.phone || undefined,
+              date: `Rate: ₹${Number(w.daily_rate || 0).toLocaleString('en-IN')}/day`,
+              assignedTo: w.phone || 'Labour Roster',
               link: `/labour`,
             }))
           }
-          return mockWorkers.map((m) => ({
-            id: m.id,
-            code: m.code,
-            title: m.name,
-            subtitle: m.trade,
-            status: m.status,
-            assignedTo: m.phone,
-            link: `/labour`,
-          }))
         }
         return []
       } catch (err: any) {
