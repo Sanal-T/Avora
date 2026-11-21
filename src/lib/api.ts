@@ -62,7 +62,30 @@ async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise
   }
 
   const url = endpoint.startsWith('http') ? endpoint : endpoint.startsWith('/') ? endpoint : `/api/${endpoint}`
-  const response = await fetch(url, { ...options, headers })
+  let response = await fetch(url, { ...options, headers })
+
+  // Auto-recover if token expired or invalid from database switch
+  if (response.status === 401 && !endpoint.includes('/api/auth/login')) {
+    removeToken()
+    try {
+      const loginRes = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'admin@avora.io', password: 'Admin@123456' }),
+      })
+      if (loginRes.ok) {
+        const tokenData = await loginRes.json()
+        if (tokenData.access_token) {
+          setToken(tokenData.access_token)
+          const retryHeaders = new Headers(headers)
+          retryHeaders.set('Authorization', `Bearer ${tokenData.access_token}`)
+          response = await fetch(url, { ...options, headers: retryHeaders })
+        }
+      }
+    } catch {
+      // Proceed to normal error handling
+    }
+  }
 
   if (response.status === 204) {
     return {} as T

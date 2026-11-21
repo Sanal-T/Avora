@@ -89,6 +89,8 @@ export function DepartmentDashboardPage({
 
   const [records, setRecords] = useState<DashboardRecord[]>([])
   const [loadingRecords, setLoadingRecords] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [selectedFilter, setSelectedFilter] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [page, setPage] = useState(1)
@@ -102,12 +104,13 @@ export function DepartmentDashboardPage({
         if (data) setLiveSummary(data)
       })
       .catch(() => {})
-  }, [departmentId, rangeId])
+  }, [departmentId, rangeId, refreshTrigger])
 
   // Load actual department data
   useEffect(() => {
     let isMounted = true
     setLoadingRecords(true)
+    setLoadError(null)
 
     const fetchRecords = async () => {
       try {
@@ -288,8 +291,11 @@ export function DepartmentDashboardPage({
           }))
         }
         return []
-      } catch (err) {
+      } catch (err: any) {
         console.warn(`Could not load records for ${departmentId}:`, err)
+        if (isMounted) {
+          setLoadError(err?.message || 'Failed to load records from database')
+        }
         return []
       }
     }
@@ -305,7 +311,7 @@ export function DepartmentDashboardPage({
     return () => {
       isMounted = false
     }
-  }, [departmentId, rangeId])
+  }, [departmentId, rangeId, refreshTrigger])
 
   // Build KPI Options
   const kpis: {
@@ -424,6 +430,16 @@ export function DepartmentDashboardPage({
         }
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRefreshTrigger((prev) => prev + 1)}
+              disabled={loadingRecords}
+              title="Refresh database records"
+            >
+              <RefreshCw className={cn('size-3.5', loadingRecords && 'animate-spin')} />
+              <span>Refresh</span>
+            </Button>
             <Button variant="primary" size="sm" onClick={onOpenCreate}>
               <Plus className="size-3.5" />
               <span>New {meta.noun}</span>
@@ -605,6 +621,25 @@ export function DepartmentDashboardPage({
                       <div className="flex items-center justify-center gap-2">
                         <RefreshCw className="size-4 animate-spin text-primary" />
                         <span>Loading records...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : loadError ? (
+                  <tr>
+                    <td
+                      colSpan={departmentId === 'enquiries' ? 6 : 5}
+                      className="py-8 text-center text-xs"
+                    >
+                      <div className="flex flex-col items-center gap-2 text-danger">
+                        <span>Could not fetch records: {loadError}</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setRefreshTrigger((prev) => prev + 1)}
+                        >
+                          <RefreshCw className="size-3.5 mr-1.5" />
+                          Retry
+                        </Button>
                       </div>
                     </td>
                   </tr>
