@@ -2,6 +2,7 @@ import uuid
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -9,6 +10,7 @@ from app.models.auth import Employee
 from app.models.customer import Customer
 from app.models.production import WorkOrder, WorkOrderStatusHistory
 from app.models.quotation import Quotation, QuotationFollowUp, QuotationItem, QuotationRevision, QuotationStatusHistory
+from app.services import audit_service
 from app.schemas.quotation import (
     QuotationCreate,
     QuotationFollowUpCreate,
@@ -185,34 +187,49 @@ def create_quotation(db: Session, data: QuotationCreate, user_id: uuid.UUID | No
         currency=data.currency,
         valid_until=data.valid_until,
     )
-    db.add(quotation)
-    db.flush()
 
-    for idx, it in enumerate(data.items):
-        item_total = _round_currency(Decimal(str(it.quantity)) * Decimal(str(it.unit_price)))
-        item = QuotationItem(
+    try:
+        db.add(quotation)
+        db.flush()
+
+        for idx, it in enumerate(data.items):
+            item_total = _round_currency(Decimal(str(it.quantity)) * Decimal(str(it.unit_price)))
+            item = QuotationItem(
+                quotation_id=quotation.id,
+                item_code=it.item_code,
+                description=it.description,
+                quantity=it.quantity,
+                unit=it.unit,
+                unit_price=it.unit_price,
+                total_price=item_total,
+                sort_order=idx + 1,
+            )
+            db.add(item)
+
+        history = QuotationStatusHistory(
             quotation_id=quotation.id,
-            item_code=it.item_code,
-            description=it.description,
-            quantity=it.quantity,
-            unit=it.unit,
-            unit_price=it.unit_price,
-            total_price=item_total,
-            sort_order=idx + 1,
+            from_status=None,
+            to_status="Draft",
+            changed_by_id=user_id,
+            notes="Quotation draft created.",
         )
-        db.add(item)
+        db.add(history)
 
-    history = QuotationStatusHistory(
-        quotation_id=quotation.id,
-        from_status=None,
-        to_status="Draft",
-        changed_by_id=user_id,
-        notes="Quotation draft created.",
-    )
-    db.add(history)
-    db.commit()
-    db.refresh(quotation)
-    return _to_quotation_read(quotation)
+        audit_service.log_audit_action(
+            db,
+            action="CREATE",
+            entity_type="quotation",
+            entity_id=quotation.id,
+            user_id=user_id,
+            changes_summary=f"Created quotation {quotation.quotation_number} with {len(data.items)} items totaling {quotation.total_amount}",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(quotation)
+        return _to_quotation_read(quotation)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def update_quotation(db: Session, quotation_id: uuid.UUID, data: QuotationUpdate, user_id: uuid.UUID | None = None) -> QuotationRead:
@@ -255,9 +272,22 @@ def update_quotation(db: Session, quotation_id: uuid.UUID, data: QuotationUpdate
         quotation.tax_amount = tax_amount
         quotation.total_amount = total_amount
 
-    db.commit()
-    db.refresh(quotation)
-    return _to_quotation_read(quotation)
+    try:
+        audit_service.log_audit_action(
+            db,
+            action="UPDATE",
+            entity_type="quotation",
+            entity_id=quotation.id,
+            user_id=user_id,
+            changes_summary=f"Updated draft quotation {quotation.quotation_number} (total {quotation.total_amount})",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(quotation)
+        return _to_quotation_read(quotation)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def update_quotation_status(db: Session, quotation_id: uuid.UUID, data: QuotationStatusUpdate, user_id: uuid.UUID | None = None) -> QuotationRead:
@@ -286,66 +316,94 @@ def update_quotation_status(db: Session, quotation_id: uuid.UUID, data: Quotatio
         changed_by_id=user_id,
         notes=data.notes or (f"Reason: {data.rejection_reason}" if data.rejection_reason else None),
     )
-    db.add(history)
-    db.commit()
-    db.refresh(quotation)
-    return _to_quotation_read(quotation)
+
+    try:
+        db.add(history)
+        audit_service.log_audit_action(
+            db,
+            action="STATUS_CHANGE",
+            entity_type="quotation",
+            entity_id=quotation.id,
+            user_id=user_id,
+            changes_summary=f"Quotation {quotation.quotation_number} status changed from {old_status} to {data.status}",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(quotation)
+        return _to_quotation_read(quotation)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def create_quotation_revision(db: Session, quotation_id: uuid.UUID, data: QuotationRevisionCreate, user_id: uuid.UUID | None = None) -> QuotationRead:
     quotation = get_quotation(db, quotation_id)
 
-    # 1. Archive current revision into QuotationRevision
-    archived_rev = QuotationRevision(
-        quotation_id=quotation.id,
-        revision_number=quotation.revision_number,
-        total_amount=quotation.total_amount,
-        change_summary=data.change_summary,
-        created_by_id=user_id,
-    )
-    db.add(archived_rev)
-
-    # 2. Increment revision number
-    quotation.revision_number += 1
-    quotation.status = "Draft"
-    quotation.approved_at = None
-
-    # 3. Recalculate totals with new items
-    subtotal, discount_amount, tax_amount, total_amount = calculate_quotation_totals(data.items, data.discount_rate, data.tax_rate)
-    quotation.subtotal = subtotal
-    quotation.discount_rate = data.discount_rate
-    quotation.discount_amount = discount_amount
-    quotation.tax_rate = data.tax_rate
-    quotation.tax_amount = tax_amount
-    quotation.total_amount = total_amount
-
-    # 4. Replace items
-    db.query(QuotationItem).filter(QuotationItem.quotation_id == quotation.id).delete()
-    for idx, it in enumerate(data.items):
-        item_total = _round_currency(Decimal(str(it.quantity)) * Decimal(str(it.unit_price)))
-        item = QuotationItem(
+    try:
+        # 1. Archive current revision into QuotationRevision
+        archived_rev = QuotationRevision(
             quotation_id=quotation.id,
-            item_code=it.item_code,
-            description=it.description,
-            quantity=it.quantity,
-            unit=it.unit,
-            unit_price=it.unit_price,
-            total_price=item_total,
-            sort_order=idx + 1,
+            revision_number=quotation.revision_number,
+            total_amount=quotation.total_amount,
+            change_summary=data.change_summary,
+            created_by_id=user_id,
         )
-        db.add(item)
+        db.add(archived_rev)
 
-    history = QuotationStatusHistory(
-        quotation_id=quotation.id,
-        from_status=f"Rev {quotation.revision_number - 1}",
-        to_status=f"Rev {quotation.revision_number} Draft",
-        changed_by_id=user_id,
-        notes=f"Revision created: {data.change_summary}",
-    )
-    db.add(history)
-    db.commit()
-    db.refresh(quotation)
-    return _to_quotation_read(quotation)
+        # 2. Increment revision number
+        quotation.revision_number += 1
+        quotation.status = "Draft"
+        quotation.approved_at = None
+
+        # 3. Recalculate totals with new items
+        subtotal, discount_amount, tax_amount, total_amount = calculate_quotation_totals(data.items, data.discount_rate, data.tax_rate)
+        quotation.subtotal = subtotal
+        quotation.discount_rate = data.discount_rate
+        quotation.discount_amount = discount_amount
+        quotation.tax_rate = data.tax_rate
+        quotation.tax_amount = tax_amount
+        quotation.total_amount = total_amount
+
+        # 4. Replace items
+        db.query(QuotationItem).filter(QuotationItem.quotation_id == quotation.id).delete()
+        for idx, it in enumerate(data.items):
+            item_total = _round_currency(Decimal(str(it.quantity)) * Decimal(str(it.unit_price)))
+            item = QuotationItem(
+                quotation_id=quotation.id,
+                item_code=it.item_code,
+                description=it.description,
+                quantity=it.quantity,
+                unit=it.unit,
+                unit_price=it.unit_price,
+                total_price=item_total,
+                sort_order=idx + 1,
+            )
+            db.add(item)
+
+        history = QuotationStatusHistory(
+            quotation_id=quotation.id,
+            from_status=f"Rev {quotation.revision_number - 1}",
+            to_status=f"Rev {quotation.revision_number} Draft",
+            changed_by_id=user_id,
+            notes=f"Revision created: {data.change_summary}",
+        )
+        db.add(history)
+
+        audit_service.log_audit_action(
+            db,
+            action="REVISE",
+            entity_type="quotation",
+            entity_id=quotation.id,
+            user_id=user_id,
+            changes_summary=f"Created revision {quotation.revision_number} for {quotation.quotation_number}: {data.change_summary}",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(quotation)
+        return _to_quotation_read(quotation)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def convert_quotation_to_work_order(db: Session, quotation_id: uuid.UUID, user_id: uuid.UUID | None = None) -> WorkOrder:
@@ -377,33 +435,72 @@ def convert_quotation_to_work_order(db: Session, quotation_id: uuid.UUID, user_i
         else (date.today() + timedelta(days=14))
     )
 
-    work_order = WorkOrder(
-        work_order_number=work_order_number,
-        quotation_id=quotation.id,
-        customer_id=quotation.customer_id,
-        title=f"Work Order for {quotation.quotation_number} - {quotation.customer.name}",
-        status="Pending",
-        priority="Medium",
-        planned_start_date=date.today(),
-        planned_end_date=planned_end,
-        notes=f"Converted from quotation {quotation.quotation_number} Rev {quotation.revision_number}",
-    )
-    db.add(work_order)
-    db.flush()
+    try:
+        work_order = WorkOrder(
+            work_order_number=work_order_number,
+            quotation_id=quotation.id,
+            customer_id=quotation.customer_id,
+            title=f"Work Order for {quotation.quotation_number} - {quotation.customer.name}",
+            status="Pending",
+            priority="Medium",
+            planned_start_date=date.today(),
+            planned_end_date=planned_end,
+            notes=f"Converted from quotation {quotation.quotation_number} Rev {quotation.revision_number}",
+        )
+        db.add(work_order)
+        db.flush()
 
-    wo_history = WorkOrderStatusHistory(
-        work_order_id=work_order.id,
-        from_status=None,
-        to_status="Pending",
-        changed_by_id=user_id,
-        notes="Generated from approved quotation.",
-    )
-    db.add(wo_history)
+        wo_history = WorkOrderStatusHistory(
+            work_order_id=work_order.id,
+            from_status=None,
+            to_status="Pending",
+            changed_by_id=user_id,
+            notes="Generated from approved quotation.",
+        )
+        db.add(wo_history)
 
-    quotation.status = "Converted"
-    db.commit()
-    db.refresh(work_order)
-    return work_order
+        quote_history = QuotationStatusHistory(
+            quotation_id=quotation.id,
+            from_status="Approved",
+            to_status="Converted",
+            changed_by_id=user_id,
+            notes=f"Converted to Work Order {work_order.work_order_number}.",
+        )
+        db.add(quote_history)
+
+        quotation.status = "Converted"
+
+        audit_service.log_audit_action(
+            db,
+            action="CONVERT",
+            entity_type="quotation",
+            entity_id=quotation.id,
+            user_id=user_id,
+            changes_summary=f"Converted quotation {quotation.quotation_number} to Work Order {work_order.work_order_number}",
+            commit=False,
+        )
+        audit_service.log_audit_action(
+            db,
+            action="CREATE",
+            entity_type="work_order",
+            entity_id=work_order.id,
+            user_id=user_id,
+            changes_summary=f"Created Work Order {work_order.work_order_number} from approved Quotation {quotation.quotation_number}",
+            commit=False,
+        )
+
+        db.commit()
+        db.refresh(work_order)
+        return work_order
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Work order already created or duplicate constraint violated for quotation {quotation.quotation_number}.",
+        )
+    except Exception:
+        db.rollback()
+        raise
 
 
 def add_follow_up(db: Session, quotation_id: uuid.UUID, data: QuotationFollowUpCreate, user_id: uuid.UUID | None = None) -> QuotationRead:

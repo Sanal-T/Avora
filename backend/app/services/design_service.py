@@ -8,6 +8,7 @@ from app.models.auth import Employee
 from app.models.design import Design, DesignStatusHistory, DesignVersion
 from app.models.enquiry import Enquiry
 from app.schemas.design import DesignCreate, DesignRead, DesignStatusUpdate, DesignSummaryResponse, DesignUpdate, DesignVersionCreate, DesignVersionRead
+from app.services import audit_service
 
 
 VALID_DESIGN_STATUSES = ["Not Started", "In Progress", "Under Review", "Revision Required", "Approved", "Completed", "Cancelled"]
@@ -100,20 +101,34 @@ def create_design(db: Session, data: DesignCreate, user_id: uuid.UUID | None = N
         estimated_hours=data.estimated_hours,
         expected_completion_date=data.expected_completion_date,
     )
-    db.add(design)
-    db.flush()
+    try:
+        db.add(design)
+        db.flush()
 
-    history = DesignStatusHistory(
-        design_id=design.id,
-        from_status=None,
-        to_status="Not Started",
-        changed_by_id=user_id,
-        notes="Design work order created.",
-    )
-    db.add(history)
-    db.commit()
-    db.refresh(design)
-    return _to_design_read(design)
+        history = DesignStatusHistory(
+            design_id=design.id,
+            from_status=None,
+            to_status="Not Started",
+            changed_by_id=user_id,
+            notes="Design work order created.",
+        )
+        db.add(history)
+
+        audit_service.log_audit_action(
+            db,
+            action="CREATE",
+            entity_type="design",
+            entity_id=design.id,
+            user_id=user_id,
+            changes_summary=f"Created design {design.design_number}: {design.title}",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(design)
+        return _to_design_read(design)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def update_design_status(db: Session, design_id: uuid.UUID, data: DesignStatusUpdate, user_id: uuid.UUID | None = None) -> DesignRead:
@@ -136,10 +151,24 @@ def update_design_status(db: Session, design_id: uuid.UUID, data: DesignStatusUp
         changed_by_id=user_id,
         notes=data.notes,
     )
-    db.add(history)
-    db.commit()
-    db.refresh(design)
-    return _to_design_read(design)
+
+    try:
+        db.add(history)
+        audit_service.log_audit_action(
+            db,
+            action="STATUS_CHANGE",
+            entity_type="design",
+            entity_id=design.id,
+            user_id=user_id,
+            changes_summary=f"Design {design.design_number} status changed from {old_status} to {data.status}",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(design)
+        return _to_design_read(design)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def add_design_version(db: Session, design_id: uuid.UUID, data: DesignVersionCreate, user_id: uuid.UUID | None = None) -> DesignRead:
@@ -154,11 +183,25 @@ def add_design_version(db: Session, design_id: uuid.UUID, data: DesignVersionCre
         submitted_by_id=user_id,
         is_approved=False,
     )
-    db.add(version)
-    design.status = "Under Review"
-    db.commit()
-    db.refresh(design)
-    return _to_design_read(design)
+    try:
+        db.add(version)
+        design.status = "Under Review"
+
+        audit_service.log_audit_action(
+            db,
+            action="ADD_VERSION",
+            entity_type="design",
+            entity_id=design.id,
+            user_id=user_id,
+            changes_summary=f"Added version {version_num} ({data.file_name}) to design {design.design_number}",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(design)
+        return _to_design_read(design)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def get_design_summary(db: Session, date_from: date | None = None, date_to: date | None = None) -> DesignSummaryResponse:

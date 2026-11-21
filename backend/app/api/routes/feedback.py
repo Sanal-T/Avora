@@ -51,7 +51,7 @@ def create_feedback(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> FeedbackRead:
-    return feedback_service.create_feedback(db, data)
+    return feedback_service.create_feedback(db, data, user_id=current_user.id)
 
 
 @router.get("/{feedback_id}", response_model=FeedbackRead)
@@ -71,4 +71,4 @@ def update_feedback(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> FeedbackRead:
-    return feedback_service.update_feedback(db, feedback_id, data)
+    return feedback_service.update_feedback(db, feedback_id, data, user_id=current_user.id)

@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 
 from app.models.customer import Customer
 from app.models.production import Installation, ProductionTask, WorkOrder, WorkOrderStatusHistory
+from app.services import audit_service
 from app.schemas.production import (
     InstallationCreate,
     InstallationRead,
@@ -136,20 +137,34 @@ def create_work_order(db: Session, data: WorkOrderCreate, user_id: uuid.UUID | N
         notes=data.notes,
         status="Pending",
     )
-    db.add(wo)
-    db.flush()
+    try:
+        db.add(wo)
+        db.flush()
 
-    history = WorkOrderStatusHistory(
-        work_order_id=wo.id,
-        from_status=None,
-        to_status="Pending",
-        changed_by_id=user_id,
-        notes="Work order created.",
-    )
-    db.add(history)
-    db.commit()
-    db.refresh(wo)
-    return _to_work_order_read(wo)
+        history = WorkOrderStatusHistory(
+            work_order_id=wo.id,
+            from_status=None,
+            to_status="Pending",
+            changed_by_id=user_id,
+            notes="Work order created.",
+        )
+        db.add(history)
+
+        audit_service.log_audit_action(
+            db,
+            action="CREATE",
+            entity_type="work_order",
+            entity_id=wo.id,
+            user_id=user_id,
+            changes_summary=f"Created work order {wo.work_order_number}: {wo.title}",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(wo)
+        return _to_work_order_read(wo)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def update_work_order(db: Session, work_order_id: uuid.UUID, data: WorkOrderUpdate, user_id: uuid.UUID | None = None) -> WorkOrderRead:
@@ -194,10 +209,24 @@ def update_work_order_status(db: Session, work_order_id: uuid.UUID, data: WorkOr
         changed_by_id=user_id,
         notes=data.notes,
     )
-    db.add(history)
-    db.commit()
-    db.refresh(wo)
-    return _to_work_order_read(wo)
+
+    try:
+        db.add(history)
+        audit_service.log_audit_action(
+            db,
+            action="STATUS_CHANGE",
+            entity_type="work_order",
+            entity_id=wo.id,
+            user_id=user_id,
+            changes_summary=f"Work order {wo.work_order_number} status changed from {old_status} to {data.status}",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(wo)
+        return _to_work_order_read(wo)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def add_production_task(db: Session, work_order_id: uuid.UUID, data: ProductionTaskCreate) -> WorkOrderRead:

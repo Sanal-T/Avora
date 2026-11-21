@@ -8,6 +8,7 @@ from app.models.customer import Customer
 from app.models.feedback import Feedback
 from app.models.production import WorkOrder
 from app.schemas.feedback import FeedbackCreate, FeedbackRead, FeedbackSummaryResponse, FeedbackUpdate
+from app.services import audit_service
 
 
 def _to_feedback_read(fb: Feedback) -> FeedbackRead:
@@ -61,7 +62,7 @@ def get_feedback(db: Session, feedback_id: uuid.UUID) -> FeedbackRead:
     return _to_feedback_read(fb)
 
 
-def create_feedback(db: Session, data: FeedbackCreate) -> FeedbackRead:
+def create_feedback(db: Session, data: FeedbackCreate, user_id: uuid.UUID | None = None) -> FeedbackRead:
     fb = Feedback(
         customer_id=data.customer_id,
         work_order_id=data.work_order_id,
@@ -71,13 +72,28 @@ def create_feedback(db: Session, data: FeedbackCreate) -> FeedbackRead:
         status="Received" if data.comments or data.rating else "Awaiting",
         received_at=datetime.now(timezone.utc) if data.comments or data.rating else None,
     )
-    db.add(fb)
-    db.commit()
-    db.refresh(fb)
-    return _to_feedback_read(fb)
+    try:
+        db.add(fb)
+        db.flush()
+
+        audit_service.log_audit_action(
+            db,
+            action="CREATE",
+            entity_type="feedback",
+            entity_id=fb.id,
+            user_id=user_id,
+            changes_summary=f"Created feedback {fb.id} (Category: {fb.category}, Status: {fb.status})",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(fb)
+        return _to_feedback_read(fb)
+    except Exception:
+        db.rollback()
+        raise
 
 
-def update_feedback(db: Session, feedback_id: uuid.UUID, data: FeedbackUpdate) -> FeedbackRead:
+def update_feedback(db: Session, feedback_id: uuid.UUID, data: FeedbackUpdate, user_id: uuid.UUID | None = None) -> FeedbackRead:
     fb = db.query(Feedback).filter(Feedback.id == feedback_id, Feedback.is_deleted == False).first()
     if not fb:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feedback record not found.")
@@ -93,9 +109,22 @@ def update_feedback(db: Session, feedback_id: uuid.UUID, data: FeedbackUpdate) -
         if fb.status == "Awaiting":
             fb.status = "Received"
 
-    db.commit()
-    db.refresh(fb)
-    return _to_feedback_read(fb)
+    try:
+        audit_service.log_audit_action(
+            db,
+            action="UPDATE",
+            entity_type="feedback",
+            entity_id=fb.id,
+            user_id=user_id,
+            changes_summary=f"Updated feedback {fb.id} (Status: {fb.status}, Rating: {fb.rating})",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(fb)
+        return _to_feedback_read(fb)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def get_feedback_summary(db: Session, date_from: date | None = None, date_to: date | None = None) -> FeedbackSummaryResponse:

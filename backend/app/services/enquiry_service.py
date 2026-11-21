@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 from app.models.auth import Employee, User
 from app.models.customer import Customer
 from app.models.enquiry import Enquiry, EnquiryStatusHistory
+from app.services import audit_service
 from app.schemas.enquiry import EnquiryCreate, EnquiryRead, EnquiryStatusHistoryRead, EnquiryStatusUpdate, EnquirySummaryResponse, EnquiryUpdate
 
 
@@ -111,21 +112,35 @@ def create_enquiry(db: Session, data: EnquiryCreate, user_id: uuid.UUID | None =
         estimated_budget=data.estimated_budget,
         priority=data.priority,
     )
-    db.add(enquiry)
-    db.flush()
+    try:
+        db.add(enquiry)
+        db.flush()
 
-    # Initial history record
-    history = EnquiryStatusHistory(
-        enquiry_id=enquiry.id,
-        from_status=None,
-        to_status="New",
-        changed_by_id=user_id,
-        notes="Enquiry created.",
-    )
-    db.add(history)
-    db.commit()
-    db.refresh(enquiry)
-    return _to_enquiry_read(enquiry)
+        # Initial history record
+        history = EnquiryStatusHistory(
+            enquiry_id=enquiry.id,
+            from_status=None,
+            to_status="New",
+            changed_by_id=user_id,
+            notes="Enquiry created.",
+        )
+        db.add(history)
+
+        audit_service.log_audit_action(
+            db,
+            action="CREATE",
+            entity_type="enquiry",
+            entity_id=enquiry.id,
+            user_id=user_id,
+            changes_summary=f"Created enquiry {enquiry.enquiry_number} for customer {customer.name}",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(enquiry)
+        return _to_enquiry_read(enquiry)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def update_enquiry(db: Session, enquiry_id: uuid.UUID, data: EnquiryUpdate) -> EnquiryRead:
@@ -164,10 +179,24 @@ def update_enquiry_status(db: Session, enquiry_id: uuid.UUID, data: EnquiryStatu
         changed_by_id=user_id,
         notes=data.notes or (f"Reason: {data.rejection_reason}" if data.rejection_reason else None),
     )
-    db.add(history)
-    db.commit()
-    db.refresh(enquiry)
-    return _to_enquiry_read(enquiry)
+
+    try:
+        db.add(history)
+        audit_service.log_audit_action(
+            db,
+            action="STATUS_CHANGE",
+            entity_type="enquiry",
+            entity_id=enquiry.id,
+            user_id=user_id,
+            changes_summary=f"Enquiry {enquiry.enquiry_number} status changed from {old_status} to {data.status}",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(enquiry)
+        return _to_enquiry_read(enquiry)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def get_enquiry_summary(db: Session, date_from: date | None = None, date_to: date | None = None) -> EnquirySummaryResponse:

@@ -45,3 +45,13 @@ def mark_notification_read(db: Session, notification_id: uuid.UUID, user_id: uui
         db.commit()
         db.refresh(notif)
     return notif
+
+
+def mark_all_notifications_read(db: Session, user_id: uuid.UUID) -> int:
+    count = (
+        db.query(Notification)
+        .filter(Notification.recipient_id == user_id, Notification.is_read == False)
+        .update({Notification.is_read: True})
+    )
+    db.commit()
+    return count

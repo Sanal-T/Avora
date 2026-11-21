@@ -29,7 +29,7 @@ def create_customer(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> CustomerRead:
-    return customer_service.create_customer(db, data)
+    return customer_service.create_customer(db, data, user_id=current_user.id)
 
 
 @router.get("/{customer_id}", response_model=CustomerRead)
@@ -48,7 +48,7 @@ def update_customer(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> CustomerRead:
-    return customer_service.update_customer(db, customer_id, data)
+    return customer_service.update_customer(db, customer_id, data, user_id=current_user.id)
 
 
 @router.delete("/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -57,4 +57,4 @@ def delete_customer(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(require_roles(["Administrator", "Management"]))],
 ) -> None:
-    customer_service.delete_customer(db, customer_id)
+    customer_service.delete_customer(db, customer_id, user_id=current_user.id)

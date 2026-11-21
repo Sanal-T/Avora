@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 
 from app.models.customer import Customer, CustomerContact
 from app.schemas.customer import CustomerCreate, CustomerUpdate
+from app.services import audit_service
 
 
 def list_customers(db: Session, page: int = 1, page_size: int = 20, search: str | None = None) -> tuple[int, list[Customer]]:
@@ -32,7 +33,7 @@ def get_customer(db: Session, customer_id: uuid.UUID) -> Customer:
     return customer
 
 
-def create_customer(db: Session, data: CustomerCreate) -> Customer:
+def create_customer(db: Session, data: CustomerCreate, user_id: uuid.UUID | None = None) -> Customer:
     # Check duplicate email
     existing = db.query(Customer).filter(Customer.email == data.email, Customer.is_deleted == False).first()
     if existing:
@@ -54,26 +55,40 @@ def create_customer(db: Session, data: CustomerCreate) -> Customer:
         tax_id=data.tax_id,
         notes=data.notes,
     )
-    db.add(customer)
-    db.flush()
 
-    for c in data.contacts:
-        contact = CustomerContact(
-            customer_id=customer.id,
-            name=c.name,
-            email=c.email,
-            phone=c.phone,
-            designation=c.designation,
-            is_primary=c.is_primary,
+    try:
+        db.add(customer)
+        db.flush()
+
+        for c in data.contacts:
+            contact = CustomerContact(
+                customer_id=customer.id,
+                name=c.name,
+                email=c.email,
+                phone=c.phone,
+                designation=c.designation,
+                is_primary=c.is_primary,
+            )
+            db.add(contact)
+
+        audit_service.log_audit_action(
+            db,
+            action="CREATE",
+            entity_type="customer",
+            entity_id=customer.id,
+            user_id=user_id,
+            changes_summary=f"Created customer {customer.name} ({customer.customer_code}) with {len(data.contacts)} contacts",
+            commit=False,
         )
-        db.add(contact)
+        db.commit()
+        db.refresh(customer)
+        return customer
+    except Exception:
+        db.rollback()
+        raise
 
-    db.commit()
-    db.refresh(customer)
-    return customer
 
-
-def update_customer(db: Session, customer_id: uuid.UUID, data: CustomerUpdate) -> Customer:
+def update_customer(db: Session, customer_id: uuid.UUID, data: CustomerUpdate, user_id: uuid.UUID | None = None) -> Customer:
     customer = get_customer(db, customer_id)
     update_dict = data.model_dump(exclude_unset=True)
 
@@ -82,16 +97,42 @@ def update_customer(db: Session, customer_id: uuid.UUID, data: CustomerUpdate) -
         if existing:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A customer with this email already exists.")
 
-    for key, value in update_dict.items():
-        setattr(customer, key, value)
+    try:
+        for key, value in update_dict.items():
+            setattr(customer, key, value)
 
-    db.commit()
-    db.refresh(customer)
-    return customer
+        audit_service.log_audit_action(
+            db,
+            action="UPDATE",
+            entity_type="customer",
+            entity_id=customer.id,
+            user_id=user_id,
+            changes_summary=f"Updated customer {customer.name} fields: {', '.join(update_dict.keys())}",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(customer)
+        return customer
+    except Exception:
+        db.rollback()
+        raise
 
 
-def delete_customer(db: Session, customer_id: uuid.UUID) -> None:
+def delete_customer(db: Session, customer_id: uuid.UUID, user_id: uuid.UUID | None = None) -> None:
     customer = get_customer(db, customer_id)
-    customer.is_deleted = True
-    customer.deleted_at = datetime.now(timezone.utc)
-    db.commit()
+    try:
+        customer.is_deleted = True
+        customer.deleted_at = datetime.now(timezone.utc)
+        audit_service.log_audit_action(
+            db,
+            action="DELETE",
+            entity_type="customer",
+            entity_id=customer.id,
+            user_id=user_id,
+            changes_summary=f"Soft deleted customer {customer.name} ({customer.customer_code})",
+            commit=False,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise

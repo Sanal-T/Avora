@@ -897,3 +897,37 @@ export const feedbackApi = {
     return apiFetch<FeedbackSummaryResponse>('/api/feedback/summary')
   },
 }
+
+export interface AppNotification {
+  id: string
+  recipient_id: string
+  title: string
+  message: string
+  link?: string | null
+  is_read: boolean
+  category: string
+  created_at: string
+}
+
+export interface NotificationListResponse {
+  total: number
+  items: AppNotification[]
+}
+
+export const notificationsApi = {
+  async listNotifications(unreadOnly = false): Promise<NotificationListResponse> {
+    return apiFetch<NotificationListResponse>(`/api/notifications${unreadOnly ? '?unread_only=true' : ''}`)
+  },
+
+  async markRead(id: string): Promise<AppNotification> {
+    return apiFetch<AppNotification>(`/api/notifications/${id}/read`, {
+      method: 'PATCH',
+    })
+  },
+
+  async markAllRead(): Promise<{ status: string; marked_read: number }> {
+    return apiFetch<{ status: string; marked_read: number }>('/api/notifications/read-all', {
+      method: 'PATCH',
+    })
+  },
+}

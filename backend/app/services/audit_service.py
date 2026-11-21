@@ -12,6 +12,7 @@ def log_audit_action(
     user_id: uuid.UUID | None = None,
     changes_summary: str | None = None,
     ip_address: str | None = None,
+    commit: bool = True,
 ) -> AuditLog:
     log = AuditLog(
         action=action,
@@ -22,7 +23,8 @@ def log_audit_action(
         ip_address=ip_address,
     )
     db.add(log)
-    db.commit()
+    if commit:
+        db.commit()
     return log
 
 

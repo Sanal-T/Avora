@@ -1,16 +1,44 @@
 import { useState, useRef, useEffect } from 'react'
 import { Bell, CheckCheck, ExternalLink } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { mockNotifications, type MockNotification } from '../../data/mockData'
+import { notificationsApi, type AppNotification } from '../../lib/api'
 import { cn } from '../../lib/cn'
+
+function formatTimeAgo(dateString: string): string {
+  const d = new Date(dateString)
+  const diffSec = Math.floor((Date.now() - d.getTime()) / 1000)
+  if (isNaN(diffSec) || diffSec < 60) return 'Just now'
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `${diffMin}m ago`
+  const diffHours = Math.floor(diffMin / 60)
+  if (diffHours < 24) return `${diffHours}h ago`
+  const diffDays = Math.floor(diffHours / 24)
+  return `${diffDays}d ago`
+}
 
 export function NotificationsDropdown() {
   const [open, setOpen] = useState(false)
-  const [notifications, setNotifications] = useState<MockNotification[]>(mockNotifications)
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
   const wrapperRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
 
-  const unreadCount = notifications.filter((n) => !n.read).length
+  const unreadCount = notifications.filter((n) => !n.is_read).length
+
+  useEffect(() => {
+    let isMounted = true
+    const loadNotifications = async () => {
+      try {
+        const res = await notificationsApi.listNotifications()
+        if (isMounted) setNotifications(res.items || [])
+      } catch {
+        if (isMounted) setNotifications([])
+      }
+    }
+    loadNotifications()
+    return () => {
+      isMounted = false
+    }
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -30,16 +58,30 @@ export function NotificationsDropdown() {
     }
   }, [open])
 
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+  const markAllAsRead = async () => {
+    try {
+      await notificationsApi.markAllRead()
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
+    } catch {
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
+    }
   }
 
-  const handleNotificationClick = (item: MockNotification) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === item.id ? { ...n, read: true } : n)),
-    )
+  const handleNotificationClick = async (item: AppNotification) => {
+    if (!item.is_read) {
+      try {
+        await notificationsApi.markRead(item.id)
+      } catch {
+        // ignore
+      }
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === item.id ? { ...n, is_read: true } : n)),
+      )
+    }
     setOpen(false)
-    navigate(item.link)
+    if (item.link) {
+      navigate(item.link)
+    }
   }
 
   return (
@@ -97,25 +139,27 @@ export function NotificationsDropdown() {
                   onClick={() => handleNotificationClick(item)}
                   className={cn(
                     'flex w-full items-start gap-3 p-3.5 text-left transition-colors hover:bg-muted/60 cursor-pointer',
-                    !item.read && 'bg-primary-soft/20',
+                    !item.is_read && 'bg-primary-soft/20',
                   )}
                 >
                   <span
                     className={cn(
                       'mt-1 size-2 rounded-full shrink-0',
-                      !item.read ? 'bg-primary' : 'bg-transparent',
+                      !item.is_read ? 'bg-primary' : 'bg-transparent',
                     )}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-semibold text-foreground truncate">{item.title}</p>
-                      <time className="text-[10px] text-muted-foreground whitespace-nowrap">{item.timeAgo}</time>
+                      <time className="text-[10px] text-muted-foreground whitespace-nowrap">{formatTimeAgo(item.created_at)}</time>
                     </div>
                     <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                      {item.description}
+                      {item.message}
                     </p>
                   </div>
-                  <ExternalLink className="size-3.5 text-muted-foreground shrink-0 mt-1 opacity-0 group-hover:opacity-100" />
+                  {item.link && (
+                    <ExternalLink className="size-3.5 text-muted-foreground shrink-0 mt-1 opacity-0 group-hover:opacity-100" />
+                  )}
                 </button>
               ))
             )}

@@ -91,13 +91,11 @@ export function QuotationDetailPage() {
               setRawQuotation(found)
               setQuotation(toUiQuotation(found))
             } else {
-              const mock = mockQuotations.find((q) => q.id === id || q.code === id)
-              if (mock) setQuotation(mock)
+              setQuotation(undefined)
             }
           })
           .catch(() => {
-            const mock = mockQuotations.find((q) => q.id === id || q.code === id)
-            if (mock) setQuotation(mock)
+            setQuotation(undefined)
           })
       })
       .finally(() => setLoading(false))

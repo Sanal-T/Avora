@@ -54,8 +54,8 @@ export function QuotationsListPage() {
         }
       })
       .catch((err) => {
-        console.warn('Could not load live quotations from PostgreSQL, fallback to mock:', err)
-        setData(mockQuotations)
+        console.warn('Could not load live quotations from PostgreSQL:', err)
+        setData([])
       })
       .finally(() => {
         setLoading(false)
