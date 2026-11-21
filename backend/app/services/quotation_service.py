@@ -215,6 +215,51 @@ def create_quotation(db: Session, data: QuotationCreate, user_id: uuid.UUID | No
     return _to_quotation_read(quotation)
 
 
+def update_quotation(db: Session, quotation_id: uuid.UUID, data: QuotationUpdate, user_id: uuid.UUID | None = None) -> QuotationRead:
+    quotation = get_quotation(db, quotation_id)
+    if quotation.status in ["Approved", "Converted"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Quotation in status '{quotation.status}' cannot be edited directly. Please create a revision.",
+        )
+
+    if data.discount_rate is not None:
+        quotation.discount_rate = data.discount_rate
+    if data.tax_rate is not None:
+        quotation.tax_rate = data.tax_rate
+    if data.valid_until is not None:
+        quotation.valid_until = data.valid_until
+    if data.currency is not None:
+        quotation.currency = data.currency
+
+    if data.items is not None:
+        db.query(QuotationItem).filter(QuotationItem.quotation_id == quotation.id).delete()
+        for idx, it in enumerate(data.items):
+            item_total = _round_currency(Decimal(str(it.quantity)) * Decimal(str(it.unit_price)))
+            item = QuotationItem(
+                quotation_id=quotation.id,
+                item_code=it.item_code,
+                description=it.description,
+                quantity=it.quantity,
+                unit=it.unit,
+                unit_price=it.unit_price,
+                total_price=item_total,
+                sort_order=idx + 1,
+            )
+            db.add(item)
+        subtotal, discount_amount, tax_amount, total_amount = calculate_quotation_totals(
+            data.items, quotation.discount_rate, quotation.tax_rate
+        )
+        quotation.subtotal = subtotal
+        quotation.discount_amount = discount_amount
+        quotation.tax_amount = tax_amount
+        quotation.total_amount = total_amount
+
+    db.commit()
+    db.refresh(quotation)
+    return _to_quotation_read(quotation)
+
+
 def update_quotation_status(db: Session, quotation_id: uuid.UUID, data: QuotationStatusUpdate, user_id: uuid.UUID | None = None) -> QuotationRead:
     if data.status not in VALID_QUOTATION_STATUSES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid quotation status. Allowed: {VALID_QUOTATION_STATUSES}")

@@ -3,12 +3,10 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft,
   FileEdit,
-  Printer,
   CheckCircle2,
-  Clock,
-  User,
-  Building,
   Factory,
+  Loader2,
+  Layers,
 } from 'lucide-react'
 import { PageContainer } from '../../../components/shared/PageHeader'
 import { Button } from '../../../components/ui/Button'
@@ -28,10 +26,22 @@ function toUiQuotation(q: Quotation): MockQuotation {
   else if (st.includes('convert')) status = 'converted'
   else if (st.includes('reject')) status = 'rejected'
 
+  const items =
+    q.items && q.items.length > 0
+      ? q.items.map((it, idx) => ({
+          id: it.id || `item-${idx}`,
+          description: it.description,
+          quantity: Number(it.quantity),
+          unitPrice: Number(it.unit_price),
+          discountPct: Number(q.discount_rate || 0),
+          taxPct: Number(q.tax_rate || 18),
+        }))
+      : []
+
   return {
     id: q.id,
     code: q.quotation_number,
-    enquiryCode: 'Linked',
+    enquiryCode: q.enquiry_number || (q.enquiry_id ? 'Linked' : 'Direct'),
     client: q.customer_company || q.customer_name || 'Client',
     title: `Commercial Quotation for ${q.customer_company || q.customer_name || 'Client'}`,
     status,
@@ -42,7 +52,7 @@ function toUiQuotation(q: Quotation): MockQuotation {
     grandTotal: Number(q.total_amount || 0),
     dueDate: q.valid_until || '30 days',
     author: 'Estimator',
-    items: [],
+    items,
   }
 }
 
@@ -56,11 +66,12 @@ export function QuotationDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const [quotation, setQuotation] = useState<MockQuotation | undefined>(() =>
-    mockQuotations.find((q) => q.id === id || q.code === id) || mockQuotations[0],
-  )
-  const [loading, setLoading] = useState(!quotation)
+  const [rawQuotation, setRawQuotation] = useState<Quotation | null>(null)
+  const [quotation, setQuotation] = useState<MockQuotation | undefined>(undefined)
+  const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('items')
+  const [approving, setApproving] = useState(false)
+  const [converting, setConverting] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -68,22 +79,74 @@ export function QuotationDetailPage() {
     quotationApi
       .getQuotation(id)
       .then((res) => {
+        setRawQuotation(res)
         setQuotation(toUiQuotation(res))
       })
       .catch(() => {
-        quotationApi.listQuotations({ search: id }).then((res) => {
-          const found = res.items.find((item) => item.id === id || item.quotation_number === id)
-          if (found) setQuotation(toUiQuotation(found))
-        }).catch(() => {})
+        quotationApi
+          .listQuotations({ search: id })
+          .then((res) => {
+            const found = res.items.find((item) => item.id === id || item.quotation_number === id)
+            if (found) {
+              setRawQuotation(found)
+              setQuotation(toUiQuotation(found))
+            } else {
+              const mock = mockQuotations.find((q) => q.id === id || q.code === id)
+              if (mock) setQuotation(mock)
+            }
+          })
+          .catch(() => {
+            const mock = mockQuotations.find((q) => q.id === id || q.code === id)
+            if (mock) setQuotation(mock)
+          })
       })
       .finally(() => setLoading(false))
   }, [id])
 
+  const handleApproveQuotation = async () => {
+    if (!quotation) return
+    setApproving(true)
+    try {
+      const updated = await quotationApi.updateQuotationStatus(quotation.id, {
+        status: 'Approved',
+        notes: 'Approved via quotation detail screen',
+      })
+      setRawQuotation(updated)
+      setQuotation(toUiQuotation(updated))
+      toast.success(
+        'Quotation Approved',
+        `${updated.quotation_number} status updated to Approved in PostgreSQL!`,
+      )
+    } catch (err: any) {
+      toast.error('Approval Failed', err.message || 'Could not approve quotation')
+    } finally {
+      setApproving(false)
+    }
+  }
+
+  const handleConvertToWorkOrder = async () => {
+    if (!quotation) return
+    setConverting(true)
+    try {
+      const res = await quotationApi.convertToWorkOrder(quotation.id)
+      toast.success(
+        'Production Work Order Initialized',
+        `Work order ${res.work_order_number} created and dispatched to shop floor.`,
+      )
+      navigate(`/production/${res.work_order_id}`)
+    } catch (err: any) {
+      toast.error('Work Order Generation Failed', err.message || 'Could not convert quotation')
+    } finally {
+      setConverting(false)
+    }
+  }
+
   if (loading) {
     return (
       <PageContainer>
-        <div className="py-16 text-center text-muted-foreground text-sm">
-          Loading quotation details from database…
+        <div className="py-20 flex flex-col items-center justify-center gap-3 text-muted-foreground text-sm">
+          <Loader2 className="size-6 animate-spin text-primary" />
+          <span>Loading quotation details from database…</span>
         </div>
       </PageContainer>
     )
@@ -105,6 +168,7 @@ export function QuotationDetailPage() {
   const tabs: TabItem[] = [
     { id: 'items', label: 'Costing Line Items', count: quotation.items.length },
     { id: 'terms', label: 'Commercial Terms' },
+    { id: 'revisions', label: 'Revisions & Versions', count: rawQuotation?.revisions?.length || 0 },
     { id: 'timeline', label: 'Approval Audit History' },
   ]
 
@@ -127,17 +191,29 @@ export function QuotationDetailPage() {
             <FileEdit className="size-3.5 mr-1" />
             Open in Builder
           </Button>
+
+          {quotation.status !== 'approved' && quotation.status !== 'converted' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleApproveQuotation}
+              disabled={approving}
+              className="text-success border-success/30 hover:bg-success-soft"
+            >
+              {approving ? <Loader2 className="size-3.5 animate-spin mr-1" /> : <CheckCircle2 className="size-3.5 mr-1" />}
+              <span>Approve Quotation</span>
+            </Button>
+          )}
+
           {quotation.status === 'approved' && (
             <Button
               variant="primary"
               size="sm"
-              onClick={() => {
-                toast.success('Production Work Order Initialized', 'Hand-off sent to Manufacturing Team')
-                navigate('/production')
-              }}
+              onClick={handleConvertToWorkOrder}
+              disabled={converting}
             >
-              <Factory className="size-3.5 mr-1" />
-              Generate Work Order
+              {converting ? <Loader2 className="size-3.5 animate-spin mr-1" /> : <Factory className="size-3.5 mr-1" />}
+              <span>Generate Work Order</span>
             </Button>
           )}
         </div>
@@ -160,7 +236,7 @@ export function QuotationDetailPage() {
         <div className="text-right">
           <p className="text-xs text-muted-foreground">Total Quoted Value</p>
           <p className="font-display text-3xl font-extrabold text-primary tabular-nums">
-            ₹{quotation.grandTotal.toLocaleString('en-IN')}
+            ₹{Math.round(quotation.grandTotal).toLocaleString('en-IN')}
           </p>
         </div>
       </div>
@@ -179,30 +255,36 @@ export function QuotationDetailPage() {
           {activeTab === 'items' && (
             <Card className="p-5">
               <h3 className="text-sm font-semibold text-foreground mb-3">Specification & Line Items</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-border text-muted-foreground">
-                      <th className="py-2.5 px-2 font-semibold">Description</th>
-                      <th className="py-2.5 px-2 font-semibold text-center w-12">Qty</th>
-                      <th className="py-2.5 px-2 font-semibold text-right w-24">Rate (₹)</th>
-                      <th className="py-2.5 px-2 font-semibold text-right w-24">Amount (₹)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {quotation.items.map((item) => (
-                      <tr key={item.id} className="hover:bg-muted/20">
-                        <td className="py-2.5 px-2 text-foreground font-medium">{item.description}</td>
-                        <td className="py-2.5 px-2 text-center font-mono">{item.quantity}</td>
-                        <td className="py-2.5 px-2 text-right font-mono">₹{item.unitPrice.toLocaleString('en-IN')}</td>
-                        <td className="py-2.5 px-2 text-right font-mono font-bold text-foreground">
-                          ₹{(item.quantity * item.unitPrice).toLocaleString('en-IN')}
-                        </td>
+              {quotation.items.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground">
+                  No line items attached. Click "Open in Builder" to add specifications.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-border text-muted-foreground">
+                        <th className="py-2.5 px-2 font-semibold">Description</th>
+                        <th className="py-2.5 px-2 font-semibold text-center w-12">Qty</th>
+                        <th className="py-2.5 px-2 font-semibold text-right w-24">Rate (₹)</th>
+                        <th className="py-2.5 px-2 font-semibold text-right w-28">Amount (₹)</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {quotation.items.map((item) => (
+                        <tr key={item.id} className="hover:bg-muted/20">
+                          <td className="py-2.5 px-2 text-foreground font-medium">{item.description}</td>
+                          <td className="py-2.5 px-2 text-center font-mono">{item.quantity}</td>
+                          <td className="py-2.5 px-2 text-right font-mono">₹{item.unitPrice.toLocaleString('en-IN')}</td>
+                          <td className="py-2.5 px-2 text-right font-mono font-bold text-foreground">
+                            ₹{(item.quantity * item.unitPrice).toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </Card>
           )}
 
@@ -215,14 +297,50 @@ export function QuotationDetailPage() {
             </Card>
           )}
 
+          {activeTab === 'revisions' && (
+            <Card className="p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-3">Version History</h3>
+              {rawQuotation?.revisions && rawQuotation.revisions.length > 0 ? (
+                <div className="space-y-3">
+                  {rawQuotation.revisions.map((rev) => (
+                    <div key={rev.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/20 text-xs">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Layers className="size-3.5 text-primary" />
+                          <span className="font-mono font-bold text-foreground">Rev v{rev.revision_number}</span>
+                          <span className="text-muted-foreground">({new Date(rev.created_at).toLocaleDateString()})</span>
+                        </div>
+                        <p className="text-muted-foreground mt-1">{rev.change_summary || 'Standard revision'}</p>
+                      </div>
+                      <span className="font-mono font-bold text-foreground">₹{Number(rev.total_amount).toLocaleString('en-IN')}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">This is the original base revision (v1.0). No previous revisions archived.</p>
+              )}
+            </Card>
+          )}
+
           {activeTab === 'timeline' && (
             <Card className="p-5">
               <h3 className="text-sm font-semibold text-foreground mb-4">Lifecycle Events</h3>
               <ActivityTimeline
                 events={[
-                  { id: '1', title: 'Quotation Approved', description: 'Accepted by customer facility manager', timeAgo: '2 hrs ago', tone: 'success' },
-                  { id: '2', title: 'Revision v2 Generated', description: 'Updated line-item pricing for conference pods', timeAgo: '2 days ago', tone: 'info' },
-                  { id: '3', title: 'Draft Estimate Created', description: 'Prepared by Vikram Patel', timeAgo: '4 days ago', tone: 'primary' },
+                  {
+                    id: '1',
+                    title: `Quotation Status: ${quotation.status}`,
+                    description: `Current workflow state recorded in PostgreSQL`,
+                    timeAgo: quotation.dueDate,
+                    tone: quotation.status === 'converted' ? 'primary' : quotation.status === 'approved' ? 'success' : 'info',
+                  },
+                  {
+                    id: '2',
+                    title: `Revision v${quotation.version} Active`,
+                    description: `Commercial value locked at ₹${Math.round(quotation.grandTotal).toLocaleString('en-IN')}`,
+                    timeAgo: 'Latest',
+                    tone: 'info',
+                  },
                 ]}
               />
             </Card>
@@ -244,15 +362,21 @@ export function QuotationDetailPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Subtotal:</span>
-              <span className="font-mono">₹{quotation.subtotal.toLocaleString('en-IN')}</span>
+              <span className="font-mono">₹{Math.round(quotation.subtotal).toLocaleString('en-IN')}</span>
             </div>
+            {quotation.discountTotal > 0 && (
+              <div className="flex justify-between text-success">
+                <span>Discount:</span>
+                <span className="font-mono">-₹{Math.round(quotation.discountTotal).toLocaleString('en-IN')}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">Taxes (GST):</span>
-              <span className="font-mono">₹{quotation.taxTotal.toLocaleString('en-IN')}</span>
+              <span className="font-mono">₹{Math.round(quotation.taxTotal).toLocaleString('en-IN')}</span>
             </div>
             <div className="border-t border-border pt-2 flex justify-between font-bold text-sm">
               <span>Grand Total:</span>
-              <span className="font-mono text-primary">₹{quotation.grandTotal.toLocaleString('en-IN')}</span>
+              <span className="font-mono text-primary">₹{Math.round(quotation.grandTotal).toLocaleString('en-IN')}</span>
             </div>
           </Card>
         </div>

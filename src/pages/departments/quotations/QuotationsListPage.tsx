@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, ArrowLeft, ArrowUpRight, FileEdit } from 'lucide-react'
+import { Plus, ArrowLeft, ArrowUpRight, FileEdit, RefreshCw } from 'lucide-react'
 import { PageContainer, PageHeader } from '../../../components/shared/PageHeader'
 import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
@@ -38,25 +38,32 @@ function toUiQuotation(q: Quotation): MockQuotation {
 
 export function QuotationsListPage() {
   const navigate = useNavigate()
-  const [data, setData] = useState<MockQuotation[]>(mockQuotations)
+  const [data, setData] = useState<MockQuotation[]>([])
   const [activeTab, setActiveTab] = useState<string>('all')
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
+  const fetchQuotations = () => {
     setLoading(true)
     quotationApi
       .listQuotations({ page_size: 100 })
       .then((res) => {
         if (res.items && res.items.length > 0) {
           setData(res.items.map(toUiQuotation))
+        } else if (res.items) {
+          setData([])
         }
       })
       .catch((err) => {
         console.warn('Could not load live quotations from PostgreSQL, fallback to mock:', err)
+        setData(mockQuotations)
       })
       .finally(() => {
         setLoading(false)
       })
+  }
+
+  useEffect(() => {
+    fetchQuotations()
   }, [])
 
   const filterTabs: QuickFilterTab[] = [
@@ -169,10 +176,16 @@ export function QuotationsListPage() {
         title="Quotations Registry"
         description="Formal estimates, line item pricing, customer approvals, and commercial hand-offs."
         actions={
-          <Button variant="primary" size="sm" onClick={() => navigate('/quotations/builder')}>
-            <Plus className="size-3.5" />
-            <span>Open Quotation Builder</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={fetchQuotations} disabled={loading}>
+              <RefreshCw className={`size-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} />
+              <span>Refresh</span>
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => navigate('/quotations/builder')}>
+              <Plus className="size-3.5 mr-1" />
+              <span>Open Quotation Builder</span>
+            </Button>
+          </div>
         }
       />
 

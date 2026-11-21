@@ -476,6 +476,77 @@ export const designApi = {
 // ----------------------------------------------------
 // Quotations
 // ----------------------------------------------------
+export interface QuotationItemRead {
+  id: string
+  item_code?: string | null
+  description: string
+  quantity: number | string
+  unit: string
+  unit_price: number | string
+  total_price: number | string
+  sort_order: number
+}
+
+export interface QuotationRevisionRead {
+  id: string
+  revision_number: number
+  total_amount: number | string
+  change_summary?: string | null
+  created_at: string
+}
+
+export interface QuotationFollowUpRead {
+  id: string
+  scheduled_date: string
+  notes: string
+  outcome?: string | null
+  assigned_employee_id?: string | null
+  assigned_employee_name?: string | null
+  is_completed: boolean
+  completed_date?: string | null
+  created_at: string
+}
+
+export interface QuotationItemCreateInput {
+  item_code?: string | null
+  description: string
+  quantity: number
+  unit?: string
+  unit_price: number
+  sort_order?: number
+}
+
+export interface QuotationCreateInput {
+  enquiry_id?: string | null
+  customer_id: string
+  discount_rate?: number
+  tax_rate?: number
+  valid_until?: string | null
+  currency?: string
+  items: QuotationItemCreateInput[]
+}
+
+export interface QuotationUpdateInput {
+  discount_rate?: number
+  tax_rate?: number
+  valid_until?: string | null
+  currency?: string
+  items?: QuotationItemCreateInput[]
+}
+
+export interface QuotationRevisionCreateInput {
+  change_summary: string
+  items: QuotationItemCreateInput[]
+  discount_rate?: number
+  tax_rate?: number
+}
+
+export interface QuotationStatusUpdateInput {
+  status: string
+  rejection_reason?: string | null
+  notes?: string | null
+}
+
 export interface Quotation {
   id: string
   quotation_number: string
@@ -493,9 +564,15 @@ export interface Quotation {
   tax_amount: number | string
   total_amount: number | string
   valid_until: string | null
+  approved_at?: string | null
+  rejection_reason?: string | null
   currency: string
   created_at: string
   updated_at: string
+  items?: QuotationItemRead[]
+  revisions?: QuotationRevisionRead[]
+  follow_ups?: QuotationFollowUpRead[]
+  has_work_order?: boolean
 }
 
 export interface QuotationListResponse {
@@ -517,6 +594,47 @@ export const quotationApi = {
 
   async getQuotation(id: string): Promise<Quotation> {
     return apiFetch<Quotation>(`/api/quotations/${id}`)
+  },
+
+  async createQuotation(data: QuotationCreateInput): Promise<Quotation> {
+    return apiFetch<Quotation>('/api/quotations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async updateQuotation(id: string, data: QuotationUpdateInput): Promise<Quotation> {
+    return apiFetch<Quotation>(`/api/quotations/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async updateQuotationStatus(id: string, data: QuotationStatusUpdateInput): Promise<Quotation> {
+    return apiFetch<Quotation>(`/api/quotations/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async createRevision(id: string, data: QuotationRevisionCreateInput): Promise<Quotation> {
+    return apiFetch<Quotation>(`/api/quotations/${id}/revisions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async convertToWorkOrder(id: string): Promise<{ message: string; work_order_id: string; work_order_number: string }> {
+    return apiFetch<{ message: string; work_order_id: string; work_order_number: string }>(`/api/quotations/${id}/convert-to-work-order`, {
+      method: 'POST',
+    })
+  },
+
+  async addFollowUp(id: string, data: { scheduled_date: string; notes: string; outcome?: string; assigned_employee_id?: string }): Promise<Quotation> {
+    return apiFetch<Quotation>(`/api/quotations/${id}/follow-ups`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
   },
 }
 

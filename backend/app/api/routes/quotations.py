@@ -73,7 +73,19 @@ def get_quotation(
     return quotation_service._to_quotation_read(quotation)
 
 
+@router.put("/{quotation_id}", response_model=QuotationRead)
+@router.patch("/{quotation_id}", response_model=QuotationRead)
+def update_quotation(
+    quotation_id: uuid.UUID,
+    data: QuotationUpdate,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> QuotationRead:
+    return quotation_service.update_quotation(db, quotation_id, data, user_id=current_user.id)
+
+
 @router.post("/{quotation_id}/status", response_model=QuotationRead)
+@router.patch("/{quotation_id}/status", response_model=QuotationRead)
 def update_quotation_status(
     quotation_id: uuid.UUID,
     data: QuotationStatusUpdate,
@@ -94,6 +106,7 @@ def create_quotation_revision(
 
 
 @router.post("/{quotation_id}/convert-to-work-order")
+@router.patch("/{quotation_id}/convert-to-work-order")
 def convert_to_work_order(
     quotation_id: uuid.UUID,
     db: Annotated[Session, Depends(get_db)],
