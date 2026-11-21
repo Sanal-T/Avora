@@ -5,7 +5,7 @@ import { PageContainer, PageHeader } from '../../../components/shared/PageHeader
 import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
-import { mockDesigns, type MockDesign } from '../../../data/mockData'
+import type { MockDesign } from '../../../data/mockData'
 import { designApi, type Design } from '../../../lib/api'
 import { DesignFormModal } from './DesignFormModal'
 

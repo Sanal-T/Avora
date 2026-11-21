@@ -12,9 +12,12 @@ import {
   Calendar,
   X,
   ArrowRight,
+  Plus,
+  Building2,
+  FileSpreadsheet,
+  ShieldCheck,
 } from 'lucide-react'
 import { Dialog } from '../ui/Dialog'
-import { mockEnquiries, mockQuotations, mockWorkOrders, mockDesigns } from '../../data/mockData'
 
 type SearchItem = {
   id: string
@@ -47,86 +50,35 @@ export function CommandPalette({
   }, [onClose])
 
   const defaultNavigationItems: SearchItem[] = [
-    { id: 'nav-overview', title: 'Company Overview', subtitle: 'Global ERP dashboard and KPIs', category: 'Navigation', path: '/', icon: BarChart3 },
-    { id: 'nav-enquiries', title: 'Enquiries', subtitle: 'Sales leads and customer requests', category: 'Departments', path: '/enquiries', icon: Inbox },
-    { id: 'nav-designs', title: 'Designs', subtitle: 'CAD drawings, renderings and approvals', category: 'Departments', path: '/designs', icon: PenTool },
-    { id: 'nav-quotations', title: 'Quotations', subtitle: 'Costing, estimates and quote builder', category: 'Departments', path: '/quotations', icon: FileText },
-    { id: 'nav-production', title: 'Production', subtitle: 'Work orders, tasks and shop floor', category: 'Departments', path: '/production', icon: Factory },
-    { id: 'nav-production-calendar', title: 'Production Calendar & Slots', subtitle: 'Shop bays schedule & start/end date allocations', category: 'Production', path: '/production/calendar', icon: Calendar },
-    { id: 'nav-feedback', title: 'Feedback', subtitle: 'Customer reviews, ratings and NPS', category: 'Departments', path: '/feedback', icon: MessageSquare },
-    { id: 'nav-labour', title: 'Labour & Workforce', subtitle: 'Worker availability and team allocation', category: 'Departments', path: '/labour', icon: Users },
+    { id: 'nav-overview', title: 'Company Overview', subtitle: 'Global ERP executive dashboard and department KPIs', category: 'Navigation', path: '/', icon: BarChart3 },
+    { id: 'nav-enquiries', title: 'Enquiries Workspace', subtitle: 'Sales leads, prospect requirements, and qualification', category: 'Enquiries', path: '/enquiries', icon: Inbox },
+    { id: 'nav-enquiries-list', title: 'Enquiries Full List', subtitle: 'Search and filter all incoming customer enquiries', category: 'Enquiries', path: '/enquiries/list', icon: Inbox },
+    { id: 'nav-designs', title: 'Design Studio', subtitle: 'CAD drawings, revisions, 3D renderings and approvals', category: 'Designs', path: '/designs', icon: PenTool },
+    { id: 'nav-designs-list', title: 'Designs Full List', subtitle: 'All design project records and specification drawings', category: 'Designs', path: '/designs/list', icon: PenTool },
+    { id: 'nav-quotations', title: 'Quotations Management', subtitle: 'Commercial pricing, estimates, and revision tracking', category: 'Quotations', path: '/quotations', icon: FileText },
+    { id: 'nav-quotations-list', title: 'Quotations Full List', subtitle: 'Search all commercial quotes and approved proposals', category: 'Quotations', path: '/quotations/list', icon: FileText },
+    { id: 'nav-quotations-builder', title: 'New Quotation Builder', subtitle: 'Create commercial quotation with item lines & taxes', category: 'Quotations', path: '/quotations/builder', icon: Plus },
+    { id: 'nav-production', title: 'Production Overview', subtitle: 'Shop floor status, active work orders and stages', category: 'Production', path: '/production', icon: Factory },
+    { id: 'nav-production-list', title: 'Work Orders List', subtitle: 'Active fabrication orders, job progress and milestones', category: 'Production', path: '/production/list', icon: Factory },
+    { id: 'nav-production-calendar', title: 'Production Calendar & Bays', subtitle: 'Factory shop bays schedule & daily slot allocations', category: 'Production', path: '/production/calendar', icon: Calendar },
+    { id: 'nav-production-schedule', title: 'Production Weekly Schedule', subtitle: 'Timeline calendar across all bays and jobs', category: 'Production', path: '/production/schedule', icon: Calendar },
+    { id: 'nav-labour', title: 'Labour & Workforce', subtitle: 'Department workforce overview and fulfillment metrics', category: 'Labour', path: '/labour', icon: Users },
+    { id: 'nav-labour-list', title: 'Worker Roster & Allocation', subtitle: 'Carpenter, welder, electrician assignments & daily rates', category: 'Labour', path: '/labour/list', icon: Users },
+    { id: 'nav-feedback', title: 'Customer Feedback', subtitle: 'Post-delivery reviews, star ratings and client NPS', category: 'Feedback', path: '/feedback', icon: MessageSquare },
+    { id: 'nav-feedback-list', title: 'Feedback Survey List', subtitle: 'Browse all customer satisfaction records & remarks', category: 'Feedback', path: '/feedback/list', icon: MessageSquare },
+    { id: 'nav-customers', title: 'Customer Directory', subtitle: 'Corporate accounts, contact persons and tax identifiers', category: 'Customers', path: '/customers', icon: Building2 },
+    { id: 'nav-reports', title: 'System Reports & Exports', subtitle: 'Generate and export CSV reports across departments', category: 'Reports', path: '/reports', icon: FileSpreadsheet },
+    { id: 'nav-audit-logs', title: 'Audit Trail Logs', subtitle: 'Immutable administrative audit history of all system changes', category: 'Admin', path: '/audit-logs', icon: ShieldCheck },
   ]
 
-  // Search records
-  const matchingRecords: SearchItem[] = query.trim()
-    ? [
-        ...mockEnquiries
-          .filter(
-            (e) =>
-              e.code.toLowerCase().includes(query.toLowerCase()) ||
-              e.company.toLowerCase().includes(query.toLowerCase()) ||
-              e.customerName.toLowerCase().includes(query.toLowerCase()),
-          )
-          .map((e) => ({
-            id: e.id,
-            title: `${e.code} · ${e.company}`,
-            subtitle: `${e.customerName} - ${e.budget}`,
-            category: 'Enquiries',
-            path: `/enquiries/${e.id}`,
-            icon: Inbox,
-          })),
-        ...mockQuotations
-          .filter(
-            (q) =>
-              q.code.toLowerCase().includes(query.toLowerCase()) ||
-              q.client.toLowerCase().includes(query.toLowerCase()),
-          )
-          .map((q) => ({
-            id: q.id,
-            title: `${q.code} · ${q.client}`,
-            subtitle: `${q.title} - ₹${(q.grandTotal / 100000).toFixed(2)}L`,
-            category: 'Quotations',
-            path: `/quotations/${q.id}`,
-            icon: FileText,
-          })),
-        ...mockWorkOrders
-          .filter(
-            (w) =>
-              w.code.toLowerCase().includes(query.toLowerCase()) ||
-              w.client.toLowerCase().includes(query.toLowerCase()),
-          )
-          .map((w) => ({
-            id: w.id,
-            title: `${w.code} · ${w.client}`,
-            subtitle: `${w.stage} (${w.completionRate}%)`,
-            category: 'Production',
-            path: `/production/${w.id}`,
-            icon: Factory,
-          })),
-        ...mockDesigns
-          .filter(
-            (d) =>
-              d.code.toLowerCase().includes(query.toLowerCase()) ||
-              d.client.toLowerCase().includes(query.toLowerCase()),
-          )
-          .map((d) => ({
-            id: d.id,
-            title: `${d.code} · ${d.client}`,
-            subtitle: `${d.title} (${d.version})`,
-            category: 'Designs',
-            path: `/designs/${d.id}`,
-            icon: PenTool,
-          })),
-      ]
-    : []
-
-  const matchingNavigation = defaultNavigationItems.filter(
-    (item) =>
-      item.title.toLowerCase().includes(query.toLowerCase()) ||
-      item.subtitle.toLowerCase().includes(query.toLowerCase()),
-  )
-
-  const itemsToShow = query.trim() ? [...matchingRecords, ...matchingNavigation] : defaultNavigationItems
+  const itemsToShow = query.trim()
+    ? defaultNavigationItems.filter(
+        (item) =>
+          item.title.toLowerCase().includes(query.toLowerCase()) ||
+          item.subtitle.toLowerCase().includes(query.toLowerCase()) ||
+          item.category.toLowerCase().includes(query.toLowerCase()),
+      )
+    : defaultNavigationItems
 
   const handleSelect = (path: string) => {
     navigate(path)

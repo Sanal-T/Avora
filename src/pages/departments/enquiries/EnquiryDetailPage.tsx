@@ -21,7 +21,7 @@ import { Tabs, type TabItem } from '../../../components/ui/Tabs'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { WorkflowStepper } from '../../../components/shared/WorkflowStepper'
 import { ActivityTimeline } from '../../../components/shared/ActivityTimeline'
-import { mockEnquiries, type MockEnquiry } from '../../../data/mockData'
+import type { MockEnquiry } from '../../../data/mockData'
 import { enquiryApi, type Enquiry } from '../../../lib/api'
 import { toast } from '../../../lib/toast'
 

@@ -104,12 +104,3 @@ export type MockNotification = {
   read: boolean
   link: string
 }
-
-// ──────────────── DATA ARRAYS (MOCK REMOVED) ────────────────
-export const mockEnquiries: MockEnquiry[] = []
-export const mockDesigns: MockDesign[] = []
-export const mockQuotations: MockQuotation[] = []
-export const mockWorkOrders: MockWorkOrder[] = []
-export const mockFeedback: MockFeedback[] = []
-export const mockWorkers: MockWorker[] = []
-export const mockNotifications: MockNotification[] = []

@@ -21,7 +21,7 @@ import { Input } from '../../../components/ui/Input'
 import { Checkbox } from '../../../components/ui/Checkbox'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { ActivityTimeline } from '../../../components/shared/ActivityTimeline'
-import { mockWorkOrders, type MockWorkOrder } from '../../../data/mockData'
+import type { MockWorkOrder } from '../../../data/mockData'
 import { productionApi, type WorkOrder } from '../../../lib/api'
 import {
   getProductionSlots,

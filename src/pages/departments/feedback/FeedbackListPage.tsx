@@ -19,7 +19,7 @@ import { Textarea } from '../../../components/ui/Textarea'
 import { Dialog } from '../../../components/ui/Dialog'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
-import { mockFeedback, type MockFeedback } from '../../../data/mockData'
+import type { MockFeedback } from '../../../data/mockData'
 import {
   feedbackApi,
   customerApi,
@@ -91,8 +91,8 @@ export function FeedbackListPage() {
         toast.success('Feedback records refreshed from database')
       }
     } catch (err) {
-      console.warn('Could not load live feedback from PostgreSQL, falling back to mock:', err)
-      setData(mockFeedback)
+      console.warn('Could not load live feedback from PostgreSQL:', err)
+      setData([])
       if (isManualRefresh) {
         toast.error('Unable to refresh from database')
       }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Calendar,
   Clock,
@@ -18,8 +18,8 @@ import { Button } from '../../../components/ui/Button'
 import { Textarea } from '../../../components/ui/Textarea'
 import { Checkbox } from '../../../components/ui/Checkbox'
 import { toast } from '../../../lib/toast'
-import { mockWorkOrders, mockWorkers, type MockWorkOrder } from '../../../data/mockData'
-import { customerApi, productionApi, quotationApi } from '../../../lib/api'
+import type { MockWorkOrder } from '../../../data/mockData'
+import { customerApi, productionApi, quotationApi, labourApi, type Worker } from '../../../lib/api'
 import {
   saveProductionSlot,
   type MockProductionSlot,
@@ -38,6 +38,9 @@ export function WorkOrderFormModal({
   onClose,
   onCreateSuccess,
 }: WorkOrderFormModalProps) {
+  // Workers list from live database
+  const [workers, setWorkers] = useState<Worker[]>([])
+
   // Work Order basic state
   const [title, setTitle] = useState('')
   const [client, setClient] = useState('')
@@ -47,6 +50,15 @@ export function WorkOrderFormModal({
   const [leadWorker, setLeadWorker] = useState('Ramesh Gowda')
   const [startDate, setStartDate] = useState('2026-11-20')
   const [deliveryDate, setDeliveryDate] = useState('2026-11-28')
+
+  // Fetch live workers for supervisor dropdown
+  useEffect(() => {
+    if (!open) return
+    labourApi
+      .listWorkers({ page_size: 50 })
+      .then((res) => setWorkers(res.items || []))
+      .catch(() => {})
+  }, [open])
 
   // Production Slot Allocation Option Toggle
   const [allocateSlot, setAllocateSlot] = useState(true)
@@ -177,9 +189,6 @@ export function WorkOrderFormModal({
         ],
       }
 
-      // Prepend to mock work orders list if still needed as fallback
-      mockWorkOrders.unshift(newWorkOrder)
-
       // If user enabled the Option for creating Production Slot
       if (allocateSlot) {
         const generatedSlotCode = `SLOT-${Math.floor(110 + Math.random() * 880)}`
@@ -303,11 +312,17 @@ export function WorkOrderFormModal({
             value={leadWorker}
             onChange={(e) => setLeadWorker(e.target.value)}
           >
-            {mockWorkers.map((w) => (
-              <option key={w.id} value={w.name}>
-                {w.name} ({w.trade})
-              </option>
-            ))}
+            {workers.map((w) => {
+              const fullName = `${w.first_name} ${w.last_name}`.trim()
+              return (
+                <option key={w.id} value={fullName}>
+                  {fullName} ({w.skill_category || 'Skilled'})
+                </option>
+              )
+            })}
+            <option value="Ramesh Gowda">Ramesh Gowda (Carpenter)</option>
+            <option value="Vikram Malhotra">Vikram Malhotra (Welder)</option>
+            <option value="Ananya Roy">Ananya Roy (Supervisor)</option>
           </Select>
 
           <Input

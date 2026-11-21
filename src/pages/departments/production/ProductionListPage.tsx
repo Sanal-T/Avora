@@ -5,7 +5,7 @@ import { PageContainer, PageHeader } from '../../../components/shared/PageHeader
 import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
-import { mockWorkOrders, type MockWorkOrder } from '../../../data/mockData'
+import type { MockWorkOrder } from '../../../data/mockData'
 import { productionApi, type WorkOrder } from '../../../lib/api'
 import { WorkOrderFormModal } from './WorkOrderFormModal'
 

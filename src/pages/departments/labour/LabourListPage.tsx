@@ -22,7 +22,7 @@ import { Input } from '../../../components/ui/Input'
 import { Dialog } from '../../../components/ui/Dialog'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
-import { mockWorkers, type MockWorker } from '../../../data/mockData'
+import type { MockWorker } from '../../../data/mockData'
 import {
   labourApi,
   productionApi,

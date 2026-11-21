@@ -15,7 +15,7 @@ import {
   PRODUCTION_STAGES,
   saveProductionSlot,
 } from '../../../data/productionSlots'
-import { mockWorkOrders, mockWorkers } from '../../../data/mockData'
+import { productionApi, labourApi, type WorkOrder, type Worker } from '../../../lib/api'
 
 export type AllocateSlotModalProps = {
   open: boolean
@@ -34,6 +34,8 @@ export function AllocateSlotModal({
   preselectedDate,
   onSaveSuccess,
 }: AllocateSlotModalProps) {
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
+  const [workers, setWorkers] = useState<Worker[]>([])
   const [selectedWorkOrderId, setSelectedWorkOrderId] = useState<string>('')
   const [title, setTitle] = useState('')
   const [client, setClient] = useState('')
@@ -49,6 +51,19 @@ export function AllocateSlotModal({
   const [capacityHours, setCapacityHours] = useState(24)
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
+
+  // Fetch live work orders and workers when modal is opened
+  useEffect(() => {
+    if (!open) return
+    productionApi
+      .listWorkOrders({ page_size: 50 })
+      .then((res) => setWorkOrders(res.items || []))
+      .catch(() => {})
+    labourApi
+      .listWorkers({ page_size: 50 })
+      .then((res) => setWorkers(res.items || []))
+      .catch(() => {})
+  }, [open])
 
   // Reset or fill values when modal opens
   useEffect(() => {
@@ -71,8 +86,8 @@ export function AllocateSlotModal({
       setNotes(existingSlot.notes || '')
       setError(null)
     } else {
-      const defaultWoId = preselectedWorkOrderId || (mockWorkOrders[0]?.id ?? 'custom')
-      const targetWo = mockWorkOrders.find((w) => w.id === defaultWoId)
+      const defaultWoId = preselectedWorkOrderId || (workOrders[0]?.id ?? 'custom')
+      const targetWo = workOrders.find((w) => w.id === defaultWoId)
 
       const initialStart = preselectedDate || '2026-11-20'
       const initialEnd = preselectedDate ? preselectedDate : '2026-11-24'
@@ -80,10 +95,9 @@ export function AllocateSlotModal({
       setSelectedWorkOrderId(defaultWoId)
       if (targetWo) {
         setTitle(`${targetWo.title} - Production Window`)
-        setClient(targetWo.client)
-        setStage(targetWo.stage)
-        setLeadWorker(targetWo.leadWorker)
-        setPriority(targetWo.priority)
+        setClient(targetWo.customer_company || targetWo.customer_name || 'Direct Customer')
+        setStage('Cutting')
+        setPriority((targetWo.priority as any) || 'medium')
       } else {
         setTitle('Custom Shop Floor Production Run')
         setClient('Internal / Custom')
@@ -101,7 +115,7 @@ export function AllocateSlotModal({
       setNotes('')
       setError(null)
     }
-  }, [open, existingSlot, preselectedWorkOrderId, preselectedDate])
+  }, [open, existingSlot, preselectedWorkOrderId, preselectedDate, workOrders])
 
   // When work order selection changes
   const handleWorkOrderChange = (woId: string) => {
@@ -111,15 +125,14 @@ export function AllocateSlotModal({
       setClient('')
       return
     }
-    const wo = mockWorkOrders.find((w) => w.id === woId)
+    const wo = workOrders.find((w) => w.id === woId)
     if (wo) {
       setTitle(`${wo.title} - Floor Run`)
-      setClient(wo.client)
-      setStage(wo.stage)
-      setLeadWorker(wo.leadWorker)
-      setPriority(wo.priority)
-      if (wo.startDate) setStartDate(wo.startDate)
-      if (wo.deliveryDate) setEndDate(wo.deliveryDate)
+      setClient(wo.customer_company || wo.customer_name || 'Direct Customer')
+      setStage('Cutting')
+      setPriority((wo.priority as any) || 'medium')
+      if (wo.planned_start_date) setStartDate(wo.planned_start_date)
+      if (wo.planned_end_date) setEndDate(wo.planned_end_date)
     }
   }
 
@@ -167,14 +180,14 @@ export function AllocateSlotModal({
       return
     }
 
-    const matchedWo = mockWorkOrders.find((w) => w.id === selectedWorkOrderId)
+    const matchedWo = workOrders.find((w) => w.id === selectedWorkOrderId)
 
     const slotPayload: MockProductionSlot = {
       id: existingSlot ? existingSlot.id : `slot-${Date.now()}`,
       code: existingSlot ? existingSlot.code : `SLOT-${Math.floor(100 + Math.random() * 900)}`,
       workOrderId: selectedWorkOrderId !== 'custom' ? selectedWorkOrderId : undefined,
-      workOrderCode: matchedWo ? matchedWo.code : 'CUSTOM',
-      client: client.trim() || (matchedWo ? matchedWo.client : 'Factory Floor'),
+      workOrderCode: matchedWo ? matchedWo.work_order_number : 'CUSTOM',
+      client: client.trim() || (matchedWo ? (matchedWo.customer_company || matchedWo.customer_name || 'Factory Floor') : 'Factory Floor'),
       title: title.trim(),
       bay,
       stage,
@@ -221,9 +234,9 @@ export function AllocateSlotModal({
             value={selectedWorkOrderId}
             onChange={(e) => handleWorkOrderChange(e.target.value)}
           >
-            {mockWorkOrders.map((wo) => (
+            {workOrders.map((wo) => (
               <option key={wo.id} value={wo.id}>
-                {wo.code} · {wo.client} ({wo.title.slice(0, 30)}…)
+                {wo.work_order_number} · {wo.customer_company || wo.customer_name || 'Direct'} ({wo.title.slice(0, 30)}…)
               </option>
             ))}
             <option value="custom">+ Manual / Internal Job / Maintenance</option>
@@ -334,11 +347,15 @@ export function AllocateSlotModal({
             value={leadWorker}
             onChange={(e) => setLeadWorker(e.target.value)}
           >
-            {mockWorkers.map((w) => (
-              <option key={w.id} value={w.name}>
-                {w.name} ({w.trade})
-              </option>
-            ))}
+            {workers.map((w) => {
+              const fullName = `${w.first_name} ${w.last_name}`.trim()
+              return (
+                <option key={w.id} value={fullName}>
+                  {fullName} ({w.skill_category || 'Skilled'})
+                </option>
+              )
+            })}
+            <option value="Ramesh Gowda">Ramesh Gowda (Carpenter)</option>
             <option value="Unassigned">Unassigned Pool</option>
           </Select>
 

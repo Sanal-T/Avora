@@ -5,7 +5,7 @@ import { PageContainer, PageHeader } from '../../../components/shared/PageHeader
 import { Button } from '../../../components/ui/Button'
 import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../components/shared/DataTable'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
-import { mockQuotations, type MockQuotation } from '../../../data/mockData'
+import type { MockQuotation } from '../../../data/mockData'
 import { quotationApi, type Quotation } from '../../../lib/api'
 
 function toUiQuotation(q: Quotation): MockQuotation {
