@@ -44,10 +44,10 @@ export function WorkOrderFormModal({
   // Work Order basic state
   const [title, setTitle] = useState('')
   const [client, setClient] = useState('')
-  const [quotationCode, setQuotationCode] = useState('Q-2055')
+  const [quotationCode, setQuotationCode] = useState('')
   const [stage, setStage] = useState<MockWorkOrder['stage']>('Cutting')
   const [priority, setPriority] = useState<MockWorkOrder['priority']>('medium')
-  const [leadWorker, setLeadWorker] = useState('Ramesh Gowda')
+  const [leadWorker, setLeadWorker] = useState('')
   const [startDate, setStartDate] = useState('2026-11-20')
   const [deliveryDate, setDeliveryDate] = useState('2026-11-28')
 

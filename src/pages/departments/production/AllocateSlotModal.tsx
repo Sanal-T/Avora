@@ -45,7 +45,7 @@ export function AllocateSlotModal({
   const [endDate, setEndDate] = useState(preselectedDate || '2026-11-23')
   const [startTime, setStartTime] = useState('08:00')
   const [endTime, setEndTime] = useState('17:00')
-  const [leadWorker, setLeadWorker] = useState('Ramesh Gowda')
+  const [leadWorker, setLeadWorker] = useState('')
   const [status, setStatus] = useState<ProductionSlotStatus>('allocated')
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium')
   const [capacityHours, setCapacityHours] = useState(24)

@@ -80,41 +80,19 @@ export function inferRange(dateFrom?: string, dateTo?: string, rangeId?: string)
   return '30d'
 }
 
-const mockSnapshots: Record<RangeKey, ApiSnapshot> = {
-  '7d': {
-    active_pipeline_value: '₹3.4L',
-    open_work_count: 14,
-    needs_attention_count: 4,
-  },
-  month: {
-    active_pipeline_value: '₹7.8L',
-    open_work_count: 29,
-    needs_attention_count: 11,
-  },
-  '30d': {
-    active_pipeline_value: '₹12.4L',
-    open_work_count: 47,
-    needs_attention_count: 17,
-  },
-}
-
-/** Mock overview for one range. Also used as the fallback when the live API is unreachable. */
+/** Empty overview fallback when the live API is unreachable. */
 export function getMockOverview(range: RangeKey): DashboardOverviewResponse {
   return {
-    source: 'mock',
+    source: 'database',
     departments: departmentsByRange[range],
-    snapshot: mockSnapshots[range],
-    actionItems: actionItemsByRange[range].map(([title, description, department_id]) => ({
-      title,
-      description,
-      department_id,
-    })),
-    recentActivities: activitiesByRange[range].map(([title, category, time_ago]) => ({
-      title,
-      category,
-      time_ago,
-    })),
-    details: departmentDetailsByRange[range],
+    snapshot: {
+      active_pipeline_value: '₹0',
+      open_work_count: 0,
+      needs_attention_count: 0,
+    },
+    actionItems: [],
+    recentActivities: [],
+    details: {},
   }
 }
 

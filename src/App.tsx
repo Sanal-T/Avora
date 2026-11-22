@@ -167,7 +167,7 @@ function AppShellInner({
 export default function App() {
   const [rangeId, setRangeId] = useState<RangeKey>('30d')
   const [overview, setOverview] = useState<DashboardOverviewResponse & { loading?: boolean; error?: boolean }>({
-    source: 'mock',
+    source: 'database',
     departments: departmentsByRange['30d'],
     loading: true,
     error: false,

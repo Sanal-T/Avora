@@ -61,7 +61,7 @@ export function EnquiryDetailPage() {
   const [enquiry, setEnquiry] = useState<MockEnquiry | undefined>(undefined)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
-  const [notes, setNotes] = useState('Client requested quotation to include 2 additional phone booths.')
+  const [notes, setNotes] = useState('')
 
   useEffect(() => {
     if (!id) return

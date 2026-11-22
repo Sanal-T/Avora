@@ -17,9 +17,9 @@ export function DesignFormModal({
   onCreateSuccess: (design: MockDesign) => void
 }) {
   const [title, setTitle] = useState('')
-  const [client, setClient] = useState('Aster Interiors')
-  const [enquiryCode, setEnquiryCode] = useState('ENQ-1048')
-  const [designer, setDesigner] = useState('Maya Krishnan')
+  const [client, setClient] = useState('')
+  const [enquiryCode, setEnquiryCode] = useState('')
+  const [designer, setDesigner] = useState('')
   const [dueDate, setDueDate] = useState('2026-11-28')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')

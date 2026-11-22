@@ -24,7 +24,7 @@ export function EnquiryFormModal({
   const [requirement, setRequirement] = useState('')
   const [budget, setBudget] = useState('')
   const [source, setSource] = useState('Website')
-  const [assignedTo, setAssignedTo] = useState('Vikram Patel')
+  const [assignedTo, setAssignedTo] = useState('')
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 

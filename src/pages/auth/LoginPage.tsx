@@ -8,8 +8,8 @@ import { authApi } from '../../lib/api'
 
 export function LoginPage() {
   const navigate = useNavigate()
-  const [email, setEmail] = useState('admin@avora.io')
-  const [password, setPassword] = useState('Admin@123456')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {

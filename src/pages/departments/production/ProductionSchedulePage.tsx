@@ -65,128 +65,55 @@ export function ProductionSchedulePage() {
 
   // Build scheduled items per day by combining live work orders and allocated production slots
   const slotsByDay = useMemo(() => {
-    const defaultSchedule: Record<string, ScheduleItem[]> = {
-      'Monday (Nov 16)': [
-        {
-          id: 's-1',
-          time: '08:00 – 12:00',
-          job: 'WO-0842',
-          client: 'Aster Interiors',
-          bay: 'CNC Bay 1',
-          stage: 'Edge Banding',
-          color: 'border-l-primary',
-        },
-        {
-          id: 's-2',
-          time: '13:00 – 17:00',
-          job: 'WO-0839',
-          client: 'Zen Living',
-          bay: 'Finishing Booth',
-          stage: 'PU Lacquer Spray',
-          color: 'border-l-dept-production',
-        },
-      ],
-      'Tuesday (Nov 17)': [
-        {
-          id: 's-3',
-          time: '08:00 – 12:00',
-          job: 'WO-0839',
-          client: 'Zen Living',
-          bay: 'Assembly Line A',
-          stage: 'Final Packing',
-          color: 'border-l-success',
-        },
-        {
-          id: 's-4',
-          time: '13:00 – 18:00',
-          job: 'WO-0831',
-          client: 'Skyline Cafe',
-          bay: 'Joinery Bay 3',
-          stage: 'Table Sizing',
-          color: 'border-l-danger',
-        },
-      ],
-      'Wednesday (Nov 18)': [
-        {
-          id: 's-5',
-          time: '09:00 – 16:00',
-          job: 'WO-0842',
-          client: 'Aster Interiors',
-          bay: 'Electrical Bench',
-          stage: 'Acoustic Core & Wiring',
-          color: 'border-l-primary',
-        },
-      ],
-      'Thursday (Nov 19)': [
-        {
-          id: 's-6',
-          time: '08:00 – 14:00',
-          job: 'WO-0842',
-          client: 'Aster Interiors',
-          bay: 'Bay 2',
-          stage: 'Pre-assembly QC',
-          color: 'border-l-primary',
-        },
-        {
-          id: 's-7',
-          time: '14:00 – 18:00',
-          job: 'WO-0831',
-          client: 'Skyline Cafe',
-          bay: 'Upholstery Line',
-          stage: 'Waiting Materials',
-          color: 'border-l-danger',
-        },
-      ],
-      'Friday (Nov 20)': [
-        {
-          id: 's-8',
-          time: '08:00 – 18:00',
-          job: 'WO-0842',
-          client: 'Aster Interiors',
-          bay: 'Field Dispatch',
-          stage: 'Site Glass Fitting',
-          color: 'border-l-success',
-        },
-      ],
-      'Saturday (Nov 21)': [
-        {
-          id: 's-9',
-          time: '09:00 – 13:00',
-          job: 'Maintenance',
-          client: 'Internal Factory',
-          bay: 'All Bays',
-          stage: 'Machine Calibration & Tooling',
-          color: 'border-l-muted-foreground',
-        },
-      ],
-    }
+    const schedule: Record<string, ScheduleItem[]> = {}
+    days.forEach((day) => {
+      schedule[day] = []
+    })
 
     // Map any active live work orders from PostgreSQL into the schedule
     if (liveWorkOrders.length > 0) {
       liveWorkOrders.forEach((wo, idx) => {
-        const targetDay = days[idx % (days.length - 1)] // exclude maintenance day
+        const targetDay = days[idx % (days.length - 1)] // exclude Saturday maintenance
         const clientName = wo.customer_company || wo.customer_name || 'Commercial Client'
-        const isAlreadyIn = defaultSchedule[targetDay].some((s) => s.job === wo.work_order_number)
-        if (!isAlreadyIn) {
-          defaultSchedule[targetDay].unshift({
-            id: `live-${wo.id}`,
-            time: '09:00 – 17:00',
-            job: wo.work_order_number,
-            client: clientName,
-            bay: 'CNC Bay 1',
-            stage: wo.status === 'Completed' ? 'Installation' : 'Assembly',
-            color:
-              wo.status === 'Completed'
-                ? 'border-l-success'
-                : wo.status === 'Delayed'
-                ? 'border-l-danger'
-                : 'border-l-primary',
-          })
-        }
+        schedule[targetDay].push({
+          id: `live-${wo.id}`,
+          time: '09:00 – 17:00',
+          job: wo.work_order_number,
+          client: clientName,
+          bay: 'CNC Bay 1',
+          stage: wo.status === 'Completed' ? 'Installation' : 'Assembly',
+          color:
+            wo.status === 'Completed'
+              ? 'border-l-success'
+              : wo.status === 'Delayed'
+              ? 'border-l-danger'
+              : 'border-l-primary',
+        })
       })
     }
 
-    return defaultSchedule
+    // Map allocated production slots
+    if (slots.length > 0) {
+      slots.forEach((slot, idx) => {
+        const targetDay = days[idx % days.length]
+        schedule[targetDay].push({
+          id: slot.id,
+          time: `${slot.startTime || '08:00'} – ${slot.endTime || '17:00'}`,
+          job: slot.workOrderCode || slot.code,
+          client: slot.client,
+          bay: slot.bay,
+          stage: slot.stage,
+          color:
+            slot.status === 'completed'
+              ? 'border-l-success'
+              : slot.status === 'delayed'
+              ? 'border-l-danger'
+              : 'border-l-primary',
+        })
+      })
+    }
+
+    return schedule
   }, [liveWorkOrders, slots])
 
   return (

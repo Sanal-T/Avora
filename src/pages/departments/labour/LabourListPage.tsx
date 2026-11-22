@@ -51,10 +51,10 @@ function toUiWorker(w: Worker): MockWorker {
     name: `${w.first_name} ${w.last_name}`.trim(),
     trade,
     status,
-    currentAssignment: status === 'assigned' ? 'WO-0842 (On-Site Team)' : undefined,
-    phone: w.phone || '+91 99887 76600',
-    efficiencyRating: '4.8',
-    totalHours: 160,
+    currentAssignment: undefined,
+    phone: w.phone || '—',
+    efficiencyRating: '—',
+    totalHours: 0,
   }
 }
 
