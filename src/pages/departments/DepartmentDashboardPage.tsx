@@ -93,8 +93,11 @@ export function DepartmentDashboardPage({
   // Load summary KPIs
   useEffect(() => {
     const { dateFrom, dateTo } = rangeDates(rangeId)
-    const params = new URLSearchParams({ date_from: dateFrom, date_to: dateTo })
-    apiFetch<any>(`/api/dashboard/${departmentId}/summary?${params.toString()}`)
+    const params = new URLSearchParams()
+    if (dateFrom) params.set('date_from', dateFrom)
+    if (dateTo) params.set('date_to', dateTo)
+    const url = `/api/dashboard/${departmentId}/summary${params.size ? `?${params.toString()}` : ''}`
+    apiFetch<any>(url)
       .then((data) => {
         if (data) setLiveSummary(data)
       })

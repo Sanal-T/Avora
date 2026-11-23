@@ -12,7 +12,7 @@ export type Department = {
   trend: string
 }
 
-export type RangeKey = '7d' | '30d' | 'month'
+export type RangeKey = '7d' | '30d' | 'month' | 'all'
 
 const baseDepartments: Department[] = [
   { id: 'enquiries', name: 'Enquiries', icon: '◌', accent: 'blue', primary: '0', primaryLabel: 'Total enquiries', metrics: [], description: 'Track new customer opportunities and conversion progress.', trend: '' },
@@ -26,7 +26,8 @@ const baseDepartments: Department[] = [
 export const departmentsByRange: Record<RangeKey, Department[]> = {
   '7d': baseDepartments,
   '30d': baseDepartments,
-  'month': baseDepartments,
+  month: baseDepartments,
+  all: baseDepartments,
 }
 
 export const departments: Department[] = baseDepartments
@@ -34,7 +35,8 @@ export const departments: Department[] = baseDepartments
 export const activitiesByRange: Record<RangeKey, [string, string, string][]> = {
   '7d': [],
   '30d': [],
-  'month': [],
+  month: [],
+  all: [],
 }
 
 export const activities = activitiesByRange['30d']
@@ -42,7 +44,8 @@ export const activities = activitiesByRange['30d']
 export const actionItemsByRange: Record<RangeKey, [string, string, string][]> = {
   '7d': [],
   '30d': [],
-  'month': [],
+  month: [],
+  all: [],
 }
 
 export const actionItems = actionItemsByRange['30d']
@@ -60,7 +63,8 @@ export const departmentDetailsByRange: Record<
 > = {
   '7d': {},
   '30d': {},
-  'month': {},
+  month: {},
+  all: {},
 }
 
 export const departmentDetails: Record<string, DepartmentDetail> = departmentDetailsByRange['30d']

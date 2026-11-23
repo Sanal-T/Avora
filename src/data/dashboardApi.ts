@@ -68,9 +68,10 @@ const toDepartment = (summary: ApiSummary): Department => {
 }
 
 export function inferRange(dateFrom?: string, dateTo?: string, rangeId?: string): RangeKey {
-  if (rangeId === '7d' || rangeId === '30d' || rangeId === 'month') {
+  if (rangeId === '7d' || rangeId === '30d' || rangeId === 'month' || rangeId === 'all') {
     return rangeId
   }
+  if (!dateFrom && !dateTo) return 'all'
   if (!dateFrom || !dateTo) return '30d'
   const from = new Date(dateFrom).getTime()
   const to = new Date(dateTo).getTime()
