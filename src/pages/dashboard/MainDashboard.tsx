@@ -163,8 +163,8 @@ export function MainDashboard({
                 <div className="mt-4 grid grid-cols-3 divide-x divide-border border-t border-border pt-3">
                   {dept.metrics.map(([label, val]) => (
                     <div key={label} className="px-2 first:pl-0 last:pr-0">
-                      <p className="text-[10px] text-muted-foreground truncate">{label}</p>
-                      <p className="font-semibold text-xs text-foreground tabular-nums">{val}</p>
+                      <p className="text-xs text-muted-foreground truncate">{label}</p>
+                      <p className="font-semibold text-sm text-foreground tabular-nums">{val}</p>
                     </div>
                   ))}
                 </div>
