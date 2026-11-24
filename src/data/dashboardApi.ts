@@ -1,17 +1,12 @@
 import {
-  actionItemsByRange,
-  activitiesByRange,
   departments,
-  departmentDetailsByRange,
   departmentsByRange,
   type Department,
   type RangeKey,
+  type DepartmentDetail,
 } from './dashboard'
-import type { DepartmentDetail } from './types'
 import { apiFetch } from '../lib/api'
 import { rangeDates } from '../lib/dates'
-
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
 type ApiMetric = { label: string; value: string }
 
@@ -82,7 +77,7 @@ export function inferRange(dateFrom?: string, dateTo?: string, rangeId?: string)
 }
 
 /** Empty overview fallback when the live API is unreachable. */
-export function getMockOverview(range: RangeKey): DashboardOverviewResponse {
+export function getEmptyOverview(range: RangeKey): DashboardOverviewResponse {
   return {
     source: 'database',
     departments: departmentsByRange[range],
@@ -96,6 +91,7 @@ export function getMockOverview(range: RangeKey): DashboardOverviewResponse {
     details: {},
   }
 }
+export const getMockOverview = getEmptyOverview
 
 interface CachedOverview {
   data: DashboardOverviewResponse

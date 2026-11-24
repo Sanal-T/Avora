@@ -1,4 +1,8 @@
-export type MockEnquiry = {
+/**
+ * UI View Models representing transformed API entities for departmental views.
+ */
+
+export type UiEnquiry = {
   id: string
   code: string
   customerName: string
@@ -13,8 +17,9 @@ export type MockEnquiry = {
   createdAt: string
   updatedAt: string
 }
+export type MockEnquiry = UiEnquiry
 
-export type MockDesign = {
+export type UiDesign = {
   id: string
   code: string
   enquiryCode: string
@@ -27,8 +32,9 @@ export type MockDesign = {
   completionRate: number
   filesCount: number
 }
+export type MockDesign = UiDesign
 
-export type MockLineItem = {
+export type UiLineItem = {
   id: string
   description: string
   quantity: number
@@ -36,8 +42,9 @@ export type MockLineItem = {
   discountPct: number
   taxPct: number
 }
+export type MockLineItem = UiLineItem
 
-export type MockQuotation = {
+export type UiQuotation = {
   id: string
   code: string
   enquiryCode: string
@@ -51,10 +58,11 @@ export type MockQuotation = {
   grandTotal: number
   dueDate: string
   author: string
-  items: MockLineItem[]
+  items: UiLineItem[]
 }
+export type MockQuotation = UiQuotation
 
-export type MockWorkOrder = {
+export type UiWorkOrder = {
   id: string
   code: string
   quotationCode: string
@@ -69,8 +77,9 @@ export type MockWorkOrder = {
   deliveryDate: string
   tasks: { id: string; title: string; completed: boolean }[]
 }
+export type MockWorkOrder = UiWorkOrder
 
-export type MockFeedback = {
+export type UiFeedback = {
   id: string
   code: string
   workOrderCode: string
@@ -82,8 +91,9 @@ export type MockFeedback = {
   comments: string
   date: string
 }
+export type MockFeedback = UiFeedback
 
-export type MockWorker = {
+export type UiWorker = {
   id: string
   code: string
   name: string
@@ -94,8 +104,9 @@ export type MockWorker = {
   efficiencyRating: string
   totalHours: number
 }
+export type MockWorker = UiWorker
 
-export type MockNotification = {
+export type UiNotification = {
   id: string
   title: string
   description: string
@@ -104,3 +115,5 @@ export type MockNotification = {
   read: boolean
   link: string
 }
+export type MockNotification = UiNotification
+

@@ -39,7 +39,7 @@ export const PRODUCTION_STAGES: ProductionStage[] = [
   'Installation',
 ]
 
-export type MockProductionSlot = {
+export type ProductionSlot = {
   id: string
   code: string // e.g. "SLOT-101"
   workOrderId?: string // e.g. "wo-1"
@@ -58,8 +58,9 @@ export type MockProductionSlot = {
   notes?: string
   priority?: 'low' | 'medium' | 'high' | 'urgent'
 }
+export type MockProductionSlot = ProductionSlot
 
-export const initialProductionSlots: MockProductionSlot[] = []
+export const initialProductionSlots: ProductionSlot[] = []
 
 const STORAGE_KEY = 'avora_production_slots_v1'
 

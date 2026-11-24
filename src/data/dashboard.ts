@@ -32,24 +32,6 @@ export const departmentsByRange: Record<RangeKey, Department[]> = {
 
 export const departments: Department[] = baseDepartments
 
-export const activitiesByRange: Record<RangeKey, [string, string, string][]> = {
-  '7d': [],
-  '30d': [],
-  month: [],
-  all: [],
-}
-
-export const activities = activitiesByRange['30d']
-
-export const actionItemsByRange: Record<RangeKey, [string, string, string][]> = {
-  '7d': [],
-  '30d': [],
-  month: [],
-  all: [],
-}
-
-export const actionItems = actionItemsByRange['30d']
-
 export type DepartmentDetail = {
   title: string
   subtitle: string
@@ -57,14 +39,3 @@ export type DepartmentDetail = {
   queue: string[]
 }
 
-export const departmentDetailsByRange: Record<
-  RangeKey,
-  Record<string, DepartmentDetail>
-> = {
-  '7d': {},
-  '30d': {},
-  month: {},
-  all: {},
-}
-
-export const departmentDetails: Record<string, DepartmentDetail> = departmentDetailsByRange['30d']
