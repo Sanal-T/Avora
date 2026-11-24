@@ -50,7 +50,7 @@ export function DepartmentDistributionChart({ data }: { data: DistributionItem[]
           <Legend
             verticalAlign="bottom"
             height={36}
-            formatter={(value) => <span className="text-xs text-foreground">{value}</span>}
+            formatter={(value: any) => <span className="text-xs text-foreground">{value}</span>}
           />
         </PieChart>
       </ResponsiveContainer>

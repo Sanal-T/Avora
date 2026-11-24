@@ -62,26 +62,28 @@ export const MainDashboard = memo(function MainDashboard({
       label: 'Active Pipeline Value',
       value: snapshot.active_pipeline_value || '₹0',
       sub: 'Open commercial proposals',
-      highlight: true,
+      variant: 'primary' as const,
       icon: TrendingUp,
     },
     {
       label: 'Open Work Orders',
       value: String(snapshot.open_work_count ?? 0),
       sub: 'Active shop-floor tasks',
+      variant: 'info' as const,
       icon: Factory,
     },
     {
       label: 'Urgent Attention Items',
       value: String(snapshot.needs_attention_count ?? 0),
       sub: 'Delayed milestones & approvals',
-      alert: Boolean(snapshot.needs_attention_count),
+      variant: 'danger' as const,
       icon: AlertTriangle,
     },
     {
       label: 'Quotation Volume',
       value: quotationDept?.primary || '₹0',
       sub: 'Estimated turnover in range',
+      variant: 'success' as const,
       icon: FileText,
     },
   ], [snapshot.active_pipeline_value, snapshot.open_work_count, snapshot.needs_attention_count, quotationDept?.primary])
@@ -129,14 +131,16 @@ export const MainDashboard = memo(function MainDashboard({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {companyKpis.map((kpi) => {
           const Icon = kpi.icon
+          const isHighlight = kpi.variant === 'primary'
+          const isAlert = kpi.variant === 'danger'
 
           return (
             <Card
               key={kpi.label}
               className={cn(
                 'relative overflow-hidden p-5 transition-card',
-                kpi.highlight && 'border-primary/40 bg-gradient-to-br from-card to-primary-soft/30',
-                kpi.alert && 'border-danger/30 bg-gradient-to-br from-card to-danger-soft/20',
+                isHighlight && 'border-primary/40 bg-gradient-to-br from-card to-primary-soft/30',
+                isAlert && 'border-danger/30 bg-gradient-to-br from-card to-danger-soft/20',
               )}
             >
               <div className="flex items-center justify-between">
@@ -144,9 +148,9 @@ export const MainDashboard = memo(function MainDashboard({
                 <span
                   className={cn(
                     'grid size-8 place-items-center rounded-lg',
-                    kpi.alert
+                    isAlert
                       ? 'bg-danger-soft text-danger'
-                      : kpi.highlight
+                      : isHighlight
                       ? 'bg-primary-soft text-primary'
                       : 'bg-muted text-muted-foreground',
                   )}
@@ -158,7 +162,7 @@ export const MainDashboard = memo(function MainDashboard({
               <p
                 className={cn(
                   'mt-3 font-display text-3xl font-extrabold tracking-tight tabular-nums',
-                  kpi.alert ? 'text-danger' : kpi.highlight ? 'text-primary' : 'text-foreground',
+                  isAlert ? 'text-danger' : isHighlight ? 'text-primary' : 'text-foreground',
                 )}
               >
                 {kpi.value}
