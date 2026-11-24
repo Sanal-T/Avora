@@ -22,6 +22,7 @@ import {
 import { PageContainer, PageHeader, DataSourceBadge } from '../../components/shared/PageHeader'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
+import BorderGlow from '../../components/ui/BorderGlow'
 import { Alert } from '../../components/ui/Feedback'
 import { ActivityTimeline } from '../../components/shared/ActivityTimeline'
 import { DEPARTMENT_META, DEPARTMENT_ORDER, type DepartmentId } from '../../lib/departments'
@@ -63,6 +64,8 @@ export const MainDashboard = memo(function MainDashboard({
       value: snapshot.active_pipeline_value || '₹0',
       sub: 'Open commercial proposals',
       variant: 'primary' as const,
+      glowColor: '24 95 53',
+      glowColors: ['#f97316', '#ea580c', '#fb923c'],
       icon: TrendingUp,
     },
     {
@@ -70,6 +73,8 @@ export const MainDashboard = memo(function MainDashboard({
       value: String(snapshot.open_work_count ?? 0),
       sub: 'Active shop-floor tasks',
       variant: 'info' as const,
+      glowColor: '217 91 60',
+      glowColors: ['#3b82f6', '#1d4ed8', '#60a5fa'],
       icon: Factory,
     },
     {
@@ -77,6 +82,8 @@ export const MainDashboard = memo(function MainDashboard({
       value: String(snapshot.needs_attention_count ?? 0),
       sub: 'Delayed milestones & approvals',
       variant: 'danger' as const,
+      glowColor: '0 84 60',
+      glowColors: ['#ef4444', '#dc2626', '#f87171'],
       icon: AlertTriangle,
     },
     {
@@ -84,6 +91,8 @@ export const MainDashboard = memo(function MainDashboard({
       value: quotationDept?.primary || '₹0',
       sub: 'Estimated turnover in range',
       variant: 'success' as const,
+      glowColor: '142 71 45',
+      glowColors: ['#22c55e', '#16a34a', '#4ade80'],
       icon: FileText,
     },
   ], [snapshot.active_pipeline_value, snapshot.open_work_count, snapshot.needs_attention_count, quotationDept?.primary])
@@ -131,16 +140,30 @@ export const MainDashboard = memo(function MainDashboard({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {companyKpis.map((kpi) => {
           const Icon = kpi.icon
-          const isHighlight = kpi.variant === 'primary'
-          const isAlert = kpi.variant === 'danger'
+          const isPrimary = kpi.variant === 'primary'
+          const isInfo = kpi.variant === 'info'
+          const isDanger = kpi.variant === 'danger'
+          const isSuccess = kpi.variant === 'success'
 
           return (
-            <Card
+            <BorderGlow
               key={kpi.label}
+              borderRadius={14}
+              backgroundColor="#0f0f13"
+              glowColor={kpi.glowColor}
+              colors={kpi.glowColors}
+              glowRadius={36}
+              glowIntensity={1.2}
+              edgeSensitivity={22}
+              coneSpread={26}
+              fillOpacity={0.25}
               className={cn(
-                'relative overflow-hidden p-5 transition-card',
-                isHighlight && 'border-primary/40 bg-gradient-to-br from-card to-primary-soft/30',
-                isAlert && 'border-danger/30 bg-gradient-to-br from-card to-danger-soft/20',
+                'relative p-5 transition-card cursor-default',
+                isPrimary && 'border-primary/40 bg-gradient-to-br from-card to-primary-soft/30',
+                isInfo && 'border-info/40 bg-gradient-to-br from-card to-info-soft/30',
+                isDanger && 'border-danger/30 bg-gradient-to-br from-card to-danger-soft/20',
+                isSuccess && 'border-success/40 bg-gradient-to-br from-card to-success-soft/30',
+                '[&>.border-glow-inner]:overflow-visible [&>.border-glow-inner]:h-full [&>.border-glow-inner]:justify-between',
               )}
             >
               <div className="flex items-center justify-between">
@@ -148,11 +171,10 @@ export const MainDashboard = memo(function MainDashboard({
                 <span
                   className={cn(
                     'grid size-8 place-items-center rounded-lg',
-                    isAlert
-                      ? 'bg-danger-soft text-danger'
-                      : isHighlight
-                      ? 'bg-primary-soft text-primary'
-                      : 'bg-muted text-muted-foreground',
+                    isPrimary && 'bg-primary-soft text-primary',
+                    isInfo && 'bg-info-soft text-info',
+                    isDanger && 'bg-danger-soft text-danger',
+                    isSuccess && 'bg-success-soft text-success',
                   )}
                 >
                   <Icon className="size-4" />
@@ -162,7 +184,10 @@ export const MainDashboard = memo(function MainDashboard({
               <p
                 className={cn(
                   'mt-3 font-display text-3xl font-extrabold tracking-tight tabular-nums',
-                  isAlert ? 'text-danger' : isHighlight ? 'text-primary' : 'text-foreground',
+                  isPrimary && 'text-primary',
+                  isInfo && 'text-info',
+                  isDanger && 'text-danger',
+                  isSuccess && 'text-success',
                 )}
               >
                 {kpi.value}
@@ -172,7 +197,7 @@ export const MainDashboard = memo(function MainDashboard({
                 <span>{kpi.sub}</span>
                 <span className="font-mono text-[10px] text-muted-foreground/70">PGSQL</span>
               </div>
-            </Card>
+            </BorderGlow>
           )
         })}
       </div>

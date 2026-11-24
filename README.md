@@ -98,9 +98,9 @@ npm run dev
 ```
 Open `http://localhost:5173` in your browser.
 
-**Development Admin Credentials:**
-- Email: `admin@avora.io`
-- Password: `Admin@123456`
+**Initial Administrator Credentials (Configured in `backend/.env` during initial database seed):**
+- Email: `ADMIN_EMAIL` (default: `admin@avora.io`)
+- Password: `ADMIN_PASSWORD` (configured in your local `.env`)
 
 ---
 

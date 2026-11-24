@@ -76,9 +76,9 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
   const executeFetch = async (): Promise<T> => {
     let token = getToken()
 
-    // In development, automatically ensure an active admin session if no token exists yet
-    const devEmail = import.meta.env.VITE_DEV_ADMIN_EMAIL || (import.meta.env.DEV ? 'admin@avora.io' : '')
-    const devPassword = import.meta.env.VITE_DEV_ADMIN_PASSWORD || (import.meta.env.DEV ? 'Admin@123456' : '')
+    // In development, optionally acquire an active dev session if environment variables are explicitly supplied
+    const devEmail = import.meta.env.VITE_DEV_ADMIN_EMAIL || ''
+    const devPassword = import.meta.env.VITE_DEV_ADMIN_PASSWORD || ''
 
     if (!token && !endpoint.includes('/api/auth/login') && devEmail && devPassword) {
       token = await getOrCreateDevToken(devEmail, devPassword)

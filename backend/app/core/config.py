@@ -21,8 +21,13 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":
         if self.app_env.lower() == "production":
-            if "change-in-production" in self.secret_key or self.admin_password == "Admin@123456":
-                raise ValueError("In production, SECRET_KEY and ADMIN_PASSWORD must be explicitly provided with secure values.")
+            insecure_key_tokens = ["change-in-production", "avora-super-secret", "secret", "default"]
+            if any(token in self.secret_key.lower() for token in insecure_key_tokens) or len(self.secret_key) < 32:
+                raise ValueError("In production, SECRET_KEY must be provided via environment variable with a strong, random value of at least 32 characters.")
+            if self.admin_password == "Admin@123456" or len(self.admin_password) < 8:
+                raise ValueError("In production, ADMIN_PASSWORD must be explicitly provided with a secure value of at least 8 characters.")
+            if "sqlite" in self.database_url.lower():
+                raise ValueError("In production, DATABASE_URL must connect to a production-grade relational database (e.g. PostgreSQL), not SQLite.")
         return self
 
     @property
