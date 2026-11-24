@@ -104,17 +104,41 @@ Open `http://localhost:5173` in your browser.
 
 ---
 
-## 4. Key Architectural Guarantees
+## 4. Security & Role-Based Access Control (RBAC)
+
+Avora enforces a strict role hierarchy on all mutative API routes via dependency guards:
+
+| Role | Permissions & Operational Scope |
+| :--- | :--- |
+| **Administrator** | Full system governance, staff management, organization settings, database bootstrap. |
+| **Management** | Cross-department operational oversight, financial reporting, immutable audit logs. |
+| **Sales / Accounts** | Customer creation, Enquiry lifecycle, Quotation calculation, revisions, follow-ups. |
+| **Design Team** | Design proposals, CAD drawing versions, technical completion tracking. |
+| **Production Manager** | Work Order scheduling, task checklists, machine bay and slot allocation. |
+| **Labour Coordinator** | Worker registry, skill classifications, site crew allocation requests. |
+
+---
+
+## 5. Telemetry & Production Error Monitoring
+
+Both the backend and frontend are pre-wired for instant developer error alerting:
+
+* **Backend (`FastAPI`):** Set `ERROR_WEBHOOK_URL` in `backend/.env` (Discord, Slack, or Teams). Any unhandled `500 Internal Server Error` automatically delivers a formatted alert with endpoint, exception type, and stack trace snippet without leaking details to clients.
+* **Frontend (`React 19`):** Set `VITE_ERROR_WEBHOOK_URL` in `.env`. Uncaught React component crashes caught by `ErrorBoundary` and unhandled Promise rejections are automatically dispatched.
+* **Sentry SDK (Optional):** Define `SENTRY_DSN` in `backend/.env` to enable deep APM tracing.
+
+---
+
+## 6. Key Architectural Guarantees
 
 - **Data Integrity First:** All dashboard metrics, status histories, and table lists connect directly to persisted PostgreSQL records. Zero mock-data fallbacks in production screens.
 - **Atomic Multi-Record Transactions:** Multi-entity operations (e.g., Quotation-to-Work-Order conversion, Customer creation with contacts) execute inside atomic database transactions (`try...except: db.rollback()`). Audit logs are staged in the same transaction for guaranteed consistency.
 - **Concurrency & Idempotency:** Database-level uniqueness constraints prevent duplicate work orders on quotation conversions, with graceful `409 Conflict` handling.
-- **Role-Based Access Control (RBAC):** Backend endpoints enforce role checks (`Administrator`, `Sales Rep`, `Designer`, `Production Manager`, `Site Supervisor`, `Customer Relations`). Anonymous access to protected business data is rejected with `401 Unauthorized`.
-- **Fast, Tabular Dashboard UI:** In compliance with project guidelines, dashboard views emphasize high-density tabular data cards with zero chart overhead for instantaneous rendering.
+- **Reactive UI Performance:** Live KPI cards with GPU-accelerated interactive edge glow (`BorderGlow`), tabular grids, and instant client-side date-range filtering.
 
 ---
 
-## 5. Documentation & Implementation Links
+## 7. Documentation & Implementation Links
 
 - [15-Day Implementation Pilot Plan](docs/implementation/15-day-pilot-plan.md)
 - [Operational Setup & Migrations Guide](docs/implementation/operational-setup-guide.md)
