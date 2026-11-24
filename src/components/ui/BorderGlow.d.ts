@@ -1,6 +1,6 @@
-import type { CSSProperties, ReactNode, FC } from 'react'
+import type { CSSProperties, ReactNode, FC, HTMLAttributes, MouseEventHandler } from 'react'
 
-export interface BorderGlowProps {
+export interface BorderGlowProps extends HTMLAttributes<HTMLDivElement> {
   children?: ReactNode
   className?: string
   edgeSensitivity?: number
@@ -14,6 +14,7 @@ export interface BorderGlowProps {
   colors?: string[]
   fillOpacity?: number
   style?: CSSProperties
+  onClick?: MouseEventHandler<HTMLDivElement>
 }
 
 declare const BorderGlow: FC<BorderGlowProps>

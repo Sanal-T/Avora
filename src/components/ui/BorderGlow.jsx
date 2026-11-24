@@ -80,6 +80,8 @@ const BorderGlow = ({
   animated = false,
   colors = ['#c084fc', '#f472b6', '#38bdf8'],
   fillOpacity = 0.5,
+  onClick,
+  ...rest
 }) => {
   const cardRef = useRef(null);
 
@@ -160,6 +162,8 @@ const BorderGlow = ({
     <div
       ref={cardRef}
       onPointerMove={handlePointerMove}
+      onClick={onClick}
+      {...rest}
       className={`border-glow-card${lightSurface ? ' border-glow-card--light' : ''} ${className}`}
       style={{
         '--card-bg': backgroundColor,
