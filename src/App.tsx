@@ -59,7 +59,15 @@ function AppShellInner({
   const navigate = useNavigate()
 
   return (
-    <AppShell rangeId={rangeId} onRangeChange={setRangeId}>
+    <AppShell
+      rangeId={rangeId}
+      onRangeChange={setRangeId}
+      onOpenCreateModal={(type) => {
+        if (type === 'enquiry') setEnquiryModalOpen(true)
+        else if (type === 'design') setDesignModalOpen(true)
+        else if (type === 'workOrder') setWorkOrderModalOpen(true)
+      }}
+    >
       <Routes>
         {/* Main Dashboard */}
         <Route

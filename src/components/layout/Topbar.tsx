@@ -1,10 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Moon,
-  Sun,
   ChevronRight,
   LogOut,
+  Moon,
+  Sun,
+  Plus,
+  Search,
+  Inbox,
+  PenTool,
+  Factory,
 } from 'lucide-react'
 import { currentUser } from '../../lib/auth'
 import { useTheme } from '../../lib/hooks'
@@ -12,40 +17,50 @@ import { DateRangeControl } from '../shared/DateRangeControl'
 import { NotificationsDropdown } from './NotificationsDropdown'
 import type { RangeKey } from '../../data/dashboard'
 import { DEPARTMENT_META, DEPARTMENT_ORDER, isDepartmentId } from '../../lib/departments'
+import { cn } from '../../lib/cn'
+
+interface TopbarProps {
+  onOpenCommandPalette: () => void
+  rangeId: RangeKey
+  onRangeChange: (range: RangeKey) => void
+  onOpenCreateModal?: (type: 'enquiry' | 'design' | 'workOrder') => void
+}
 
 export function Topbar({
   onOpenCommandPalette,
   rangeId,
   onRangeChange,
-}: {
-  onOpenCommandPalette: () => void
-  rangeId: RangeKey
-  onRangeChange: (range: RangeKey) => void
-}) {
+  onOpenCreateModal,
+}: TopbarProps) {
   const { theme, toggle: toggleTheme } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
 
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
-  const accountRef = useRef<HTMLDivElement>(null)
+  const [createMenuOpen, setCreateMenuOpen] = useState(false)
 
+  const accountRef = useRef<HTMLDivElement>(null)
+  const createRef = useRef<HTMLDivElement>(null)
+
+  // Close menus on outside click
   useEffect(() => {
-    if (!accountMenuOpen) return
     const handleClick = (e: MouseEvent) => {
       if (accountRef.current && !accountRef.current.contains(e.target as Node)) {
         setAccountMenuOpen(false)
       }
+      if (createRef.current && !createRef.current.contains(e.target as Node)) {
+        setCreateMenuOpen(false)
+      }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [accountMenuOpen])
+  }, [])
 
-  // Only show the date range filter on operational dashboards (Overview and Department dashboards)
   const showDateRange =
     location.pathname === '/' ||
     DEPARTMENT_ORDER.some((dept) => location.pathname === `/${dept}`)
 
-  // Dynamic breadcrumbs from route path
+  // Dynamic breadcrumbs
   const pathParts = location.pathname.split('/').filter(Boolean)
   const crumbs: { label: string; to?: string }[] = [
     { label: 'Overview', to: pathParts.length === 0 ? undefined : '/' },
@@ -67,7 +82,7 @@ export function Topbar({
       } else if (part === 'builder') {
         crumbs.push({ label: 'Quotation Builder' })
       } else if (part === 'schedule' || part === 'calendar') {
-        crumbs.push({ label: 'Production Calendar' })
+        crumbs.push({ label: 'Production Schedule' })
       } else {
         crumbs.push({
           label: part.toUpperCase(),
@@ -78,117 +93,180 @@ export function Topbar({
   }
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-4 border-b border-border bg-card/95 px-5 lg:px-10 backdrop-blur-xs">
-      {/* Left: Brand Identity & Breadcrumbs */}
-      <div className="flex min-w-0 items-center gap-5">
-        <Link
-          to="/"
-          className="flex items-center gap-2.5 font-display text-xl font-extrabold tracking-tight text-foreground shrink-0"
-        >
-          <span className="grid size-8 place-items-center rounded-lg bg-primary text-base font-extrabold text-primary-foreground shadow-xs">
-            A
-          </span>
-          AVORA ERP
-        </Link>
-
-        <nav aria-label="Breadcrumb" className="hidden items-center gap-2 border-l border-border pl-5 text-xs text-muted-foreground sm:flex overflow-hidden">
-          {crumbs.map((crumb, idx) => (
-            <span key={crumb.label + idx} className="flex items-center gap-1.5 truncate">
-              {idx > 0 && <ChevronRight className="size-3.5 shrink-0 opacity-40" />}
-              {crumb.to ? (
-                <Link to={crumb.to} className="hover:text-foreground transition-colors truncate">
-                  {crumb.label}
-                </Link>
-              ) : (
-                <span className="font-semibold text-foreground truncate">{crumb.label}</span>
-              )}
-            </span>
-          ))}
-        </nav>
-      </div>
-
-      {/* Right Controls */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        {/* Date Range Control (Shown only on dashboard views) */}
-        {showDateRange && (
-          <DateRangeControl value={rangeId} onChange={onRangeChange} />
-        )}
-
-        {/* Notifications Center */}
-        <NotificationsDropdown />
-
-        {/* Profile Avatar & Account Menu */}
-        <div ref={accountRef} className="relative pl-2 border-l border-border">
-          <button
-            type="button"
-            onClick={() => setAccountMenuOpen((v) => !v)}
-            aria-label="User account menu"
-            aria-expanded={accountMenuOpen}
-            className="grid size-9 place-items-center rounded-full bg-foreground text-xs font-bold text-background transition hover:ring-2 hover:ring-primary cursor-pointer"
+    <header className="sticky top-0 z-40 w-full border-b border-border bg-card/95 backdrop-blur-md">
+      <div className="mx-auto flex h-14 w-full max-w-[1760px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        {/* Left: Brand Identity + Clean Context Breadcrumbs */}
+        <div className="flex items-center gap-4 min-w-0">
+          <Link
+            to="/"
+            className="flex items-center gap-2.5 font-display text-base font-bold tracking-tight text-foreground shrink-0 transition-opacity hover:opacity-90"
           >
-            {currentUser.initials}
-          </button>
+            <div className="grid size-7 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary-hover text-xs font-extrabold text-primary-foreground shadow-xs">
+              A
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-display font-extrabold tracking-tight">AVORA</span>
+              <span className="rounded bg-primary/20 px-1 py-0.2 text-[9px] font-extrabold tracking-wider text-primary uppercase">
+                ERP
+              </span>
+            </div>
+          </Link>
 
-          {accountMenuOpen && (
-            <div className="absolute right-0 top-12 z-50 w-64 rounded-xl border border-border bg-card p-1.5 shadow-float">
-              {/* User Bio */}
-              <div className="flex items-center gap-2.5 px-3 py-2.5">
-                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-foreground text-xs font-bold text-background">
-                  {currentUser.initials}
-                </span>
-                <div className="truncate">
-                  <p className="text-xs font-semibold text-foreground truncate">{currentUser.name}</p>
-                  <p className="text-[11px] text-muted-foreground truncate">{currentUser.role}</p>
-                </div>
-              </div>
+          {/* Breadcrumb path for easy navigation */}
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-muted-foreground border-l border-border pl-4 overflow-hidden">
+            {crumbs.map((crumb, idx) => (
+              <span key={crumb.label + idx} className="flex items-center gap-1.5 truncate">
+                {idx > 0 && <ChevronRight className="size-3.5 shrink-0 opacity-40" />}
+                {crumb.to ? (
+                  <Link
+                    to={crumb.to}
+                    className="hover:text-foreground transition-colors truncate"
+                  >
+                    {crumb.label}
+                  </Link>
+                ) : (
+                  <span className="font-semibold text-foreground truncate">
+                    {crumb.label}
+                  </span>
+                )}
+              </span>
+            ))}
+          </nav>
+        </div>
 
-              <div className="my-1 border-t border-border" />
-
-              {/* Dark & Light Mode Switcher inside Pop up */}
-              <button
-                type="button"
-                role="switch"
-                aria-checked={theme === 'dark'}
-                onClick={() => toggleTheme()}
-                className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
-              >
-                <span className="flex items-center gap-2.5">
-                  {theme === 'dark' ? (
-                    <Moon className="size-3.5 text-primary" aria-hidden />
-                  ) : (
-                    <Sun className="size-3.5 text-primary" aria-hidden />
-                  )}
-                  <span>Dark mode</span>
-                </span>
-                <span
-                  className={`relative h-5 w-9 rounded-full transition-colors ${
-                    theme === 'dark' ? 'bg-primary' : 'bg-muted-foreground/30'
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 size-4 rounded-full bg-white transition-all shadow-xs ${
-                      theme === 'dark' ? 'left-4.5' : 'left-0.5'
-                    }`}
-                  />
-                </span>
-              </button>
-
-              <div className="my-1 border-t border-border" />
-
-              {/* Sign Out */}
-              <button
-                type="button"
-                onClick={() => {
-                  setAccountMenuOpen(false)
-                  navigate('/login')
-                }}
-                className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs font-medium text-danger hover:bg-danger-soft cursor-pointer transition-colors"
-              >
-                <LogOut className="size-3.5" />
-                <span>Sign Out</span>
-              </button>
+        {/* Right: Date Range + Quick Action + Search + Theme + Account */}
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          {/* Date Range Control (on relevant views) */}
+          {showDateRange && (
+            <div className="hidden sm:block">
+              <DateRangeControl value={rangeId} onChange={onRangeChange} />
             </div>
           )}
+
+          {/* Quick Action "+" Dropdown Menu */}
+          {onOpenCreateModal && (
+            <div ref={createRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setCreateMenuOpen((v) => !v)}
+                className="flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-xs transition hover:bg-primary-hover cursor-pointer"
+                title="Create new record"
+              >
+                <Plus className="size-3.5 stroke-[2.5]" />
+                <span className="hidden sm:inline">New</span>
+              </button>
+
+              {createMenuOpen && (
+                <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border border-border bg-popover p-1 shadow-float">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase">
+                    Quick Actions
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCreateMenuOpen(false)
+                      onOpenCreateModal('enquiry')
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
+                  >
+                    <Inbox className="size-4 text-dept-enquiries" />
+                    <span>New Customer Enquiry</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCreateMenuOpen(false)
+                      onOpenCreateModal('design')
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
+                  >
+                    <PenTool className="size-4 text-dept-designs" />
+                    <span>New Design Proposal</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCreateMenuOpen(false)
+                      onOpenCreateModal('workOrder')
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
+                  >
+                    <Factory className="size-4 text-dept-production" />
+                    <span>New Work Order</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Search Trigger (Ctrl+K) */}
+          <button
+            type="button"
+            onClick={onOpenCommandPalette}
+            className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+            title="Search & commands (Ctrl+K)"
+            aria-label="Search"
+          >
+            <Search className="size-3.5" />
+          </button>
+
+          {/* Notifications Dropdown */}
+          <NotificationsDropdown />
+
+          {/* User Account Menu */}
+          <div ref={accountRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setAccountMenuOpen((v) => !v)}
+              aria-label="User account menu"
+              aria-expanded={accountMenuOpen}
+              className="grid size-8 place-items-center rounded-lg border border-border bg-muted/60 text-xs font-bold text-foreground transition hover:border-primary/50 hover:bg-muted cursor-pointer"
+            >
+              {currentUser.initials}
+            </button>
+
+            {accountMenuOpen && (
+              <div className="absolute right-0 top-10 z-50 w-60 rounded-xl border border-border bg-popover p-1.5 shadow-float">
+                <div className="flex items-center gap-2.5 px-3 py-2">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                    {currentUser.initials}
+                  </span>
+                  <div className="min-w-0 flex-1 truncate">
+                    <p className="text-xs font-semibold text-foreground truncate">{currentUser.name}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">{currentUser.role}</p>
+                  </div>
+                </div>
+
+                <div className="my-1 border-t border-border" />
+
+                <button
+                  type="button"
+                  onClick={() => toggleTheme()}
+                  className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    {theme === 'dark' ? <Moon className="size-3.5 text-primary" /> : <Sun className="size-3.5 text-primary" />}
+                    <span>{theme === 'dark' ? 'Dark theme' : 'Light theme'}</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-muted-foreground">Toggle</span>
+                </button>
+
+                <div className="my-1 border-t border-border" />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccountMenuOpen(false)
+                    navigate('/login')
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-danger hover:bg-danger-soft cursor-pointer transition-colors"
+                >
+                  <LogOut className="size-3.5" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </header>
