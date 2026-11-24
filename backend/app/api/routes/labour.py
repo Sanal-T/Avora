@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_current_active_user, get_db, require_roles
 from app.models.auth import User
 from app.schemas.labour import (
     LabourAssignmentCreate,
@@ -47,7 +47,7 @@ def list_workers(
 def create_worker(
     data: WorkerCreate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Labour Coordinator"]))],
 ) -> WorkerRead:
     return labour_service.create_worker(db, data)
 
@@ -67,7 +67,7 @@ def update_worker(
     worker_id: uuid.UUID,
     data: WorkerUpdate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Labour Coordinator"]))],
 ) -> WorkerRead:
     return labour_service.update_worker(db, worker_id, data)
 
@@ -88,7 +88,7 @@ def list_labour_requests(
 def create_labour_request(
     data: LabourRequestCreate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Labour Coordinator", "Production Manager"]))],
 ) -> LabourRequestRead:
     return labour_service.create_labour_request(db, data, user_id=current_user.id)
 
@@ -99,7 +99,7 @@ def update_labour_request_status(
     request_id: uuid.UUID,
     data: LabourRequestStatusUpdate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Labour Coordinator"]))],
 ) -> LabourRequestRead:
     return labour_service.update_labour_request_status(db, request_id, data, user_id=current_user.id)
 
@@ -109,7 +109,7 @@ def assign_worker_to_request(
     request_id: uuid.UUID,
     data: LabourAssignmentCreate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Labour Coordinator"]))],
 ) -> LabourRequestRead:
     return labour_service.assign_worker_to_request(db, request_id, data)
 

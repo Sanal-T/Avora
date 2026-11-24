@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_current_active_user, get_db, require_roles
 from app.models.auth import User
 from app.schemas.enquiry import EnquiryCreate, EnquiryListResponse, EnquiryRead, EnquiryStatusUpdate, EnquirySummaryResponse, EnquiryUpdate
 from app.services import enquiry_service
@@ -49,7 +49,7 @@ def get_enquiry_summary(
 def create_enquiry(
     data: EnquiryCreate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Sales / Accounts", "Enquiry Staff"]))],
 ) -> EnquiryRead:
     return enquiry_service.create_enquiry(db, data, user_id=current_user.id)
 
@@ -69,7 +69,7 @@ def update_enquiry(
     enquiry_id: uuid.UUID,
     data: EnquiryUpdate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Sales / Accounts", "Enquiry Staff"]))],
 ) -> EnquiryRead:
     return enquiry_service.update_enquiry(db, enquiry_id, data)
 
@@ -79,6 +79,6 @@ def update_enquiry_status(
     enquiry_id: uuid.UUID,
     data: EnquiryStatusUpdate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Sales / Accounts", "Enquiry Staff"]))],
 ) -> EnquiryRead:
     return enquiry_service.update_enquiry_status(db, enquiry_id, data, user_id=current_user.id)

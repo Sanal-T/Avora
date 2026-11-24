@@ -11,7 +11,8 @@ import {
   PenTool,
   Factory,
 } from 'lucide-react'
-import { currentUser } from '../../lib/auth'
+import { currentUser, clearCurrentUser } from '../../lib/auth'
+import { removeToken } from '../../lib/api'
 import { useTheme } from '../../lib/hooks'
 import { DateRangeControl } from '../shared/DateRangeControl'
 import { NotificationsDropdown } from './NotificationsDropdown'
@@ -257,6 +258,8 @@ export function Topbar({
                   type="button"
                   onClick={() => {
                     setAccountMenuOpen(false)
+                    removeToken()
+                    clearCurrentUser()
                     navigate('/login')
                   }}
                   className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-danger hover:bg-danger-soft cursor-pointer transition-colors"

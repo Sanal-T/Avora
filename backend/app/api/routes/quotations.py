@@ -58,7 +58,7 @@ def get_quotation_summary(
 def create_quotation(
     data: QuotationCreate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Sales / Accounts"]))],
 ) -> QuotationRead:
     return quotation_service.create_quotation(db, data, user_id=current_user.id)
 
@@ -79,7 +79,7 @@ def update_quotation(
     quotation_id: uuid.UUID,
     data: QuotationUpdate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Sales / Accounts"]))],
 ) -> QuotationRead:
     return quotation_service.update_quotation(db, quotation_id, data, user_id=current_user.id)
 
@@ -90,7 +90,7 @@ def update_quotation_status(
     quotation_id: uuid.UUID,
     data: QuotationStatusUpdate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Sales / Accounts"]))],
 ) -> QuotationRead:
     return quotation_service.update_quotation_status(db, quotation_id, data, user_id=current_user.id)
 
@@ -100,7 +100,7 @@ def create_quotation_revision(
     quotation_id: uuid.UUID,
     data: QuotationRevisionCreate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Sales / Accounts"]))],
 ) -> QuotationRead:
     return quotation_service.create_quotation_revision(db, quotation_id, data, user_id=current_user.id)
 
@@ -121,6 +121,6 @@ def add_follow_up(
     quotation_id: uuid.UUID,
     data: QuotationFollowUpCreate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Sales / Accounts"]))],
 ) -> QuotationRead:
     return quotation_service.add_follow_up(db, quotation_id, data, user_id=current_user.id)

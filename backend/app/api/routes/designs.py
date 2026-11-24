@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_current_active_user, get_db, require_roles
 from app.models.auth import User
 from app.schemas.design import DesignCreate, DesignListResponse, DesignRead, DesignStatusUpdate, DesignSummaryResponse, DesignUpdate, DesignVersionCreate
 from app.services import design_service
@@ -49,7 +49,7 @@ def get_design_summary(
 def create_design(
     data: DesignCreate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Design Team"]))],
 ) -> DesignRead:
     return design_service.create_design(db, data, user_id=current_user.id)
 
@@ -69,7 +69,7 @@ def update_design_status(
     design_id: uuid.UUID,
     data: DesignStatusUpdate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Design Team"]))],
 ) -> DesignRead:
     return design_service.update_design_status(db, design_id, data, user_id=current_user.id)
 
@@ -79,6 +79,6 @@ def add_design_version(
     design_id: uuid.UUID,
     data: DesignVersionCreate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Design Team"]))],
 ) -> DesignRead:
     return design_service.add_design_version(db, design_id, data, user_id=current_user.id)

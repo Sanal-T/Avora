@@ -5,6 +5,7 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { toast } from '../../lib/toast'
 import { authApi } from '../../lib/api'
+import { setCurrentUser } from '../../lib/auth'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -18,7 +19,21 @@ export function LoginPage() {
     try {
       await authApi.login(email, password)
       const profile = await authApi.getMe()
-      toast.success(`Welcome back, ${profile.full_name || 'Administrator'}`, 'Authenticated successfully against Avora ERP database.')
+      const initials = (profile.full_name || 'Admin')
+        .split(' ')
+        .filter(Boolean)
+        .map((p) => p[0].toUpperCase())
+        .slice(0, 2)
+        .join('') || 'AD'
+      setCurrentUser({
+        id: profile.id,
+        name: profile.full_name,
+        email: profile.email,
+        role: profile.roles?.[0] || (profile.is_superuser ? 'Administrator' : 'Staff Member'),
+        initials,
+        permissions: (profile.permissions || []) as any,
+      })
+      toast.success(`Welcome back, ${profile.full_name || 'Staff Member'}`, 'Authenticated successfully against Avora ERP database.')
       navigate('/')
     } catch (err: any) {
       toast.error('Login Failed', err.message || 'Incorrect email or password.')

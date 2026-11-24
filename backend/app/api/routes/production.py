@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_current_active_user, get_db, require_roles
 from app.models.auth import User
 from app.schemas.production import (
     InstallationCreate,
@@ -59,7 +59,7 @@ def get_production_summary(
 def create_work_order(
     data: WorkOrderCreate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Production Manager"]))],
 ) -> WorkOrderRead:
     return production_service.create_work_order(db, data, user_id=current_user.id)
 
@@ -80,7 +80,7 @@ def update_work_order(
     work_order_id: uuid.UUID,
     data: WorkOrderUpdate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Production Manager"]))],
 ) -> WorkOrderRead:
     return production_service.update_work_order(db, work_order_id, data, user_id=current_user.id)
 
@@ -91,7 +91,7 @@ def update_work_order_status(
     work_order_id: uuid.UUID,
     data: WorkOrderStatusUpdate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Production Manager"]))],
 ) -> WorkOrderRead:
     return production_service.update_work_order_status(db, work_order_id, data, user_id=current_user.id)
 
@@ -101,7 +101,7 @@ def add_production_task(
     work_order_id: uuid.UUID,
     data: ProductionTaskCreate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Production Manager"]))],
 ) -> WorkOrderRead:
     return production_service.add_production_task(db, work_order_id, data)
 
@@ -113,7 +113,7 @@ def update_production_task(
     task_id: uuid.UUID,
     data: ProductionTaskUpdate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Production Manager"]))],
 ) -> WorkOrderRead:
     return production_service.update_task_status(db, work_order_id, task_id, data, user_id=current_user.id)
 
@@ -123,6 +123,6 @@ def add_installation(
     work_order_id: uuid.UUID,
     data: InstallationCreate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Production Manager"]))],
 ) -> WorkOrderRead:
     return production_service.add_installation(db, work_order_id, data)
