@@ -39,6 +39,33 @@ const icons: Record<string, LucideIcon> = {
   labour: Users,
 }
 
+const DEPARTMENT_GLOW: Record<DepartmentId, { glowColor: string; colors: string[] }> = {
+  enquiries: {
+    glowColor: '213 94 68',
+    colors: ['#60a5fa', '#3b82f6', '#93c5fd'],
+  },
+  designs: {
+    glowColor: '258 90 76',
+    colors: ['#a78bfa', '#8b5cf6', '#c4b5fd'],
+  },
+  quotations: {
+    glowColor: '187 92 53',
+    colors: ['#22d3ee', '#06b6d4', '#67e8f9'],
+  },
+  production: {
+    glowColor: '43 96 56',
+    colors: ['#fbbf24', '#f59e0b', '#fde68a'],
+  },
+  feedback: {
+    glowColor: '352 95 71',
+    colors: ['#fb7185', '#f43f5e', '#fda4af'],
+  },
+  labour: {
+    glowColor: '158 64 52',
+    colors: ['#34d399', '#10b981', '#6ee7b7'],
+  },
+}
+
 export const MainDashboard = memo(function MainDashboard({
   overview,
   rangeId,
@@ -216,54 +243,71 @@ export const MainDashboard = memo(function MainDashboard({
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {overview.departments.map((dept) => {
+            const deptId = dept.id as DepartmentId
             const Icon = icons[dept.id] || Inbox
-            const meta = DEPARTMENT_META[dept.id as DepartmentId] || DEPARTMENT_META.enquiries
+            const meta = DEPARTMENT_META[deptId] || DEPARTMENT_META.enquiries
+            const glow = DEPARTMENT_GLOW[deptId] || { glowColor: '213 94 68', colors: ['#60a5fa', '#3b82f6', '#93c5fd'] }
 
             return (
-              <Card
+              <BorderGlow
                 key={dept.id}
-                className="group relative flex flex-col p-5 transition-card cursor-pointer hover:border-foreground/30 hover:shadow-card-hover"
+                borderRadius={14}
+                backgroundColor="#0d0d12"
+                glowColor={glow.glowColor}
+                colors={glow.colors}
+                glowRadius={36}
+                glowIntensity={1.15}
+                edgeSensitivity={22}
+                coneSpread={26}
+                fillOpacity={0.2}
+                className={cn(
+                  'group relative flex flex-col p-5 transition-card cursor-pointer',
+                  'hover:border-foreground/30 hover:shadow-card-hover',
+                  '[&>.border-glow-inner]:overflow-visible [&>.border-glow-inner]:h-full [&>.border-glow-inner]:flex [&>.border-glow-inner]:flex-col [&>.border-glow-inner]:justify-between',
+                )}
                 onClick={() => navigate(`/${dept.id}`)}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={cn(
-                        'grid size-10 place-items-center rounded-xl transition-transform group-hover:scale-105 shadow-xs',
-                        meta.chip,
-                      )}
-                    >
-                      <Icon className="size-5" />
-                    </span>
-                    <div>
-                      <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
-                        {dept.name}
-                      </h3>
-                      <p className="text-[11px] text-muted-foreground">{dept.primaryLabel}</p>
+                <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={cn(
+                          'grid size-10 place-items-center rounded-xl transition-transform group-hover:scale-105 shadow-xs',
+                          meta.chip,
+                        )}
+                      >
+                        <Icon className="size-5" />
+                      </span>
+                      <div>
+                        <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+                          {dept.name}
+                        </h3>
+                        <p className="text-[11px] text-muted-foreground">{dept.primaryLabel}</p>
+                      </div>
                     </div>
+
+                    {dept.trend && (
+                      <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                        {dept.trend}
+                      </span>
+                    )}
                   </div>
 
-                  {dept.trend && (
-                    <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                      {dept.trend}
+                  <div className="mt-4 flex items-baseline justify-between">
+                    <span className="font-display text-3xl font-extrabold tracking-tight tabular-nums text-foreground">
+                      {dept.primary}
                     </span>
-                  )}
-                </div>
+                  </div>
 
-                <div className="mt-4 flex items-baseline justify-between">
-                  <span className="font-display text-3xl font-extrabold tracking-tight tabular-nums text-foreground">
-                    {dept.primary}
-                  </span>
-                </div>
-
-                {/* Supporting Metrics */}
-                <div className="mt-4 grid grid-cols-3 divide-x divide-border border-t border-border pt-3">
-                  {dept.metrics.map(([label, val]) => (
-                    <div key={label} className="px-2 first:pl-0 last:pr-0">
-                      <p className="text-[11px] text-muted-foreground truncate">{label}</p>
-                      <p className="font-semibold text-sm text-foreground tabular-nums truncate">{val}</p>
-                    </div>
-                  ))}
+                  {/* Supporting Metrics */}
+                  <div className="mt-4 grid grid-cols-3 divide-x divide-border border-t border-border pt-3">
+                    {dept.metrics.map(([label, val]) => (
+                      <div key={label} className="px-2 first:pl-0 last:pr-0">
+                        <p className="text-[11px] text-muted-foreground truncate">{label}</p>
+                        <p className="font-semibold text-sm text-foreground tabular-nums truncate">{val}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Bottom Action Footer */}
@@ -273,7 +317,7 @@ export const MainDashboard = memo(function MainDashboard({
                   </span>
                   <ArrowUpRight className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
                 </div>
-              </Card>
+              </BorderGlow>
             )
           })}
         </div>
@@ -282,7 +326,18 @@ export const MainDashboard = memo(function MainDashboard({
       {/* Operational Feeds: Pending Urgencies & Recent Activity Stream */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Pending Urgencies */}
-        <Card className="p-5 shadow-card">
+        <BorderGlow
+          borderRadius={14}
+          backgroundColor="#0d0d12"
+          glowColor="38 92 50"
+          colors={['#f59e0b', '#d97706', '#fbbf24']}
+          glowRadius={36}
+          glowIntensity={1.05}
+          edgeSensitivity={22}
+          coneSpread={26}
+          fillOpacity={0.15}
+          className="p-5 shadow-card [&>.border-glow-inner]:overflow-visible"
+        >
           <div className="flex items-center justify-between border-b border-border pb-3">
             <div>
               <h3 className="text-sm font-bold text-foreground">Operational Attention Required</h3>
@@ -323,10 +378,21 @@ export const MainDashboard = memo(function MainDashboard({
               ))
             )}
           </div>
-        </Card>
+        </BorderGlow>
 
         {/* Live Activity Stream */}
-        <Card className="p-5 shadow-card">
+        <BorderGlow
+          borderRadius={14}
+          backgroundColor="#0d0d12"
+          glowColor="24 95 53"
+          colors={['#f97316', '#ea580c', '#fb923c']}
+          glowRadius={36}
+          glowIntensity={1.05}
+          edgeSensitivity={22}
+          coneSpread={26}
+          fillOpacity={0.15}
+          className="p-5 shadow-card [&>.border-glow-inner]:overflow-visible"
+        >
           <div className="flex items-center justify-between border-b border-border pb-3">
             <div>
               <h3 className="text-sm font-bold text-foreground">Live Activity Stream</h3>
@@ -338,7 +404,7 @@ export const MainDashboard = memo(function MainDashboard({
           <div className="mt-4">
             <ActivityTimeline events={activities} />
           </div>
-        </Card>
+        </BorderGlow>
       </div>
     </PageContainer>
   )

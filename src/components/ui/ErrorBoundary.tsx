@@ -1,6 +1,7 @@
 import React, { Component, type ErrorInfo, type ReactNode } from 'react'
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react'
 import { Button } from './Button'
+import { reportClientError } from '../../lib/telemetry'
 
 interface Props {
   children: ReactNode
@@ -26,7 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     this.setState({ errorInfo })
-    console.error('Unhandled UI Exception caught by ErrorBoundary:', error, errorInfo)
+    reportClientError(error, errorInfo?.componentStack || undefined)
   }
 
   private handleReset = () => {
