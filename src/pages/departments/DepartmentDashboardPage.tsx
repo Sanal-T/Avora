@@ -59,6 +59,8 @@ function normalizeFilterKey(label: string): string {
   return l.replace(/\s+/g, '_')
 }
 
+const deptSummaryCache = new Map<string, any>()
+
 export function DepartmentDashboardPage({
   departmentId,
   rangeId,
@@ -79,7 +81,11 @@ export function DepartmentDashboardPage({
     primary_label: string
     metrics: { label: string; value: string }[]
     trend: string
-  } | null>(null)
+  } | null>(() => {
+    const { dateFrom, dateTo } = rangeDates(rangeId)
+    const cacheKey = `${departmentId}:${rangeId}:${dateFrom || ''}:${dateTo || ''}`
+    return deptSummaryCache.get(cacheKey) || null
+  })
 
   const [records, setRecords] = useState<DashboardRecord[]>([])
   const [loadingRecords, setLoadingRecords] = useState(false)
@@ -90,23 +96,32 @@ export function DepartmentDashboardPage({
   const [page, setPage] = useState(1)
   const pageSize = 10
 
-  // Load summary KPIs
+  // Load summary KPIs (cached per department & range to make filter clicks instant)
   useEffect(() => {
     const { dateFrom, dateTo } = rangeDates(rangeId)
+    const cacheKey = `${departmentId}:${rangeId}:${dateFrom || ''}:${dateTo || ''}`
+    const cached = deptSummaryCache.get(cacheKey)
+    if (cached) {
+      setLiveSummary(cached)
+    }
+
     const params = new URLSearchParams()
     if (dateFrom) params.set('date_from', dateFrom)
     if (dateTo) params.set('date_to', dateTo)
     const url = `/api/dashboard/${departmentId}/summary${params.size ? `?${params.toString()}` : ''}`
     apiFetch<any>(url)
       .then((data) => {
-        if (data) setLiveSummary(data)
+        if (data) {
+          deptSummaryCache.set(cacheKey, data)
+          setLiveSummary(data)
+        }
       })
       .catch((err) => {
         console.warn(`Could not load live summary for ${departmentId}:`, err)
       })
   }, [departmentId, rangeId, refreshTrigger])
 
-  // Load actual department data
+  // Load actual department data (only when departmentId changes or manual refresh triggered)
   useEffect(() => {
     let isMounted = true
     setLoadingRecords(true)
@@ -253,7 +268,7 @@ export function DepartmentDashboardPage({
     return () => {
       isMounted = false
     }
-  }, [departmentId, rangeId, refreshTrigger])
+  }, [departmentId, refreshTrigger])
 
   // Build KPI Options
   const kpis: {

@@ -1,3 +1,4 @@
+import { useMemo, memo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -32,7 +33,7 @@ const icons: Record<string, LucideIcon> = {
   labour: Users,
 }
 
-export function MainDashboard({
+export const MainDashboard = memo(function MainDashboard({
   overview,
   rangeId,
   onRefresh,
@@ -51,22 +52,22 @@ export function MainDashboard({
 
   // Summary Strip KPIs (Strictly derived from live PostgreSQL database)
   const quotationDept = overview.departments?.find((d) => d.id === 'quotations')
-  const companyKpis = [
+  const companyKpis = useMemo(() => [
     { label: 'Active Pipeline', value: snapshot.active_pipeline_value || '₹0', sub: 'Open commercial quotes', highlight: true },
     { label: 'Open Work Items', value: String(snapshot.open_work_count ?? 0), sub: 'Active manufacturing tasks' },
     { label: 'Needs Attention', value: String(snapshot.needs_attention_count ?? 0), sub: 'Delayed or pending actions', alert: Boolean(snapshot.needs_attention_count) },
     { label: 'Quotation Volume', value: quotationDept?.primary || '₹0', sub: 'Live from database' },
-  ]
+  ], [snapshot.active_pipeline_value, snapshot.open_work_count, snapshot.needs_attention_count, quotationDept?.primary])
 
   const actions = overview.actionItems || []
 
-  const activities = (overview.recentActivities || []).map((act, index) => ({
+  const activities = useMemo(() => (overview.recentActivities || []).map((act, index) => ({
     id: `act-${index}`,
     title: act.title,
     description: act.category,
     timeAgo: act.time_ago,
     tone: (act.category === 'Quotation' ? 'success' : act.category === 'Production' ? 'warning' : 'primary') as any,
-  }))
+  })), [overview.recentActivities])
 
   return (
     <PageContainer>
@@ -235,4 +236,4 @@ export function MainDashboard({
       </div>
     </PageContainer>
   )
-}
+})

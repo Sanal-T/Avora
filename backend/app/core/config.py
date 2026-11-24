@@ -8,13 +8,13 @@ class Settings(BaseSettings):
     app_name: str = "Avora ERP API"
     app_env: str = "development"
     # Defaults to local sqlite for development if postgres is not provided
-    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./avora.db")
+    database_url: str = "sqlite:///./avora.db"
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
-    secret_key: str = os.getenv("SECRET_KEY", "avora-super-secret-development-key-change-in-production-2026")
+    secret_key: str = "avora-super-secret-development-key-change-in-production-2026"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24  # 24 hours
-    admin_email: str = os.getenv("ADMIN_EMAIL", "admin@avora.io")
-    admin_password: str = os.getenv("ADMIN_PASSWORD", "Admin@123456")
+    admin_email: str = "admin@avora.io"
+    admin_password: str = "Admin@123456"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

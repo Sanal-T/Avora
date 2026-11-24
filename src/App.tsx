@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
 import { MainDashboard } from './pages/dashboard/MainDashboard'
@@ -28,6 +28,7 @@ import {
   type RangeKey,
 } from './data/dashboard'
 import {
+  getCachedOverview,
   getDashboardOverview,
   type DashboardOverviewResponse,
 } from './data/dashboardApi'
@@ -50,7 +51,7 @@ function AppShellInner({
   rangeId: RangeKey
   setRangeId: (r: RangeKey) => void
   overview: DashboardOverviewResponse & { loading?: boolean; error?: boolean }
-  refresh: () => void
+  refresh: (force?: boolean) => void
   setEnquiryModalOpen: (open: boolean) => void
   setDesignModalOpen: (open: boolean) => void
   setWorkOrderModalOpen: (open: boolean) => void
@@ -67,7 +68,7 @@ function AppShellInner({
             <MainDashboard
               overview={overview}
               rangeId={rangeId}
-              onRefresh={refresh}
+              onRefresh={() => refresh(true)}
             />
           }
         />
@@ -178,9 +179,16 @@ export default function App() {
   const [designModalOpen, setDesignModalOpen] = useState(false)
   const [workOrderModalOpen, setWorkOrderModalOpen] = useState(false)
 
-  const refresh = () => {
+  const refresh = useCallback((force = false) => {
+    // If cached data is already available and not forcing a manual refresh, show it instantly
+    const cached = getCachedOverview(rangeId)
+    if (cached && !force) {
+      setOverview({ ...cached, loading: false, error: false })
+      return
+    }
+
     setOverview((current) => ({ ...current, loading: true, error: false }))
-    getDashboardOverview({ rangeId })
+    getDashboardOverview({ rangeId, forceRefresh: force })
       .then((data) => {
         setOverview({
           ...data,
@@ -195,11 +203,11 @@ export default function App() {
           error: true,
         }))
       })
-  }
+  }, [rangeId])
 
   useEffect(() => {
-    refresh()
-  }, [rangeId])
+    refresh(false)
+  }, [refresh])
 
   return (
     <BrowserRouter>

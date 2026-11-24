@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime, timezone
-from sqlalchemy import or_
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -219,10 +219,17 @@ def assign_worker_to_request(db: Session, request_id: uuid.UUID, data: LabourAss
 
 
 def get_labour_summary(db: Session) -> LabourSummaryResponse:
-    total = db.query(Worker).filter(Worker.is_active == True).count()
-    available = db.query(Worker).filter(Worker.is_active == True, Worker.status == "Available").count()
-    assigned = db.query(Worker).filter(Worker.is_active == True, Worker.status == "Assigned").count()
-    pending_reqs = db.query(LabourRequest).filter(LabourRequest.status == "Pending").count()
+    worker_stats = db.query(
+        func.count(Worker.id),
+        func.count(case((Worker.status == "Available", 1))),
+        func.count(case((Worker.status == "Assigned", 1))),
+    ).filter(Worker.is_active == True).first()
+
+    total = worker_stats[0] if worker_stats else 0
+    available = worker_stats[1] if worker_stats else 0
+    assigned = worker_stats[2] if worker_stats else 0
+
+    pending_reqs = db.query(func.count(LabourRequest.id)).filter(LabourRequest.status == "Pending").scalar() or 0
     rate = round((assigned / total * 100), 1) if total > 0 else 0.0
 
     return LabourSummaryResponse(

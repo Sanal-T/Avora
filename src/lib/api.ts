@@ -28,14 +28,14 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  let token = getToken()
+let devLoginPromise: Promise<string | null> | null = null
 
-  // In development, automatically ensure an active admin session if no token exists yet
-  const devEmail = import.meta.env.VITE_DEV_ADMIN_EMAIL || (import.meta.env.DEV ? 'admin@avora.io' : '')
-  const devPassword = import.meta.env.VITE_DEV_ADMIN_PASSWORD || (import.meta.env.DEV ? 'Admin@123456' : '')
+async function getOrCreateDevToken(devEmail: string, devPassword: string): Promise<string | null> {
+  const currentToken = getToken()
+  if (currentToken) return currentToken
+  if (devLoginPromise) return devLoginPromise
 
-  if (!token && !endpoint.includes('/api/auth/login') && devEmail && devPassword) {
+  devLoginPromise = (async () => {
     try {
       const loginRes = await fetch('/api/auth/login', {
         method: 'POST',
@@ -46,65 +46,110 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
         const tokenData = await loginRes.json()
         if (tokenData.access_token) {
           setToken(tokenData.access_token)
-          token = tokenData.access_token
+          return tokenData.access_token as string
         }
       }
     } catch {
       // Backend may be offline; proceed without token
+    } finally {
+      devLoginPromise = null
+    }
+    return null
+  })()
+
+  return devLoginPromise
+}
+
+const inFlightGetRequests = new Map<string, Promise<any>>()
+
+export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const method = (options.method || 'GET').toUpperCase()
+
+  // For GET requests, deduplicate concurrent identical requests to prevent request storms
+  if (method === 'GET' && !options.body) {
+    const existing = inFlightGetRequests.get(endpoint)
+    if (existing) {
+      return existing as Promise<T>
     }
   }
 
-  const headers = new Headers(options.headers || {})
+  const executeFetch = async (): Promise<T> => {
+    let token = getToken()
 
-  if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
-    headers.set('Content-Type', 'application/json')
-  }
+    // In development, automatically ensure an active admin session if no token exists yet
+    const devEmail = import.meta.env.VITE_DEV_ADMIN_EMAIL || (import.meta.env.DEV ? 'admin@avora.io' : '')
+    const devPassword = import.meta.env.VITE_DEV_ADMIN_PASSWORD || (import.meta.env.DEV ? 'Admin@123456' : '')
 
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`)
-  }
+    if (!token && !endpoint.includes('/api/auth/login') && devEmail && devPassword) {
+      token = await getOrCreateDevToken(devEmail, devPassword)
+    }
 
-  const url = endpoint.startsWith('http') ? endpoint : endpoint.startsWith('/') ? endpoint : `/api/${endpoint}`
-  let response = await fetch(url, { ...options, headers })
+    const headers = new Headers(options.headers || {})
 
-  // Auto-recover if token expired or invalid from database switch
-  if (response.status === 401 && !endpoint.includes('/api/auth/login') && devEmail && devPassword) {
-    removeToken()
+    if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
+      headers.set('Content-Type', 'application/json')
+    }
+
+    if (token && !headers.has('Authorization')) {
+      headers.set('Authorization', `Bearer ${token}`)
+    }
+
+    const url = endpoint.startsWith('http') ? endpoint : endpoint.startsWith('/') ? endpoint : `/api/${endpoint}`
+    
+    // Add default 10-second timeout if signal not provided
+    const controller = !options.signal ? new AbortController() : null
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 10000) : null
+    const fetchOptions: RequestInit = {
+      ...options,
+      headers,
+      signal: options.signal || controller?.signal,
+    }
+
+    let response: Response
     try {
-      const loginRes = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: devEmail, password: devPassword }),
-      })
-      if (loginRes.ok) {
-        const tokenData = await loginRes.json()
-        if (tokenData.access_token) {
-          setToken(tokenData.access_token)
-          const retryHeaders = new Headers(headers)
-          retryHeaders.set('Authorization', `Bearer ${tokenData.access_token}`)
-          response = await fetch(url, { ...options, headers: retryHeaders })
-        }
-      }
-    } catch {
-      // Proceed to normal error handling
+      response = await fetch(url, fetchOptions)
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId)
     }
+
+    // Auto-recover if token expired or invalid from database switch
+    if (response.status === 401 && !endpoint.includes('/api/auth/login') && devEmail && devPassword) {
+      removeToken()
+      token = await getOrCreateDevToken(devEmail, devPassword)
+      if (token) {
+        const retryHeaders = new Headers(headers)
+        retryHeaders.set('Authorization', `Bearer ${token}`)
+        response = await fetch(url, { ...options, headers: retryHeaders })
+      }
+    }
+
+    if (response.status === 204) {
+      return {} as T
+    }
+
+    const contentType = response.headers.get('content-type') || ''
+    const isJson = contentType.includes('application/json')
+    const data = isJson ? await response.json() : await response.text()
+
+    if (!response.ok) {
+      const detail = typeof data === 'object' && data !== null && 'detail' in data ? (data as any).detail : data
+      const message = typeof detail === 'string' ? detail : (Array.isArray(detail) ? detail.map((d: any) => d.msg || JSON.stringify(d)).join(', ') : `Request failed with status ${response.status}`)
+      throw new ApiError(response.status, message, detail)
+    }
+
+    return data as T
   }
 
-  if (response.status === 204) {
-    return {} as T
+  const promise = executeFetch()
+
+  if (method === 'GET' && !options.body) {
+    inFlightGetRequests.set(endpoint, promise)
+    promise.finally(() => {
+      inFlightGetRequests.delete(endpoint)
+    })
   }
 
-  const contentType = response.headers.get('content-type') || ''
-  const isJson = contentType.includes('application/json')
-  const data = isJson ? await response.json() : await response.text()
-
-  if (!response.ok) {
-    const detail = typeof data === 'object' && data !== null && 'detail' in data ? (data as any).detail : data
-    const message = typeof detail === 'string' ? detail : (Array.isArray(detail) ? detail.map((d: any) => d.msg || JSON.stringify(d)).join(', ') : `Request failed with status ${response.status}`)
-    throw new ApiError(response.status, message, detail)
-  }
-
-  return data as T
+  return promise
 }
 
 // ----------------------------------------------------

@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime, time, timezone
-from sqlalchemy import func, or_
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -206,11 +206,19 @@ def get_enquiry_summary(db: Session, date_from: date | None = None, date_to: dat
     if date_to:
         query = query.filter(Enquiry.created_at <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
 
-    total = query.count()
-    qualified = query.filter(Enquiry.status == "Qualified").count()
-    pending = query.filter(Enquiry.status.in_(["New", "Pending", "Under Review"])).count()
-    converted = query.filter(Enquiry.status == "Converted").count()
-    rejected = query.filter(Enquiry.status.in_(["Rejected", "Cancelled"])).count()
+    stats = query.with_entities(
+        func.count(Enquiry.id),
+        func.count(case((Enquiry.status == "Qualified", 1))),
+        func.count(case((Enquiry.status.in_(["New", "Pending", "Under Review"]), 1))),
+        func.count(case((Enquiry.status == "Converted", 1))),
+        func.count(case((Enquiry.status.in_(["Rejected", "Cancelled"]), 1))),
+    ).first()
+
+    total = stats[0] if stats else 0
+    qualified = stats[1] if stats else 0
+    pending = stats[2] if stats else 0
+    converted = stats[3] if stats else 0
+    rejected = stats[4] if stats else 0
     rate = round((converted / total * 100), 1) if total > 0 else 0.0
 
     return EnquirySummaryResponse(

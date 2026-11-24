@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime, time, timezone
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -305,33 +305,37 @@ def get_production_summary(db: Session, date_from: date | None = None, date_to: 
     if date_to:
         query = query.filter(WorkOrder.created_at <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
 
-    total = query.count()
-    active = query.filter(WorkOrder.status.in_(["Scheduled", "In Progress"])).count()
-    completed = query.filter(WorkOrder.status == "Completed").count()
-
     today = date.today()
-    # Resolve delayed status: distinct count of either manually marked Delayed OR overdue active work order
-    # avoids counting manually delayed and overdue work twice
-    total_delayed = query.filter(
-        or_(
-            WorkOrder.status == "Delayed",
-            and_(
-                WorkOrder.status.in_(["Scheduled", "In Progress", "Pending"]),
-                WorkOrder.planned_end_date != None,
-                WorkOrder.planned_end_date < today,
-            ),
-        )
-    ).count()
-
-    completed_on_time = query.filter(
+    delayed_cond = or_(
+        WorkOrder.status == "Delayed",
+        and_(
+            WorkOrder.status.in_(["Scheduled", "In Progress", "Pending"]),
+            WorkOrder.planned_end_date != None,
+            WorkOrder.planned_end_date < today,
+        ),
+    )
+    on_time_cond = and_(
         WorkOrder.status == "Completed",
         or_(
             WorkOrder.actual_completion_date == None,
             WorkOrder.planned_end_date == None,
             WorkOrder.actual_completion_date <= WorkOrder.planned_end_date,
         ),
-    ).count()
+    )
 
+    stats = query.with_entities(
+        func.count(WorkOrder.id),
+        func.count(case((WorkOrder.status.in_(["Scheduled", "In Progress"]), 1))),
+        func.count(case((WorkOrder.status == "Completed", 1))),
+        func.count(case((delayed_cond, 1))),
+        func.count(case((on_time_cond, 1))),
+    ).first()
+
+    total = stats[0] if stats else 0
+    active = stats[1] if stats else 0
+    completed = stats[2] if stats else 0
+    total_delayed = stats[3] if stats else 0
+    completed_on_time = stats[4] if stats else 0
     rate = round(((completed_on_time) / completed * 100), 1) if completed > 0 else 100.0
 
     return ProductionSummaryResponse(

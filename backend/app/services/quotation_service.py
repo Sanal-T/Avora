@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
-from sqlalchemy import func, or_
+from sqlalchemy import case, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -526,21 +526,27 @@ def get_quotation_summary(db: Session, date_from: date | None = None, date_to: d
     if date_to:
         query = query.filter(Quotation.created_at <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
 
-    total_count = query.count()
-    total_val = sum((q.total_amount for q in query.all()), Decimal("0.00"))
+    total_stats = query.with_entities(
+        func.count(Quotation.id),
+        func.coalesce(func.sum(Quotation.total_amount), Decimal("0.00")),
+        func.count(case((Quotation.status.in_(["Approved", "Converted"]), 1))),
+        func.coalesce(func.sum(case((Quotation.status.in_(["Approved", "Converted"]), Quotation.total_amount), else_=Decimal("0.00"))), Decimal("0.00")),
+        func.count(case((Quotation.status.in_(["Draft", "Sent", "Awaiting Response", "Revision Requested"]), 1))),
+        func.count(case((Quotation.status == "Converted", 1))),
+    ).first()
 
-    approved_query = query.filter(Quotation.status.in_(["Approved", "Converted"]))
-    approved_count = approved_query.count()
-    approved_val = sum((q.total_amount for q in approved_query.all()), Decimal("0.00"))
-
-    pending_count = query.filter(Quotation.status.in_(["Draft", "Sent", "Awaiting Response", "Revision Requested"])).count()
-    converted_count = query.filter(Quotation.status == "Converted").count()
+    total_count = total_stats[0] if total_stats else 0
+    total_val = total_stats[1] if total_stats else Decimal("0.00")
+    approved_count = total_stats[2] if total_stats else 0
+    approved_val = total_stats[3] if total_stats else Decimal("0.00")
+    pending_count = total_stats[4] if total_stats else 0
+    converted_count = total_stats[5] if total_stats else 0
 
     pending_follow_ups = (
-        db.query(QuotationFollowUp)
+        db.query(func.count(QuotationFollowUp.id))
         .join(Quotation, QuotationFollowUp.quotation_id == Quotation.id)
         .filter(Quotation.is_deleted == False, QuotationFollowUp.is_completed == False)
-        .count()
+        .scalar() or 0
     )
 
     return QuotationSummaryResponse(

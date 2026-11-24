@@ -1,9 +1,16 @@
+import { memo } from 'react'
 import type { RangeKey } from '../../data/dashboard'
 import { cn } from '../../lib/cn'
 import { RANGES } from '../../lib/dates'
 
 /** The one shared date range control: a segmented control on wide screens, a native select on phones. */
-export function DateRangeControl({ value, onChange }: { value: RangeKey; onChange: (value: RangeKey) => void }) {
+export const DateRangeControl = memo(function DateRangeControl({
+  value,
+  onChange,
+}: {
+  value: RangeKey
+  onChange: (value: RangeKey) => void
+}) {
   return (
     <>
       <div role="group" aria-label="Date range" className="hidden rounded-md bg-muted p-0.5 md:flex">
@@ -14,7 +21,11 @@ export function DateRangeControl({ value, onChange }: { value: RangeKey; onChang
               key={range.id}
               type="button"
               aria-pressed={active}
-              onClick={() => onChange(range.id)}
+              onClick={() => {
+                if (range.id !== value) {
+                  onChange(range.id)
+                }
+              }}
               className={cn(
                 'h-8 cursor-pointer rounded-[5px] px-3 text-sm font-medium transition-colors duration-150',
                 active ? 'bg-card text-foreground shadow-[0_0_0_1px_var(--border)]' : 'text-muted-foreground hover:text-foreground',
@@ -29,7 +40,12 @@ export function DateRangeControl({ value, onChange }: { value: RangeKey; onChang
         <span className="sr-only">Date range</span>
         <select
           value={value}
-          onChange={(event) => onChange(event.target.value as RangeKey)}
+          onChange={(event) => {
+            const next = event.target.value as RangeKey
+            if (next !== value) {
+              onChange(next)
+            }
+          }}
           className="h-10 rounded-md border border-input bg-background px-2 text-sm"
         >
           {RANGES.map((range) => (
@@ -41,4 +57,4 @@ export function DateRangeControl({ value, onChange }: { value: RangeKey; onChang
       </label>
     </>
   )
-}
+})

@@ -1,10 +1,10 @@
 import uuid
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_active_user, get_db
 from app.models.auth import Department, User
@@ -80,10 +80,9 @@ def _format_inr(amount: Decimal) -> str:
     return f"₹{val:.0f}"
 
 
-def build_department_summaries(db: Session, date_from: date | None = None, date_to: date | None = None) -> list[DepartmentSummary]:
-    # 1. Enquiries
+def _build_enquiries_summary(db: Session, date_from: date | None = None, date_to: date | None = None) -> tuple[DepartmentSummary, Any]:
     enq_summary = enquiry_service.get_enquiry_summary(db, date_from=date_from, date_to=date_to)
-    enquiries_card = DepartmentSummary(
+    card = DepartmentSummary(
         id="enquiries",
         name="Enquiries",
         primary_value=str(enq_summary.total_enquiries),
@@ -95,10 +94,12 @@ def build_department_summaries(db: Session, date_from: date | None = None, date_
         ],
         trend=f"{enq_summary.conversion_rate}% conversion",
     )
+    return card, enq_summary
 
-    # 2. Designs
+
+def _build_designs_summary(db: Session, date_from: date | None = None, date_to: date | None = None) -> tuple[DepartmentSummary, Any]:
     des_summary = design_service.get_design_summary(db, date_from=date_from, date_to=date_to)
-    designs_card = DepartmentSummary(
+    card = DepartmentSummary(
         id="designs",
         name="Designs",
         primary_value=str(des_summary.total_designs),
@@ -110,10 +111,12 @@ def build_department_summaries(db: Session, date_from: date | None = None, date_
         ],
         trend=f"{des_summary.overdue_designs} overdue" if des_summary.overdue_designs > 0 else "On schedule",
     )
+    return card, des_summary
 
-    # 3. Quotations
+
+def _build_quotations_summary(db: Session, date_from: date | None = None, date_to: date | None = None) -> tuple[DepartmentSummary, Any]:
     q_summary = quotation_service.get_quotation_summary(db, date_from=date_from, date_to=date_to)
-    quotations_card = DepartmentSummary(
+    card = DepartmentSummary(
         id="quotations",
         name="Quotations",
         primary_value=_format_inr(q_summary.total_value),
@@ -125,10 +128,12 @@ def build_department_summaries(db: Session, date_from: date | None = None, date_
         ],
         trend=f"{_format_inr(q_summary.approved_value)} approved",
     )
+    return card, q_summary
 
-    # 4. Production
+
+def _build_production_summary(db: Session, date_from: date | None = None, date_to: date | None = None) -> tuple[DepartmentSummary, Any]:
     prod_summary = production_service.get_production_summary(db, date_from=date_from, date_to=date_to)
-    production_card = DepartmentSummary(
+    card = DepartmentSummary(
         id="production",
         name="Production",
         primary_value=str(prod_summary.total_work_orders),
@@ -140,10 +145,12 @@ def build_department_summaries(db: Session, date_from: date | None = None, date_
         ],
         trend=f"{prod_summary.delayed_work_orders} need attention" if prod_summary.delayed_work_orders > 0 else f"{prod_summary.on_time_completion_rate}% on time",
     )
+    return card, prod_summary
 
-    # 5. Feedback
+
+def _build_feedback_summary(db: Session, date_from: date | None = None, date_to: date | None = None) -> tuple[DepartmentSummary, Any]:
     fb_summary = feedback_service.get_feedback_summary(db, date_from=date_from, date_to=date_to)
-    feedback_card = DepartmentSummary(
+    card = DepartmentSummary(
         id="feedback",
         name="Feedback",
         primary_value=str(fb_summary.total_feedback),
@@ -154,10 +161,12 @@ def build_department_summaries(db: Session, date_from: date | None = None, date_
         ],
         trend=f"{fb_summary.response_rate}% response rate",
     )
+    return card, fb_summary
 
-    # 6. Labour
+
+def _build_labour_summary(db: Session) -> tuple[DepartmentSummary, Any]:
     lab_summary = labour_service.get_labour_summary(db)
-    labour_card = DepartmentSummary(
+    card = DepartmentSummary(
         id="labour",
         name="Labour",
         primary_value=str(lab_summary.total_workers),
@@ -169,14 +178,39 @@ def build_department_summaries(db: Session, date_from: date | None = None, date_
         ],
         trend=f"{lab_summary.pending_requests} approvals pending",
     )
+    return card, lab_summary
 
-    return [enquiries_card, designs_card, quotations_card, production_card, feedback_card, labour_card]
+
+def build_department_summaries(db: Session, date_from: date | None = None, date_to: date | None = None) -> list[DepartmentSummary]:
+    summaries, _ = build_department_summaries_with_data(db, date_from, date_to)
+    return summaries
 
 
-def build_action_items(db: Session) -> list[ActionItem]:
+def build_department_summaries_with_data(db: Session, date_from: date | None = None, date_to: date | None = None) -> tuple[list[DepartmentSummary], dict[str, Any]]:
+    enq_card, enq_data = _build_enquiries_summary(db, date_from, date_to)
+    des_card, des_data = _build_designs_summary(db, date_from, date_to)
+    q_card, q_data = _build_quotations_summary(db, date_from, date_to)
+    prod_card, prod_data = _build_production_summary(db, date_from, date_to)
+    fb_card, fb_data = _build_feedback_summary(db, date_from, date_to)
+    lab_card, lab_data = _build_labour_summary(db)
+
+    summaries = [enq_card, des_card, q_card, prod_card, fb_card, lab_card]
+    raw_data = {
+        "enquiries": enq_data,
+        "designs": des_data,
+        "quotations": q_data,
+        "production": prod_data,
+        "feedback": fb_data,
+        "labour": lab_data,
+    }
+    return summaries, raw_data
+
+
+def build_action_items(db: Session, prod_summary: Any = None) -> list[ActionItem]:
     actions: list[ActionItem] = []
-    # Delayed work orders (aligned with production service calculation)
-    prod_summary = production_service.get_production_summary(db)
+    # Delayed work orders (use precomputed summary if provided)
+    if prod_summary is None:
+        prod_summary = production_service.get_production_summary(db)
     delayed_wo = prod_summary.delayed_work_orders
     if delayed_wo > 0:
         actions.append(ActionItem(title=f"{delayed_wo} delayed work orders", description="Review production schedules & resources", department_id="production"))
@@ -286,8 +320,8 @@ def build_recent_activities(db: Session) -> list[ActivityItem]:
             ),
         ))
 
-    # Recent enquiries
-    recent_enqs = db.query(Enquiry).order_by(Enquiry.created_at.desc()).limit(4).all()
+    # Recent enquiries (eagerly load customer to prevent N+1 queries)
+    recent_enqs = db.query(Enquiry).options(joinedload(Enquiry.customer)).order_by(Enquiry.created_at.desc()).limit(4).all()
     for e in recent_enqs:
         ts = e.created_at
         cust_name = e.customer.name if e.customer else (e.customer_name or "Client")
@@ -315,14 +349,14 @@ def get_overview(
     if date_from and date_to and date_from > date_to:
         raise HTTPException(status_code=422, detail="date_from must not be after date_to")
 
-    summaries = build_department_summaries(db, date_from, date_to)
-    action_items = build_action_items(db)
+    summaries, raw_data = build_department_summaries_with_data(db, date_from, date_to)
+    action_items = build_action_items(db, prod_summary=raw_data.get("production"))
     activities = build_recent_activities(db)
 
-    # Compute overall snapshot
-    q_summary = quotation_service.get_quotation_summary(db, date_from=date_from, date_to=date_to)
-    prod_summary = production_service.get_production_summary(db, date_from=date_from, date_to=date_to)
-    des_summary = design_service.get_design_summary(db, date_from=date_from, date_to=date_to)
+    # Compute overall snapshot directly from already-calculated department summaries (ZERO duplicate queries!)
+    q_summary = raw_data["quotations"]
+    prod_summary = raw_data["production"]
+    des_summary = raw_data["designs"]
 
     snapshot = OverallBusinessSnapshot(
         active_pipeline_value=_format_inr(q_summary.total_value),
@@ -349,8 +383,24 @@ def get_department_summary(
     date_from: Annotated[date | None, Query()] = None,
     date_to: Annotated[date | None, Query()] = None,
 ) -> DepartmentSummary:
-    summaries = build_department_summaries(db, date_from, date_to)
-    for summary in summaries:
-        if summary.id == department_id:
-            return summary
+    # Only calculate the single requested department rather than all six!
+    if department_id == "enquiries":
+        card, _ = _build_enquiries_summary(db, date_from, date_to)
+        return card
+    elif department_id == "designs":
+        card, _ = _build_designs_summary(db, date_from, date_to)
+        return card
+    elif department_id == "quotations":
+        card, _ = _build_quotations_summary(db, date_from, date_to)
+        return card
+    elif department_id == "production":
+        card, _ = _build_production_summary(db, date_from, date_to)
+        return card
+    elif department_id == "feedback":
+        card, _ = _build_feedback_summary(db, date_from, date_to)
+        return card
+    elif department_id == "labour":
+        card, _ = _build_labour_summary(db)
+        return card
+
     raise HTTPException(status_code=404, detail="Unknown dashboard department")

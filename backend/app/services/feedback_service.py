@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime, time, timezone
-from sqlalchemy import or_
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -134,9 +134,15 @@ def get_feedback_summary(db: Session, date_from: date | None = None, date_to: da
     if date_to:
         query = query.filter(Feedback.created_at <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
 
-    total = query.count()
-    received = query.filter(Feedback.status.in_(["Received", "Reviewed", "Closed"])).count()
-    awaiting = query.filter(Feedback.status == "Awaiting").count()
+    stats = query.with_entities(
+        func.count(Feedback.id),
+        func.count(case((Feedback.status.in_(["Received", "Reviewed", "Closed"]), 1))),
+        func.count(case((Feedback.status == "Awaiting", 1))),
+    ).first()
+
+    total = stats[0] if stats else 0
+    received = stats[1] if stats else 0
+    awaiting = stats[2] if stats else 0
     rate = round((received / total * 100), 1) if total > 0 else 0.0
 
     return FeedbackSummaryResponse(

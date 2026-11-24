@@ -97,12 +97,45 @@ export function getMockOverview(range: RangeKey): DashboardOverviewResponse {
   }
 }
 
+interface CachedOverview {
+  data: DashboardOverviewResponse
+  timestamp: number
+}
+
+const overviewCache = new Map<string, CachedOverview>()
+const inFlightOverviewRequests = new Map<string, Promise<DashboardOverviewResponse>>()
+const CACHE_TTL_MS = 60_000 // 60 seconds TTL
+
+export function getCachedOverview(rangeId: RangeKey): DashboardOverviewResponse | null {
+  const cached = overviewCache.get(rangeId)
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data
+  }
+  return null
+}
+
 export async function getDashboardOverview({
   dateFrom,
   dateTo,
   rangeId,
-}: { dateFrom?: string; dateTo?: string; rangeId?: string } = {}): Promise<DashboardOverviewResponse> {
+  forceRefresh = false,
+}: { dateFrom?: string; dateTo?: string; rangeId?: string; forceRefresh?: boolean } = {}): Promise<DashboardOverviewResponse> {
   const selectedRange = inferRange(dateFrom, dateTo, rangeId)
+  const cacheKey = `${selectedRange}:${dateFrom || ''}:${dateTo || ''}`
+
+  // Return cached result immediately if valid and not forcing a refresh
+  if (!forceRefresh) {
+    const cached = overviewCache.get(cacheKey)
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data
+    }
+  }
+
+  // Deduplicate concurrent in-flight requests for the same range
+  const existingPromise = inFlightOverviewRequests.get(cacheKey)
+  if (existingPromise && !forceRefresh) {
+    return existingPromise
+  }
 
   let effectiveFrom = dateFrom
   let effectiveTo = dateTo
@@ -117,20 +150,34 @@ export async function getDashboardOverview({
   if (effectiveTo) parameters.set('date_to', effectiveTo)
 
   const url = `/api/dashboard/overview${parameters.size ? `?${parameters.toString()}` : ''}`
-  try {
-    const overview = await apiFetch<any>(url)
-    if (overview && overview.departments) {
-      return {
-        source: overview.source || 'database',
-        departments: overview.departments.map(toDepartment),
-        snapshot: overview.snapshot,
-        actionItems: overview.action_items,
-        recentActivities: overview.recent_activities,
+  
+  const fetchPromise = (async () => {
+    try {
+      const overview = await apiFetch<any>(url)
+      if (overview && overview.departments) {
+        const result: DashboardOverviewResponse = {
+          source: overview.source || 'database',
+          departments: overview.departments.map(toDepartment),
+          snapshot: overview.snapshot,
+          actionItems: overview.action_items,
+          recentActivities: overview.recent_activities,
+        }
+        overviewCache.set(cacheKey, { data: result, timestamp: Date.now() })
+        return result
       }
+    } catch (err) {
+      console.warn('Backend overview endpoint unreachable or unauthorized:', err)
     }
-  } catch (err) {
-    console.warn('Backend overview endpoint unreachable or unauthorized:', err)
-  }
 
-  return getMockOverview(selectedRange)
+    const fallback = getMockOverview(selectedRange)
+    overviewCache.set(cacheKey, { data: fallback, timestamp: Date.now() })
+    return fallback
+  })()
+
+  inFlightOverviewRequests.set(cacheKey, fetchPromise)
+  fetchPromise.finally(() => {
+    inFlightOverviewRequests.delete(cacheKey)
+  })
+
+  return fetchPromise
 }

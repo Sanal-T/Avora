@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime, time, timezone
-from sqlalchemy import or_
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -211,12 +211,20 @@ def get_design_summary(db: Session, date_from: date | None = None, date_to: date
     if date_to:
         query = query.filter(Design.created_at <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
 
-    total = query.count()
-    pending = query.filter(Design.status.in_(["Not Started", "Under Review", "Revision Required"])).count()
-    in_progress = query.filter(Design.status == "In Progress").count()
-    completed = query.filter(Design.status.in_(["Approved", "Completed"])).count()
     today = date.today()
-    overdue = query.filter(Design.status.notin_(["Approved", "Completed"]), Design.expected_completion_date != None, Design.expected_completion_date < today).count()
+    stats = query.with_entities(
+        func.count(Design.id),
+        func.count(case((Design.status.in_(["Not Started", "Under Review", "Revision Required"]), 1))),
+        func.count(case((Design.status == "In Progress", 1))),
+        func.count(case((Design.status.in_(["Approved", "Completed"]), 1))),
+        func.count(case((and_(Design.status.notin_(["Approved", "Completed"]), Design.expected_completion_date != None, Design.expected_completion_date < today), 1))),
+    ).first()
+
+    total = stats[0] if stats else 0
+    pending = stats[1] if stats else 0
+    in_progress = stats[2] if stats else 0
+    completed = stats[3] if stats else 0
+    overdue = stats[4] if stats else 0
 
     return DesignSummaryResponse(
         total_designs=total,
