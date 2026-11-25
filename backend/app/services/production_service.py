@@ -317,11 +317,15 @@ def add_installation(db: Session, work_order_id: uuid.UUID, data: InstallationCr
     wo = get_work_order(db, work_order_id)
     inst = Installation(
         work_order_id=wo.id,
+        project_id=data.project_id or wo.project_id,
         site_address=data.site_address,
         scheduled_date=data.scheduled_date,
+        completed_date=data.completed_date,
         status=data.status,
+        assigned_team=data.assigned_team,
         lead_installer_id=data.lead_installer_id,
         completion_notes=data.completion_notes,
+        remarks=data.remarks,
         signoff_by=data.signoff_by,
     )
     db.add(inst)

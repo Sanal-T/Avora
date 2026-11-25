@@ -35,11 +35,15 @@ class ProductionTaskRead(ProductionTaskBase):
 
 
 class InstallationBase(BaseModel):
+    project_id: uuid.UUID | None = None
     site_address: str
     scheduled_date: date
+    completed_date: date | None = None
     status: str = "Scheduled"
+    assigned_team: str | None = None
     lead_installer_id: uuid.UUID | None = None
     completion_notes: str | None = None
+    remarks: str | None = None
     signoff_by: str | None = None
 
 

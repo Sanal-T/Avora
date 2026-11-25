@@ -16,9 +16,13 @@ def _to_feedback_read(fb: Feedback) -> FeedbackRead:
         id=fb.id,
         customer_id=fb.customer_id,
         work_order_id=fb.work_order_id,
+        project_id=fb.project_id,
         category=fb.category,
         rating=fb.rating,
         comments=fb.comments,
+        suggestions=fb.suggestions,
+        complaints=fb.complaints,
+        internal_review=fb.internal_review,
         status=fb.status,
         resolution_notes=fb.resolution_notes,
         received_at=fb.received_at,
@@ -66,11 +70,14 @@ def create_feedback(db: Session, data: FeedbackCreate, user_id: uuid.UUID | None
     fb = Feedback(
         customer_id=data.customer_id,
         work_order_id=data.work_order_id,
+        project_id=data.project_id,
         category=data.category,
         rating=data.rating,
         comments=data.comments,
-        status="Received" if data.comments or data.rating else "Awaiting",
-        received_at=datetime.now(timezone.utc) if data.comments or data.rating else None,
+        suggestions=data.suggestions,
+        complaints=data.complaints,
+        status="Received" if (data.comments or data.rating or data.complaints or data.suggestions) else "Awaiting",
+        received_at=datetime.now(timezone.utc) if (data.comments or data.rating or data.complaints or data.suggestions) else None,
     )
     try:
         db.add(fb)

@@ -6,9 +6,12 @@ from pydantic import BaseModel, ConfigDict, Field
 class FeedbackBase(BaseModel):
     customer_id: uuid.UUID
     work_order_id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
     category: str = "General"
     rating: int | None = Field(default=None, ge=1, le=5)
     comments: str | None = None
+    suggestions: str | None = None
+    complaints: str | None = None
 
 
 class FeedbackCreate(FeedbackBase):
@@ -19,12 +22,16 @@ class FeedbackUpdate(BaseModel):
     status: str | None = None
     rating: int | None = Field(default=None, ge=1, le=5)
     comments: str | None = None
+    suggestions: str | None = None
+    complaints: str | None = None
+    internal_review: str | None = None
     resolution_notes: str | None = None
 
 
 class FeedbackRead(FeedbackBase):
     id: uuid.UUID
     status: str
+    internal_review: str | None = None
     resolution_notes: str | None = None
     received_at: datetime | None = None
     resolved_at: datetime | None = None

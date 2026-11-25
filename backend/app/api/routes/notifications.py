@@ -3,12 +3,20 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_active_user, get_db
+from app.api.deps import get_current_active_user, get_db, require_roles
 from app.models.auth import User
 from app.schemas.system import NotificationListResponse, NotificationRead
 from app.services import notification_service
 
 router = APIRouter()
+
+
+@router.post("/run-reminders")
+def trigger_reminder_checks(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Super Admin", "Management"]))],
+) -> dict[str, int]:
+    return notification_service.run_reminder_checks(db)
 
 
 @router.get("", response_model=NotificationListResponse)
@@ -36,4 +44,5 @@ def mark_read(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> NotificationRead | None:
-    return notification_service.mark_notification_read(db, notification_id, current_user.id)
+    notif = notification_service.mark_notification_read(db, notification_id, current_user.id)
+    return NotificationRead.model_validate(notif) if notif else None

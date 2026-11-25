@@ -1,8 +1,11 @@
+import asyncio
+import contextlib
 import importlib
 import json
 import logging
 import traceback
 import urllib.request
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +13,8 @@ from fastapi.responses import JSONResponse
 
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.db.session import SessionLocal
+from app.services import notification_service
 
 # Configure structured system logging with ISO timestamps
 logging.basicConfig(
@@ -35,7 +40,34 @@ if sentry_dsn:
     except ImportError:
         logger.warning("sentry_dsn provided but sentry_sdk package is not installed.")
 
-app = FastAPI(title=settings.app_name, version="0.1.0")
+async def _reminder_scheduler_loop() -> None:
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                notification_service.run_reminder_checks(db)
+            finally:
+                db.close()
+        except Exception as exc:
+            logger.warning("Background reminder check failed: %s", exc)
+        await asyncio.sleep(3600)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    task: asyncio.Task | None = None
+    if settings.app_env.lower() != "test":
+        task = asyncio.create_task(_reminder_scheduler_loop())
+    try:
+        yield
+    finally:
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+
+app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,

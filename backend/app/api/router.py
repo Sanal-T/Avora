@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.routes.accounts import router as accounts_router
 from app.api.routes.audit_logs import router as audit_router
 from app.api.routes.auth import router as auth_router
+from app.api.routes.communications import router as communications_router
 from app.api.routes.customers import router as customers_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.designs import router as designs_router
@@ -28,6 +29,7 @@ api_router.include_router(quotations_router, prefix="/quotations", tags=["quotat
 api_router.include_router(projects_router, prefix="/projects", tags=["projects"])
 api_router.include_router(production_router, prefix="/production", tags=["production"])
 api_router.include_router(accounts_router, prefix="/accounts", tags=["accounts"])
+api_router.include_router(communications_router, prefix="/communications", tags=["communications"])
 api_router.include_router(feedback_router, prefix="/feedback", tags=["feedback"])
 api_router.include_router(labour_router, prefix="/labour", tags=["labour"])
 api_router.include_router(notifications_router, prefix="/notifications", tags=["notifications"])
