@@ -1,10 +1,19 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, SoftDeleteMixin, TimestampMixin
+from app.db.base import Base, SoftDeleteMixin, TimestampMixin, utc_now
+
+if TYPE_CHECKING:
+    from app.models.auth import Employee, User
+    from app.models.customer import Customer
+    from app.models.design import Design
+    from app.models.enquiry import Enquiry
+    from app.models.production import WorkOrder
+    from app.models.project import Project
 
 
 class Quotation(Base, TimestampMixin, SoftDeleteMixin):
@@ -14,6 +23,8 @@ class Quotation(Base, TimestampMixin, SoftDeleteMixin):
     quotation_number: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
     revision_number: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     enquiry_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("enquiries.id", ondelete="SET NULL"), nullable=True, index=True)
+    design_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("designs.id", ondelete="SET NULL"), nullable=True, index=True)
+    project_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
     customer_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False, index=True)
 
     status: Mapped[str] = mapped_column(String(50), default="Draft", index=True, nullable=False)
@@ -23,14 +34,19 @@ class Quotation(Base, TimestampMixin, SoftDeleteMixin):
     tax_rate: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("18.00"), nullable=False)
     tax_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0.00"), nullable=False)
     total_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0.00"), nullable=False)
+    approved_value: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     currency: Mapped[str] = mapped_column(String(10), default="INR", nullable=False)
 
+    sent_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     valid_until: Mapped[date | None] = mapped_column(Date, nullable=True)
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     customer: Mapped["Customer"] = relationship("Customer", back_populates="quotations")
     enquiry: Mapped["Enquiry | None"] = relationship("Enquiry", back_populates="quotations")
+    design: Mapped["Design | None"] = relationship("Design", foreign_keys=[design_id])
+    project: Mapped["Project | None"] = relationship("Project", foreign_keys=[project_id])
     items: Mapped[list["QuotationItem"]] = relationship("QuotationItem", back_populates="quotation", cascade="all, delete-orphan", order_by="QuotationItem.sort_order.asc()")
     revisions: Mapped[list["QuotationRevision"]] = relationship("QuotationRevision", back_populates="quotation", cascade="all, delete-orphan", order_by="QuotationRevision.revision_number.desc()")
     follow_ups: Mapped[list["QuotationFollowUp"]] = relationship("QuotationFollowUp", back_populates="quotation", cascade="all, delete-orphan", order_by="QuotationFollowUp.scheduled_date.asc()")
@@ -75,6 +91,11 @@ class QuotationFollowUp(Base, TimestampMixin):
     quotation_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("quotations.id", ondelete="CASCADE"), nullable=False, index=True)
     scheduled_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     completed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    contacted_person: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    company: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    contact_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    customer_response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_follow_up_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     notes: Mapped[str] = mapped_column(Text, nullable=False)
     outcome: Mapped[str | None] = mapped_column(String(100), nullable=True)
     assigned_employee_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("employees.id", ondelete="SET NULL"), nullable=True)
@@ -93,7 +114,7 @@ class QuotationStatusHistory(Base):
     to_status: Mapped[str] = mapped_column(String(50), nullable=False)
     changed_by_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     quotation: Mapped["Quotation"] = relationship("Quotation", back_populates="status_history")
     changed_by: Mapped["User | None"] = relationship("User")

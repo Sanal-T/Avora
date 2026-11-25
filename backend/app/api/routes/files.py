@@ -13,7 +13,50 @@ router = APIRouter()
 
 UPLOAD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "uploads"))
 ALLOWED_EXTENSIONS = {".pdf", ".dwg", ".dxf", ".png", ".jpg", ".jpeg", ".xlsx", ".docx"}
+ALLOWED_ENTITY_TYPES = {
+    "enquiry",
+    "design",
+    "quotation",
+    "project",
+    "production",
+    "accounts",
+    "invoice",
+    "installation",
+    "feedback",
+    "communication",
+    "general",
+}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+@router.get("")
+def list_files(
+    entity_type: str,
+    entity_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> list[dict[str, str | int]]:
+    if entity_type not in ALLOWED_ENTITY_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported entity_type '{entity_type}'.",
+        )
+    items = (
+        db.query(Attachment)
+        .filter(Attachment.entity_type == entity_type, Attachment.entity_id == entity_id)
+        .order_by(Attachment.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": str(att.id),
+            "file_name": att.file_name,
+            "file_size": att.file_size,
+            "mime_type": att.mime_type,
+            "created_at": att.created_at.isoformat() if att.created_at else "",
+        }
+        for att in items
+    ]
 
 
 @router.post("/upload")
@@ -24,6 +67,12 @@ async def upload_file(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> dict[str, str | int]:
+    if entity_type not in ALLOWED_ENTITY_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported entity_type '{entity_type}'.",
+        )
+
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -38,7 +87,9 @@ async def upload_file(
             detail="File size exceeds the 10 MB limit.",
         )
 
-    target_dir = os.path.join(UPLOAD_DIR, entity_type)
+    target_dir = os.path.realpath(os.path.join(UPLOAD_DIR, entity_type))
+    if not target_dir.startswith(os.path.realpath(UPLOAD_DIR)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid upload path.")
     os.makedirs(target_dir, exist_ok=True)
     stored_name = f"{uuid.uuid4()}{ext}"
     file_path = os.path.join(target_dir, stored_name)

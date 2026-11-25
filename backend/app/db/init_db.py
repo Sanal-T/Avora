@@ -37,9 +37,12 @@ def init_db(db: Session) -> None:
         {"id": "enquiries", "name": "Enquiries", "icon": "◌", "accent": "blue", "description": "Track new customer opportunities and conversion progress."},
         {"id": "designs", "name": "Designs", "icon": "✦", "accent": "violet", "description": "Follow design proposals, assignments, and completion."},
         {"id": "quotations", "name": "Quotations", "icon": "▤", "accent": "orange", "description": "Manage follow-ups, approvals, and production handover."},
+        {"id": "projects", "name": "Projects", "icon": "◈", "accent": "blue", "description": "Central project lifecycle tracking, milestones, and timelines."},
         {"id": "production", "name": "Production", "icon": "▧", "accent": "teal", "description": "Monitor schedules, production progress, and installation."},
+        {"id": "accounts", "name": "Accounts", "icon": "₹", "accent": "gold", "description": "Track invoices, partial payments, and financial closure."},
         {"id": "feedback", "name": "Feedback", "icon": "♡", "accent": "rose", "description": "Review customer sentiment and close feedback requests."},
         {"id": "labour", "name": "Labour", "icon": "◒", "accent": "gold", "description": "Coordinate workers, requests, and field allocation."},
+        {"id": "communications", "name": "Communications", "icon": "✉", "accent": "violet", "description": "Interdepartmental requests, approvals, and issue tracking."},
     ]
     for d in dept_data:
         existing = db.query(Department).filter(Department.id == d["id"]).first()
@@ -58,7 +61,11 @@ def init_db(db: Session) -> None:
     # 2. Roles
     role_names = [
         "Administrator",
+        "Super Admin",
         "Management",
+        "Department Manager",
+        "Accounts Manager",
+        "Read-Only Management",
         "Enquiry Staff",
         "Design Team",
         "Sales / Accounts",
@@ -75,7 +82,19 @@ def init_db(db: Session) -> None:
         role_map[r_name] = role
 
     # 3. Permissions
-    modules = ["enquiries", "designs", "quotations", "production", "feedback", "labour", "users", "reports"]
+    modules = [
+        "enquiries",
+        "designs",
+        "quotations",
+        "projects",
+        "production",
+        "accounts",
+        "feedback",
+        "labour",
+        "communications",
+        "users",
+        "reports",
+    ]
     actions = ["read", "write", "approve", "delete"]
     for mod in modules:
         for act in actions:
@@ -85,9 +104,32 @@ def init_db(db: Session) -> None:
                 perm = Permission(code=code, module=mod, description=f"Permission to {act} {mod}")
                 db.add(perm)
                 db.flush()
-                # Assign all to Admin
-                if perm not in role_map["Administrator"].permissions:
-                    role_map["Administrator"].permissions.append(perm)
+            for admin_role in ("Administrator", "Super Admin"):
+                if perm not in role_map[admin_role].permissions:
+                    role_map[admin_role].permissions.append(perm)
+
+    granular_permissions = [
+        ("view_projects", "projects", "View projects and timelines"),
+        ("edit_projects", "projects", "Create and edit projects"),
+        ("approve_quotations", "quotations", "Approve client quotations"),
+        ("transfer_production", "production", "Transfer approved projects to Production"),
+        ("transfer_accounts", "accounts", "Transfer completed production to Accounts"),
+        ("view_financial", "accounts", "View invoices, payments, and financial analytics"),
+        ("edit_payments", "accounts", "Record invoices and payments"),
+        ("view_reports", "reports", "View management and department reports"),
+        ("export_reports", "reports", "Export reports to CSV, Excel, or PDF"),
+        ("manage_users", "users", "Manage users, roles, and permissions"),
+        ("configure_settings", "users", "Configure system settings"),
+    ]
+    for code, mod, desc in granular_permissions:
+        perm = db.query(Permission).filter(Permission.code == code).first()
+        if not perm:
+            perm = Permission(code=code, module=mod, description=desc)
+            db.add(perm)
+            db.flush()
+        for admin_role in ("Administrator", "Super Admin"):
+            if perm not in role_map[admin_role].permissions:
+                role_map[admin_role].permissions.append(perm)
     db.flush()
 
     # 4. Default Admin User

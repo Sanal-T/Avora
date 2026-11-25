@@ -1,8 +1,16 @@
 import uuid
+from typing import TYPE_CHECKING
 from sqlalchemy import Boolean, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, SoftDeleteMixin, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.enquiry import Enquiry
+    from app.models.feedback import Feedback
+    from app.models.production import WorkOrder
+    from app.models.project import Project
+    from app.models.quotation import Quotation
 
 
 class Customer(Base, TimestampMixin, SoftDeleteMixin):
@@ -20,6 +28,7 @@ class Customer(Base, TimestampMixin, SoftDeleteMixin):
 
     contacts: Mapped[list["CustomerContact"]] = relationship("CustomerContact", back_populates="customer", cascade="all, delete-orphan")
     enquiries: Mapped[list["Enquiry"]] = relationship("Enquiry", back_populates="customer")
+    projects: Mapped[list["Project"]] = relationship("Project", back_populates="customer")
     quotations: Mapped[list["Quotation"]] = relationship("Quotation", back_populates="customer")
     work_orders: Mapped[list["WorkOrder"]] = relationship("WorkOrder", back_populates="customer")
     feedback_records: Mapped[list["Feedback"]] = relationship("Feedback", back_populates="customer")

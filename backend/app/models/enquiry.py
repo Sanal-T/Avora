@@ -1,10 +1,17 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text, Uuid
+from typing import TYPE_CHECKING
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, SoftDeleteMixin, TimestampMixin
+from app.db.base import Base, SoftDeleteMixin, TimestampMixin, utc_now
+
+if TYPE_CHECKING:
+    from app.models.auth import Employee, User
+    from app.models.customer import Customer
+    from app.models.design import Design
+    from app.models.quotation import Quotation
 
 
 class Enquiry(Base, TimestampMixin, SoftDeleteMixin):
@@ -17,11 +24,16 @@ class Enquiry(Base, TimestampMixin, SoftDeleteMixin):
 
     status: Mapped[str] = mapped_column(String(50), default="New", index=True, nullable=False)
     source: Mapped[str | None] = mapped_column(String(100), default="Direct", nullable=True)
+    enquiry_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     requirement_summary: Mapped[str] = mapped_column(Text, nullable=False)
     estimated_budget: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     priority: Mapped[str] = mapped_column(String(20), default="Medium", nullable=False)
 
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pending_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    lost_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    next_follow_up_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
     qualified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     converted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -41,7 +53,7 @@ class EnquiryStatusHistory(Base):
     to_status: Mapped[str] = mapped_column(String(50), nullable=False)
     changed_by_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     enquiry: Mapped["Enquiry"] = relationship("Enquiry", back_populates="status_history")
     changed_by: Mapped["User | None"] = relationship("User")
