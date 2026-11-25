@@ -16,11 +16,13 @@ from app.models.labour import LabourRequest, Worker
 from app.models.production import WorkOrder
 from app.models.quotation import Quotation, QuotationFollowUp, QuotationStatusHistory
 from app.services import (
+    accounts_service,
     design_service,
     enquiry_service,
     feedback_service,
     labour_service,
     production_service,
+    project_service,
     quotation_service,
 )
 
@@ -247,7 +249,7 @@ def _format_time_ago(dt: datetime | None) -> str:
     if dt.tzinfo is not None:
         now = datetime.now(dt.tzinfo)
     else:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
     diff = now - dt
     total_seconds = int(diff.total_seconds())
 
@@ -324,7 +326,7 @@ def build_recent_activities(db: Session) -> list[ActivityItem]:
     recent_enqs = db.query(Enquiry).options(joinedload(Enquiry.customer)).order_by(Enquiry.created_at.desc()).limit(4).all()
     for e in recent_enqs:
         ts = e.created_at
-        cust_name = e.customer.name if e.customer else (e.customer_name or "Client")
+        cust_name = e.customer.name if e.customer else "Client"
         items.append((
             ts,
             ActivityItem(
@@ -402,5 +404,33 @@ def get_department_summary(
     elif department_id == "labour":
         card, _ = _build_labour_summary(db)
         return card
+    elif department_id == "projects":
+        p_sum = project_service.get_project_summary(db)
+        return DepartmentSummary(
+            id="projects",
+            name="Projects",
+            primary_value=str(p_sum.total_projects),
+            primary_label="Total projects",
+            metrics=[
+                Metric(label="Approved", value=str(p_sum.approved_projects)),
+                Metric(label="In Production", value=str(p_sum.in_production_projects)),
+                Metric(label="Closed", value=str(p_sum.closed_projects)),
+            ],
+            trend=f"{p_sum.delayed_projects} delayed" if p_sum.delayed_projects > 0 else "On schedule",
+        )
+    elif department_id == "accounts":
+        a_sum = accounts_service.get_accounts_summary(db)
+        return DepartmentSummary(
+            id="accounts",
+            name="Accounts",
+            primary_value=_format_inr(a_sum.total_invoiced),
+            primary_label="Total invoiced",
+            metrics=[
+                Metric(label="Received", value=_format_inr(a_sum.total_received)),
+                Metric(label="Outstanding", value=_format_inr(a_sum.outstanding_balance)),
+                Metric(label="Overdue", value=str(a_sum.overdue_payments)),
+            ],
+            trend=f"{a_sum.collection_rate}% collected",
+        )
 
     raise HTTPException(status_code=404, detail="Unknown dashboard department")

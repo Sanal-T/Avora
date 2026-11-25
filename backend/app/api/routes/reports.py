@@ -1,15 +1,18 @@
 import csv
 import io
-from datetime import date
+from datetime import date, datetime, time, timezone
 from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_active_user, get_db, require_roles
+from app.models.accounts import AccountsRecord
 from app.models.auth import User
 from app.models.enquiry import Enquiry
 from app.models.production import WorkOrder
+from app.models.project import Project
 from app.models.quotation import Quotation
+from app.services import accounts_service, enquiry_service, production_service, project_service, quotation_service
 
 router = APIRouter()
 
@@ -97,3 +100,71 @@ def export_production_csv(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=production_report.csv"},
     )
+
+
+@router.get("/projects/export")
+def export_projects_csv(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Super Admin", "Management"]))],
+) -> Response:
+    items = db.query(Project).filter(Project.is_deleted == False).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Project Number", "Name", "Customer", "Status", "Priority", "Value", "Approval Date"])
+    for p in items:
+        writer.writerow([
+            p.project_number,
+            p.name,
+            p.customer.name if p.customer else "N/A",
+            p.status,
+            p.priority,
+            str(p.project_value),
+            str(p.approval_date or ""),
+        ])
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=projects_report.csv"},
+    )
+
+
+@router.get("/accounts/export")
+def export_accounts_csv(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Super Admin", "Management", "Accounts Manager", "Sales / Accounts"]))],
+) -> Response:
+    items = db.query(AccountsRecord).filter(AccountsRecord.is_deleted == False).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Accounts Number", "Project", "Status", "Total Invoiced", "Total Received", "Outstanding", "Transfer Date"])
+    for a in items:
+        writer.writerow([
+            a.accounts_number,
+            a.project.project_number if a.project else "N/A",
+            a.status,
+            str(a.total_invoiced),
+            str(a.total_received),
+            str(a.outstanding_amount),
+            str(a.accounts_transfer_date or ""),
+        ])
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=accounts_report.csv"},
+    )
+
+
+@router.get("/summary")
+def get_reports_summary(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Super Admin", "Management", "Read-Only Management", "Accounts Manager"]))],
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+) -> dict:
+    return {
+        "enquiries": enquiry_service.get_enquiry_summary(db, date_from=date_from, date_to=date_to),
+        "quotations": quotation_service.get_quotation_summary(db, date_from=date_from, date_to=date_to),
+        "projects": project_service.get_project_summary(db),
+        "production": production_service.get_production_summary(db, date_from=date_from, date_to=date_to),
+        "accounts": accounts_service.get_accounts_summary(db),
+    }

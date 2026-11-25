@@ -984,3 +984,253 @@ export const notificationsApi = {
     })
   },
 }
+
+
+// ----------------------------------------------------
+// Projects
+// ----------------------------------------------------
+export interface ProjectMilestone {
+  id: string
+  project_id: string
+  title: string
+  due_date: string | null
+  completed_at: string | null
+  status: string
+  remarks: string | null
+}
+
+export interface ProjectTimelineEvent {
+  event_type: string
+  title: string
+  description: string | null
+  timestamp: string
+  actor: string | null
+  entity_type: string
+  entity_id: string
+}
+
+export interface Project {
+  id: string
+  project_number: string
+  name: string
+  customer_id: string
+  enquiry_id: string | null
+  approved_quotation_id: string | null
+  site_location: string | null
+  project_value: number | string
+  approval_date: string | null
+  start_date: string | null
+  expected_completion_date: string | null
+  actual_completion_date: string | null
+  priority: string
+  status: string
+  remarks: string | null
+  customer_name?: string | null
+  customer_company?: string | null
+  enquiry_number?: string | null
+  quotation_number?: string | null
+  project_manager_name?: string | null
+  milestones?: ProjectMilestone[]
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectListResponse {
+  total: number
+  items: Project[]
+  page: number
+  page_size: number
+}
+
+export const projectApi = {
+  async list(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<ProjectListResponse> {
+    const query = new URLSearchParams()
+    if (params.page) query.set('page', params.page.toString())
+    if (params.page_size) query.set('page_size', params.page_size.toString())
+    if (params.status && params.status !== 'all') query.set('status', params.status)
+    if (params.search) query.set('search', params.search)
+    return apiFetch<ProjectListResponse>(`/api/projects${query.size ? `?${query.toString()}` : ''}`)
+  },
+  async get(id: string): Promise<Project> {
+    return apiFetch<Project>(`/api/projects/${id}`)
+  },
+  async updateStatus(id: string, status: string, notes?: string): Promise<Project> {
+    return apiFetch<Project>(`/api/projects/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, notes }),
+    })
+  },
+  async getTimeline(id: string): Promise<ProjectTimelineEvent[]> {
+    return apiFetch<ProjectTimelineEvent[]>(`/api/projects/${id}/timeline`)
+  },
+  async addMilestone(id: string, data: { title: string; due_date?: string | null; remarks?: string }): Promise<Project> {
+    return apiFetch<Project>(`/api/projects/${id}/milestones`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+}
+
+// ----------------------------------------------------
+// Accounts
+// ----------------------------------------------------
+export interface Invoice {
+  id: string
+  invoice_number: string
+  invoice_date: string
+  due_date: string | null
+  invoice_amount: number | string
+  tax_amount: number | string
+  total_amount: number | string
+  amount_received: number | string
+  outstanding_amount: number | string
+  status: string
+  remarks: string | null
+}
+
+export interface Payment {
+  id: string
+  invoice_id: string | null
+  payment_date: string
+  amount: number | string
+  payment_method: string
+  reference_number: string | null
+  remarks: string | null
+  recorded_by_name: string | null
+}
+
+export interface AccountsRecord {
+  id: string
+  accounts_number: string
+  project_id: string
+  work_order_id: string | null
+  production_completion_date: string | null
+  accounts_transfer_date: string | null
+  status: string
+  total_invoiced: number | string
+  total_received: number | string
+  outstanding_amount: number | string
+  remarks: string | null
+  closed_at: string | null
+  project_number?: string | null
+  project_name?: string | null
+  customer_name?: string | null
+  invoices?: Invoice[]
+  payments?: Payment[]
+}
+
+export interface AccountsListResponse {
+  total: number
+  items: AccountsRecord[]
+  page: number
+  page_size: number
+}
+
+export const accountsApi = {
+  async list(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<AccountsListResponse> {
+    const query = new URLSearchParams()
+    if (params.page) query.set('page', params.page.toString())
+    if (params.page_size) query.set('page_size', params.page_size.toString())
+    if (params.status && params.status !== 'all') query.set('status', params.status)
+    if (params.search) query.set('search', params.search)
+    return apiFetch<AccountsListResponse>(`/api/accounts${query.size ? `?${query.toString()}` : ''}`)
+  },
+  async get(id: string): Promise<AccountsRecord> {
+    return apiFetch<AccountsRecord>(`/api/accounts/${id}`)
+  },
+  async updateStatus(id: string, status: string, remarks?: string): Promise<AccountsRecord> {
+    return apiFetch<AccountsRecord>(`/api/accounts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, remarks }),
+    })
+  },
+  async createInvoice(id: string, data: { invoice_amount: number; tax_amount?: number; due_date?: string | null; remarks?: string }): Promise<AccountsRecord> {
+    return apiFetch<AccountsRecord>(`/api/accounts/${id}/invoices`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+  async recordPayment(id: string, data: { invoice_id?: string | null; amount: number; payment_method?: string; reference_number?: string; remarks?: string }): Promise<AccountsRecord> {
+    return apiFetch<AccountsRecord>(`/api/accounts/${id}/payments`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+}
+
+// ----------------------------------------------------
+// Communications
+// ----------------------------------------------------
+export interface CommunicationMessage {
+  id: string
+  sender_name: string | null
+  message: string
+  created_at: string
+}
+
+export interface Communication {
+  id: string
+  communication_number: string
+  project_id: string | null
+  from_department_id: string | null
+  to_department_id: string | null
+  type: string
+  subject: string
+  description: string
+  priority: string
+  status: string
+  project_number?: string | null
+  from_department_name?: string | null
+  to_department_name?: string | null
+  created_by_name?: string | null
+  messages?: CommunicationMessage[]
+  created_at: string
+}
+
+export interface CommunicationListResponse {
+  total: number
+  items: Communication[]
+  page: number
+  page_size: number
+}
+
+export const communicationApi = {
+  async list(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<CommunicationListResponse> {
+    const query = new URLSearchParams()
+    if (params.page) query.set('page', params.page.toString())
+    if (params.page_size) query.set('page_size', params.page_size.toString())
+    if (params.status && params.status !== 'all') query.set('status', params.status)
+    if (params.search) query.set('search', params.search)
+    return apiFetch<CommunicationListResponse>(`/api/communications${query.size ? `?${query.toString()}` : ''}`)
+  },
+  async create(data: { project_id?: string | null; from_department_id?: string; to_department_id?: string; type: string; subject: string; description: string; priority?: string }): Promise<Communication> {
+    return apiFetch<Communication>('/api/communications', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+  async updateStatus(id: string, status: string): Promise<Communication> {
+    return apiFetch<Communication>(`/api/communications/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    })
+  },
+  async addMessage(id: string, message: string): Promise<Communication> {
+    return apiFetch<Communication>(`/api/communications/${id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    })
+  },
+}
+
+// ----------------------------------------------------
+// Reports
+// ----------------------------------------------------
+export const reportsApi = {
+  async getSummary(dateFrom?: string, dateTo?: string): Promise<any> {
+    const query = new URLSearchParams()
+    if (dateFrom) query.set('date_from', dateFrom)
+    if (dateTo) query.set('date_to', dateTo)
+    return apiFetch<any>(`/api/reports/summary${query.size ? `?${query.toString()}` : ''}`)
+  },
+}

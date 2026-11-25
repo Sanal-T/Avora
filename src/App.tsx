@@ -20,6 +20,12 @@ import { WorkOrderFormModal } from './pages/departments/production/WorkOrderForm
 import { FeedbackListPage } from './pages/departments/feedback/FeedbackListPage'
 import { FeedbackDetailPage } from './pages/departments/feedback/FeedbackDetailPage'
 import { LabourListPage } from './pages/departments/labour/LabourListPage'
+import { ProjectsListPage } from './pages/departments/projects/ProjectsListPage'
+import { ProjectDetailPage } from './pages/departments/projects/ProjectDetailPage'
+import { AccountsListPage } from './pages/departments/accounts/AccountsListPage'
+import { AccountsDetailPage } from './pages/departments/accounts/AccountsDetailPage'
+import { CommunicationsListPage } from './pages/departments/communications/CommunicationsListPage'
+import { ReportsPage } from './pages/reports/ReportsPage'
 import { LoginPage } from './pages/auth/LoginPage'
 import { NotFoundPage } from './pages/system/NotFoundPage'
 import { ForbiddenPage } from './pages/system/ForbiddenPage'
@@ -164,6 +170,20 @@ function AppShellInner({
           }
         />
         <Route path="/labour/list" element={<LabourListPage />} />
+
+        {/* Projects, Accounts, Communications & Reports */}
+        <Route path="/projects" element={<ProjectsListPage />} />
+        <Route path="/projects/list" element={<ProjectsListPage />} />
+        <Route path="/projects/:id" element={<ProjectDetailPage />} />
+
+        <Route path="/accounts" element={<AccountsListPage />} />
+        <Route path="/accounts/list" element={<AccountsListPage />} />
+        <Route path="/accounts/:id" element={<AccountsDetailPage />} />
+
+        <Route path="/communications" element={<CommunicationsListPage />} />
+        <Route path="/communications/list" element={<CommunicationsListPage />} />
+
+        <Route path="/reports" element={<ReportsPage />} />
 
         {/* System & Error Pages */}
         <Route path="/403" element={<ForbiddenPage />} />
