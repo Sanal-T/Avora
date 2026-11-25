@@ -48,10 +48,47 @@ export function usePersistentFlag(key: string, initial: boolean): [boolean, (val
 
 export type Theme = 'light' | 'dark'
 const THEME_KEY = 'avora-theme'
+const THEME_EVENT = 'avora-theme-change'
 
-/** index.html applies a saved dark choice before first paint; this reads it back and persists changes. */
+function getInitialTheme(): Theme {
+  if (typeof document !== 'undefined') {
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+  }
+  return 'dark'
+}
+
+/** index.html applies a saved dark choice before first paint; this reads it back, reacts to changes across components, and persists changes. */
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(() => (document.documentElement.classList.contains('dark') ? 'dark' : 'light'))
+  const [theme, setTheme] = useState<Theme>(getInitialTheme)
+
+  useEffect(() => {
+    const syncTheme = () => {
+      const isDark = document.documentElement.classList.contains('dark')
+      setTheme(isDark ? 'dark' : 'light')
+    }
+
+    // Immediately synchronize with DOM on mount
+    syncTheme()
+
+    window.addEventListener(THEME_EVENT, syncTheme)
+    window.addEventListener('storage', syncTheme)
+
+    // Observe class attribute changes on <html> to synchronize with any direct class mutations
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.attributeName === 'class') {
+          syncTheme()
+        }
+      }
+    })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+
+    return () => {
+      window.removeEventListener(THEME_EVENT, syncTheme)
+      window.removeEventListener('storage', syncTheme)
+      observer.disconnect()
+    }
+  }, [])
 
   const apply = (next: Theme) => {
     setTheme(next)
@@ -61,6 +98,7 @@ export function useTheme() {
     } catch {
       // Storage can be unavailable; the theme still applies for this session.
     }
+    window.dispatchEvent(new CustomEvent(THEME_EVENT, { detail: next }))
   }
 
   return { theme, setTheme: apply, toggle: () => apply(theme === 'dark' ? 'light' : 'dark') }

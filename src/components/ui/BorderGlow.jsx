@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useCallback, useEffect } from 'react';
+import { useTheme } from '../../lib/hooks';
 import './BorderGlow.css';
 
 function parseHSL(hslStr) {
@@ -72,7 +73,7 @@ const BorderGlow = ({
   className = '',
   edgeSensitivity = 30,
   glowColor = '40 80 80',
-  backgroundColor = '#120F17',
+  backgroundColor,
   borderRadius = 28,
   glowRadius = 40,
   glowIntensity = 1.0,
@@ -84,6 +85,8 @@ const BorderGlow = ({
   ...rest
 }) => {
   const cardRef = useRef(null);
+  const { theme } = useTheme();
+  const effectiveBg = backgroundColor || (theme === 'dark' ? '#0f0f13' : '#ffffff');
 
   const getCenterOfElement = useCallback((el) => {
     const { width, height } = el.getBoundingClientRect();
@@ -156,7 +159,7 @@ const BorderGlow = ({
   }, [animated]);
 
   const glowVars = buildGlowVars(glowColor, glowIntensity);
-  const lightSurface = isLightColor(backgroundColor);
+  const lightSurface = isLightColor(effectiveBg);
 
   return (
     <div
@@ -166,7 +169,7 @@ const BorderGlow = ({
       {...rest}
       className={`border-glow-card${lightSurface ? ' border-glow-card--light' : ''} ${className}`}
       style={{
-        '--card-bg': backgroundColor,
+        '--card-bg': effectiveBg,
         '--edge-sensitivity': edgeSensitivity,
         '--border-radius': `${borderRadius}px`,
         '--glow-padding': `${glowRadius}px`,

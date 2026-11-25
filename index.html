@@ -8,7 +8,13 @@
   <title>Avora ERP</title>
   <script>
     try {
-      if (localStorage.getItem('avora-theme') === 'dark') document.documentElement.classList.add('dark')
+      const saved = localStorage.getItem('avora-theme')
+      if (saved === 'light') {
+        document.documentElement.classList.remove('dark')
+      } else {
+        // Default to dark theme if not explicitly set to light
+        document.documentElement.classList.add('dark')
+      }
     } catch (e) { }
   </script>
 </head>

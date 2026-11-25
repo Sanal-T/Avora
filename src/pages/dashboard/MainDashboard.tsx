@@ -1,5 +1,6 @@
 import { useMemo, memo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useTheme } from '../../lib/hooks'
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -76,6 +77,12 @@ export const MainDashboard = memo(function MainDashboard({
   onRefresh: () => void
 }) {
   const navigate = useNavigate()
+  const { theme } = useTheme()
+  const cardBgDark = '#0f0f13'
+  const cardBgDarkAlt = '#0d0d12'
+  const cardBgLight = '#ffffff'
+  const cardBg = theme === 'dark' ? cardBgDark : cardBgLight
+  const cardBgAlt = theme === 'dark' ? cardBgDarkAlt : cardBgLight
 
   const snapshot = overview.snapshot || {
     active_pipeline_value: '₹0',
@@ -176,7 +183,7 @@ export const MainDashboard = memo(function MainDashboard({
             <BorderGlow
               key={kpi.label}
               borderRadius={14}
-              backgroundColor="#0f0f13"
+              backgroundColor={cardBg}
               glowColor={kpi.glowColor}
               colors={kpi.glowColors}
               glowRadius={36}
@@ -252,7 +259,7 @@ export const MainDashboard = memo(function MainDashboard({
               <BorderGlow
                 key={dept.id}
                 borderRadius={14}
-                backgroundColor="#0d0d12"
+                backgroundColor={cardBgAlt}
                 glowColor={glow.glowColor}
                 colors={glow.colors}
                 glowRadius={36}
@@ -328,7 +335,7 @@ export const MainDashboard = memo(function MainDashboard({
         {/* Pending Urgencies */}
         <BorderGlow
           borderRadius={14}
-          backgroundColor="#0d0d12"
+          backgroundColor={cardBgAlt}
           glowColor="38 92 50"
           colors={['#f59e0b', '#d97706', '#fbbf24']}
           glowRadius={36}
@@ -383,7 +390,7 @@ export const MainDashboard = memo(function MainDashboard({
         {/* Live Activity Stream */}
         <BorderGlow
           borderRadius={14}
-          backgroundColor="#0d0d12"
+          backgroundColor={cardBgAlt}
           glowColor="24 95 53"
           colors={['#f97316', '#ea580c', '#fb923c']}
           glowRadius={36}

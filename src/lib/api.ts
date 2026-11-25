@@ -123,6 +123,14 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
       }
     }
 
+    // If still unauthorized on a protected route, clear stale token and redirect to login
+    if (response.status === 401 && !endpoint.includes('/api/auth/login')) {
+      removeToken()
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.assign('/login')
+      }
+    }
+
     if (response.status === 204) {
       return {} as T
     }

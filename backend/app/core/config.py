@@ -1,22 +1,33 @@
 import os
 from functools import lru_cache
+from pathlib import Path
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_backend_dir = Path(__file__).resolve().parent.parent.parent
+_root_dir = _backend_dir.parent
+_env_files = [
+    str(_backend_dir / ".env"),
+    str(_root_dir / ".env"),
+    ".env",
+]
 
 
 class Settings(BaseSettings):
     app_name: str = "Avora ERP API"
     app_env: str = "development"
-    # Defaults to local sqlite for development if postgres is not provided
-    database_url: str = "sqlite:///./avora.db"
+    # Primary production LAN database (Avora LAN DB)
+    database_url: str = "postgresql+psycopg2://postgres:postgres@192.168.1.88:5432/avora"
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     secret_key: str = "avora-super-secret-development-key-change-in-production-2026"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24  # 24 hours
     admin_email: str = "admin@avora.io"
     admin_password: str = "Admin@123456"
+    sentry_dsn: str | None = None
+    error_webhook_url: str | None = None
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_env_files, extra="ignore")
 
     @model_validator(mode="after")
     def validate_production_secrets(self) -> "Settings":

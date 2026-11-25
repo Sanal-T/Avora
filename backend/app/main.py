@@ -1,3 +1,4 @@
+import importlib
 import json
 import logging
 import traceback
@@ -21,11 +22,12 @@ logger = logging.getLogger("avora.api")
 settings = get_settings()
 
 # Initialize optional Sentry SDK error tracking if configured
-if settings.sentry_dsn:
+sentry_dsn = getattr(settings, "sentry_dsn", None)
+if sentry_dsn:
     try:
-        import sentry_sdk
+        sentry_sdk = importlib.import_module("sentry_sdk")
         sentry_sdk.init(
-            dsn=settings.sentry_dsn,
+            dsn=sentry_dsn,
             traces_sample_rate=0.2,
             environment=settings.app_env,
         )
@@ -45,7 +47,8 @@ app.add_middleware(
 
 def _dispatch_error_webhook(method: str, path: str, exc: Exception, tb_text: str) -> None:
     """Dispatches an asynchronous alert to Discord / Slack / Teams if configured."""
-    if not settings.error_webhook_url:
+    webhook_url = getattr(settings, "error_webhook_url", None)
+    if not webhook_url:
         return
     try:
         payload = {
@@ -58,7 +61,7 @@ def _dispatch_error_webhook(method: str, path: str, exc: Exception, tb_text: str
             )
         }
         req = urllib.request.Request(
-            settings.error_webhook_url,
+            webhook_url,
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json", "User-Agent": "Avora-ERP-Monitor/1.0"},
             method="POST",
