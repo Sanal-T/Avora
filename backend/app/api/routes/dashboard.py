@@ -193,17 +193,29 @@ def build_department_summaries_with_data(db: Session, date_from: date | None = N
     des_card, des_data = _build_designs_summary(db, date_from, date_to)
     q_card, q_data = _build_quotations_summary(db, date_from, date_to)
     prod_card, prod_data = _build_production_summary(db, date_from, date_to)
+    a_sum = accounts_service.get_accounts_summary(db)
+    acc_card = DepartmentSummary(
+        id="accounts",
+        name="Accounts",
+        primary_value=_format_inr(a_sum.total_invoiced),
+        primary_label="Total invoiced",
+        metrics=[
+            Metric(label="Received", value=_format_inr(a_sum.total_received)),
+            Metric(label="Outstanding", value=_format_inr(a_sum.outstanding_balance)),
+            Metric(label="Overdue", value=str(a_sum.overdue_payments)),
+        ],
+        trend=f"{a_sum.collection_rate}% collected",
+    )
     fb_card, fb_data = _build_feedback_summary(db, date_from, date_to)
-    lab_card, lab_data = _build_labour_summary(db)
 
-    summaries = [enq_card, des_card, q_card, prod_card, fb_card, lab_card]
+    summaries = [enq_card, des_card, q_card, prod_card, acc_card, fb_card]
     raw_data = {
         "enquiries": enq_data,
         "designs": des_data,
         "quotations": q_data,
         "production": prod_data,
+        "accounts": a_sum,
         "feedback": fb_data,
-        "labour": lab_data,
     }
     return summaries, raw_data
 

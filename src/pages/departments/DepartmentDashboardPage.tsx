@@ -38,6 +38,10 @@ interface DashboardRecord {
   date?: string
   budget?: string
   assignedTo?: string
+  priority?: string
+  siteLocation?: string
+  approvalStatus?: string
+  designValue?: string
   link: string
 }
 
@@ -170,6 +174,10 @@ export function DepartmentDashboardPage({
                 status,
                 date: d.expected_completion_date || (d.created_at || '').slice(0, 10),
                 assignedTo: d.assigned_designer_name || 'Design Team',
+                priority: d.priority || 'Medium',
+                siteLocation: d.site_location || '-',
+                approvalStatus: d.approval_status || 'Pending',
+                designValue: d.design_value != null ? `₹${Number(d.design_value).toLocaleString()}` : '-',
                 link: `/designs/${d.id}`,
               }
             })
@@ -564,6 +572,15 @@ export function DepartmentDashboardPage({
                   {departmentId === 'enquiries' && (
                     <th className="py-2.5 font-semibold">Est. Budget</th>
                   )}
+                  {departmentId === 'designs' && (
+                    <>
+                      <th className="py-2.5 font-semibold">Site / Location</th>
+                      <th className="py-2.5 font-semibold">Priority</th>
+                      <th className="py-2.5 font-semibold">Approval</th>
+                      <th className="py-2.5 font-semibold">Due Date</th>
+                      <th className="py-2.5 font-semibold">Value</th>
+                    </>
+                  )}
                   <th className="py-2.5 font-semibold">Status</th>
                   <th className="py-2.5 font-semibold text-right">Action</th>
                 </tr>
@@ -636,6 +653,15 @@ export function DepartmentDashboardPage({
                         <td className="py-2.5 font-mono font-medium text-foreground">
                           {rec.budget || '—'}
                         </td>
+                      )}
+                      {departmentId === 'designs' && (
+                        <>
+                          <td className="py-2.5 text-muted-foreground">{rec.siteLocation || '—'}</td>
+                          <td className="py-2.5">{rec.priority || '—'}</td>
+                          <td className="py-2.5">{rec.approvalStatus || '—'}</td>
+                          <td className="py-2.5 font-mono text-muted-foreground">{rec.date || '—'}</td>
+                          <td className="py-2.5 font-mono font-medium text-foreground">{rec.designValue || '—'}</td>
+                        </>
                       )}
                       <td className="py-2.5">
                         <StatusBadge department={departmentId} status={rec.status} />

@@ -28,7 +28,7 @@ export const DEPARTMENT_META: Record<DepartmentId, DepartmentMeta> = {
   communications: { label: 'Communications', icon: MessagesSquare, color: 'var(--dept-designs)', chip: 'bg-violet-500/10 text-violet-600', noun: 'request', seriesLabel: 'Messages' },
 }
 
-export const DEPARTMENT_ORDER: DepartmentId[] = ['enquiries', 'designs', 'quotations', 'projects', 'production', 'accounts', 'feedback', 'labour', 'communications']
+export const DEPARTMENT_ORDER: DepartmentId[] = ['enquiries', 'designs', 'quotations', 'production', 'accounts', 'feedback', 'communications']
 
 export const isDepartmentId = (value: string | undefined): value is DepartmentId =>
   value !== undefined && value in DEPARTMENT_META

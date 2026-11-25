@@ -649,12 +649,17 @@ export interface Design {
   design_number: string
   enquiry_id: string | null
   enquiry_number?: string | null
+  project_id?: string | null
   assigned_designer_id: string | null
   assigned_designer_name?: string | null
   title: string
   description: string | null
+  site_location?: string | null
   priority: string
   status: string
+  approval_status?: string
+  design_value?: number | null
+  remarks?: string | null
   estimated_hours: number | null
   actual_hours: number | null
   expected_completion_date: string | null
