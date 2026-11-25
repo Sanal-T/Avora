@@ -75,6 +75,7 @@ def update_enquiry(
 
 
 @router.post("/{enquiry_id}/status", response_model=EnquiryRead)
+@router.patch("/{enquiry_id}/status", response_model=EnquiryRead)
 def update_enquiry_status(
     enquiry_id: uuid.UUID,
     data: EnquiryStatusUpdate,

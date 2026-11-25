@@ -25,12 +25,17 @@ class DesignVersionCreate(BaseModel):
 
 class DesignBase(BaseModel):
     enquiry_id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
     assigned_designer_id: uuid.UUID | None = None
     title: str
     description: str | None = None
+    site_location: str | None = None
     priority: str = "Medium"
+    approval_status: str = "Pending"
+    design_value: Decimal | None = None
     estimated_hours: Decimal | None = None
     expected_completion_date: date | None = None
+    remarks: str | None = None
 
 
 class DesignCreate(DesignBase):
@@ -38,13 +43,18 @@ class DesignCreate(DesignBase):
 
 
 class DesignUpdate(BaseModel):
+    project_id: uuid.UUID | None = None
     assigned_designer_id: uuid.UUID | None = None
     title: str | None = None
     description: str | None = None
+    site_location: str | None = None
     priority: str | None = None
+    approval_status: str | None = None
+    design_value: Decimal | None = None
     estimated_hours: Decimal | None = None
     actual_hours: Decimal | None = None
     expected_completion_date: date | None = None
+    remarks: str | None = None
 
 
 class DesignStatusUpdate(BaseModel):

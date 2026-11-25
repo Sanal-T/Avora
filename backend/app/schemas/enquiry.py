@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,9 +19,12 @@ class EnquiryBase(BaseModel):
     customer_id: uuid.UUID
     assigned_employee_id: uuid.UUID | None = None
     source: str | None = "Direct"
+    enquiry_type: str | None = None
     requirement_summary: str = Field(min_length=1)
     estimated_budget: Decimal | None = Field(default=None, ge=Decimal("0.00"))
     priority: str = "Medium"
+    next_follow_up_date: date | None = None
+    remarks: str | None = None
 
 
 class EnquiryCreate(EnquiryBase):
@@ -31,14 +34,21 @@ class EnquiryCreate(EnquiryBase):
 class EnquiryUpdate(BaseModel):
     assigned_employee_id: uuid.UUID | None = None
     source: str | None = None
+    enquiry_type: str | None = None
     requirement_summary: str | None = None
     estimated_budget: Decimal | None = None
     priority: str | None = None
+    pending_reason: str | None = None
+    lost_reason: str | None = None
+    next_follow_up_date: date | None = None
+    remarks: str | None = None
 
 
 class EnquiryStatusUpdate(BaseModel):
     status: str
     rejection_reason: str | None = None
+    pending_reason: str | None = None
+    lost_reason: str | None = None
     notes: str | None = None
 
 
@@ -47,6 +57,8 @@ class EnquiryRead(EnquiryBase):
     enquiry_number: str
     status: str
     rejection_reason: str | None = None
+    pending_reason: str | None = None
+    lost_reason: str | None = None
     qualified_at: datetime | None = None
     converted_at: datetime | None = None
     created_at: datetime

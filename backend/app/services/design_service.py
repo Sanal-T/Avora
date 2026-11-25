@@ -11,7 +11,20 @@ from app.schemas.design import DesignCreate, DesignRead, DesignStatusUpdate, Des
 from app.services import audit_service
 
 
-VALID_DESIGN_STATUSES = ["Not Started", "In Progress", "Under Review", "Revision Required", "Approved", "Completed", "Cancelled"]
+VALID_DESIGN_STATUSES = [
+    "Not Started",
+    "Assigned",
+    "In Progress",
+    "Internal Review",
+    "Client Review",
+    "Under Review",
+    "Revision Required",
+    "Approved",
+    "Completed",
+    "Rejected",
+    "On Hold",
+    "Cancelled",
+]
 
 
 def _to_design_read(design: Design) -> DesignRead:
@@ -32,15 +45,20 @@ def _to_design_read(design: Design) -> DesignRead:
         id=design.id,
         design_number=design.design_number,
         enquiry_id=design.enquiry_id,
+        project_id=design.project_id,
         assigned_designer_id=design.assigned_designer_id,
         title=design.title,
         description=design.description,
+        site_location=design.site_location,
         status=design.status,
+        approval_status=design.approval_status,
         priority=design.priority,
+        design_value=design.design_value,
         estimated_hours=design.estimated_hours,
         actual_hours=design.actual_hours,
         expected_completion_date=design.expected_completion_date,
         completed_at=design.completed_at,
+        remarks=design.remarks,
         created_at=design.created_at,
         updated_at=design.updated_at,
         enquiry_number=design.enquiry.enquiry_number if design.enquiry else None,
@@ -93,13 +111,18 @@ def create_design(db: Session, data: DesignCreate, user_id: uuid.UUID | None = N
     design = Design(
         design_number=design_number,
         enquiry_id=data.enquiry_id,
+        project_id=data.project_id,
         assigned_designer_id=data.assigned_designer_id,
         title=data.title,
         description=data.description,
-        status="Not Started",
+        site_location=data.site_location,
+        status="Assigned" if data.assigned_designer_id else "Not Started",
+        approval_status=data.approval_status,
         priority=data.priority,
+        design_value=data.design_value,
         estimated_hours=data.estimated_hours,
         expected_completion_date=data.expected_completion_date,
+        remarks=data.remarks,
     )
     try:
         db.add(design)
@@ -143,6 +166,10 @@ def update_design_status(db: Session, design_id: uuid.UUID, data: DesignStatusUp
     design.status = data.status
     if data.status == "Completed":
         design.completed_at = datetime.now(timezone.utc)
+    elif data.status == "Approved":
+        design.approval_status = "Approved"
+    elif data.status == "Rejected":
+        design.approval_status = "Rejected"
 
     history = DesignStatusHistory(
         design_id=design.id,

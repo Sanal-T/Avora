@@ -11,7 +11,18 @@ from app.services import audit_service
 from app.schemas.enquiry import EnquiryCreate, EnquiryRead, EnquiryStatusHistoryRead, EnquiryStatusUpdate, EnquirySummaryResponse, EnquiryUpdate
 
 
-VALID_STATUSES = ["New", "Pending", "Qualified", "Unqualified", "Converted", "Rejected", "Cancelled"]
+VALID_STATUSES = [
+    "New",
+    "Under Review",
+    "Pending",
+    "Qualified",
+    "Unqualified",
+    "Converted",
+    "Lost",
+    "Closed",
+    "Rejected",
+    "Cancelled",
+]
 
 
 def _to_enquiry_read(enquiry: Enquiry) -> EnquiryRead:
@@ -34,10 +45,15 @@ def _to_enquiry_read(enquiry: Enquiry) -> EnquiryRead:
         assigned_employee_id=enquiry.assigned_employee_id,
         status=enquiry.status,
         source=enquiry.source,
+        enquiry_type=enquiry.enquiry_type,
         requirement_summary=enquiry.requirement_summary,
         estimated_budget=enquiry.estimated_budget,
         priority=enquiry.priority,
         rejection_reason=enquiry.rejection_reason,
+        pending_reason=enquiry.pending_reason,
+        lost_reason=enquiry.lost_reason,
+        next_follow_up_date=enquiry.next_follow_up_date,
+        remarks=enquiry.remarks,
         qualified_at=enquiry.qualified_at,
         converted_at=enquiry.converted_at,
         created_at=enquiry.created_at,
@@ -108,9 +124,12 @@ def create_enquiry(db: Session, data: EnquiryCreate, user_id: uuid.UUID | None =
         assigned_employee_id=data.assigned_employee_id,
         status="New",
         source=data.source,
+        enquiry_type=data.enquiry_type,
         requirement_summary=data.requirement_summary,
         estimated_budget=data.estimated_budget,
         priority=data.priority,
+        next_follow_up_date=data.next_follow_up_date,
+        remarks=data.remarks,
     )
     try:
         db.add(enquiry)
@@ -169,6 +188,10 @@ def update_enquiry_status(db: Session, enquiry_id: uuid.UUID, data: EnquiryStatu
         enquiry.qualified_at = now
     elif data.status == "Converted":
         enquiry.converted_at = now
+    elif data.status == "Pending" and data.pending_reason:
+        enquiry.pending_reason = data.pending_reason
+    elif data.status == "Lost" and data.lost_reason:
+        enquiry.lost_reason = data.lost_reason
     elif data.status in ["Rejected", "Cancelled"]:
         enquiry.rejection_reason = data.rejection_reason
 

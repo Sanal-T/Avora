@@ -61,6 +61,10 @@ class InstallationRead(InstallationBase):
 class WorkOrderBase(BaseModel):
     title: str
     priority: str = "Medium"
+    production_slot: str | None = None
+    responsible_team: str | None = None
+    progress_percentage: int = Field(default=0, ge=0, le=100)
+    delay_reason: str | None = None
     planned_start_date: date | None = None
     planned_end_date: date | None = None
     notes: str | None = None
@@ -68,12 +72,17 @@ class WorkOrderBase(BaseModel):
 
 class WorkOrderCreate(WorkOrderBase):
     quotation_id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
     customer_id: uuid.UUID
 
 
 class WorkOrderUpdate(BaseModel):
     title: str | None = None
     priority: str | None = None
+    production_slot: str | None = None
+    responsible_team: str | None = None
+    progress_percentage: int | None = Field(default=None, ge=0, le=100)
+    delay_reason: str | None = None
     planned_start_date: date | None = None
     planned_end_date: date | None = None
     actual_start_date: date | None = None
@@ -82,13 +91,40 @@ class WorkOrderUpdate(BaseModel):
 
 class WorkOrderStatusUpdate(BaseModel):
     status: str
+    delay_reason: str | None = None
     notes: str | None = None
+
+
+class ProductionUpdateCreate(BaseModel):
+    status: str
+    progress_percentage: int = Field(default=0, ge=0, le=100)
+    remarks: str | None = None
+    expected_completion_date: date | None = None
+
+
+class ProductionUpdateRead(BaseModel):
+    id: uuid.UUID
+    work_order_id: uuid.UUID
+    status: str
+    progress_percentage: int
+    remarks: str | None = None
+    expected_completion_date: date | None = None
+    updated_by_name: str | None = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProductionCompleteHandoverRequest(BaseModel):
+    completion_date: date | None = None
+    remarks: str | None = None
 
 
 class WorkOrderRead(WorkOrderBase):
     id: uuid.UUID
     work_order_number: str
     quotation_id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
     customer_id: uuid.UUID
     status: str
     actual_start_date: date | None = None
@@ -99,6 +135,7 @@ class WorkOrderRead(WorkOrderBase):
     customer_company: str | None = None
     tasks: list[ProductionTaskRead] = []
     installations: list[InstallationRead] = []
+    updates: list[ProductionUpdateRead] = []
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -9,8 +9,9 @@ from fastapi import HTTPException, status
 from app.models.auth import Employee
 from app.models.customer import Customer
 from app.models.production import WorkOrder, WorkOrderStatusHistory
+from app.models.project import ProjectStatusHistory
 from app.models.quotation import Quotation, QuotationFollowUp, QuotationItem, QuotationRevision, QuotationStatusHistory
-from app.services import audit_service
+from app.services import audit_service, project_service
 from app.schemas.quotation import (
     QuotationCreate,
     QuotationFollowUpCreate,
@@ -29,6 +30,7 @@ VALID_QUOTATION_STATUSES = [
     "Draft",
     "Sent",
     "Awaiting Response",
+    "Pending Approval",
     "Approved",
     "Rejected",
     "Revision Requested",
@@ -90,6 +92,11 @@ def _to_quotation_read(quotation: Quotation) -> QuotationRead:
             notes=f.notes,
             outcome=f.outcome,
             assigned_employee_id=f.assigned_employee_id,
+            contacted_person=f.contacted_person,
+            company=f.company,
+            contact_method=f.contact_method,
+            customer_response=f.customer_response,
+            next_follow_up_date=f.next_follow_up_date,
             is_completed=f.is_completed,
             completed_date=f.completed_date,
             created_at=f.created_at,
@@ -102,6 +109,8 @@ def _to_quotation_read(quotation: Quotation) -> QuotationRead:
         quotation_number=quotation.quotation_number,
         revision_number=quotation.revision_number,
         enquiry_id=quotation.enquiry_id,
+        design_id=quotation.design_id,
+        project_id=quotation.project_id,
         customer_id=quotation.customer_id,
         status=quotation.status,
         subtotal=quotation.subtotal,
@@ -110,10 +119,13 @@ def _to_quotation_read(quotation: Quotation) -> QuotationRead:
         tax_rate=quotation.tax_rate,
         tax_amount=quotation.tax_amount,
         total_amount=quotation.total_amount,
+        approved_value=quotation.approved_value,
         currency=quotation.currency,
+        sent_date=quotation.sent_date,
         valid_until=quotation.valid_until,
         approved_at=quotation.approved_at,
         rejection_reason=quotation.rejection_reason,
+        remarks=quotation.remarks,
         created_at=quotation.created_at,
         updated_at=quotation.updated_at,
         customer_name=quotation.customer.name if quotation.customer else None,
@@ -304,8 +316,12 @@ def update_quotation_status(db: Session, quotation_id: uuid.UUID, data: Quotatio
         )
 
     quotation.status = data.status
-    if data.status == "Approved":
+    if data.status == "Sent" and not quotation.sent_date:
+        quotation.sent_date = date.today()
+    elif data.status == "Approved":
         quotation.approved_at = datetime.now(timezone.utc)
+        quotation.approved_value = quotation.approved_value or quotation.total_amount
+        project_service.ensure_project_for_quotation(db, quotation, user_id=user_id, commit=False)
     elif data.status == "Rejected":
         quotation.rejection_reason = data.rejection_reason
 
@@ -436,9 +452,23 @@ def convert_quotation_to_work_order(db: Session, quotation_id: uuid.UUID, user_i
     )
 
     try:
+        project = project_service.ensure_project_for_quotation(db, quotation, user_id=user_id, commit=False)
+        old_project_status = project.status
+        project.status = "Waiting for Production"
+        db.add(
+            ProjectStatusHistory(
+                project_id=project.id,
+                from_status=old_project_status,
+                to_status="Waiting for Production",
+                changed_by_id=user_id,
+                notes=f"Transferred to Production ({work_order_number})",
+            )
+        )
+
         work_order = WorkOrder(
             work_order_number=work_order_number,
             quotation_id=quotation.id,
+            project_id=project.id,
             customer_id=quotation.customer_id,
             title=f"Work Order for {quotation.quotation_number} - {quotation.customer.name}",
             status="Pending",
@@ -511,6 +541,11 @@ def add_follow_up(db: Session, quotation_id: uuid.UUID, data: QuotationFollowUpC
         notes=data.notes,
         outcome=data.outcome,
         assigned_employee_id=data.assigned_employee_id,
+        contacted_person=data.contacted_person,
+        company=data.company,
+        contact_method=data.contact_method,
+        customer_response=data.customer_response,
+        next_follow_up_date=data.next_follow_up_date,
         is_completed=False,
     )
     db.add(follow_up)

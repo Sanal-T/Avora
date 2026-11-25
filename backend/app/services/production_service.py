@@ -4,23 +4,39 @@ from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
+from app.models.auth import Role, User
 from app.models.customer import Customer
-from app.models.production import Installation, ProductionTask, WorkOrder, WorkOrderStatusHistory
-from app.services import audit_service
+from app.models.production import Installation, ProductionTask, ProductionUpdate, WorkOrder, WorkOrderStatusHistory
+from app.models.project import Project, ProjectStatusHistory
+from app.models.system import Notification
+from app.services import accounts_service, audit_service, project_service
 from app.schemas.production import (
     InstallationCreate,
     InstallationRead,
+    ProductionCompleteHandoverRequest,
     ProductionSummaryResponse,
     ProductionTaskCreate,
     ProductionTaskRead,
     ProductionTaskUpdate,
+    ProductionUpdateCreate,
+    ProductionUpdateRead,
     WorkOrderCreate,
     WorkOrderRead,
     WorkOrderStatusUpdate,
     WorkOrderUpdate,
 )
 
-VALID_PRODUCTION_STATUSES = ["Pending", "Scheduled", "In Progress", "On Hold", "Delayed", "Completed", "Cancelled"]
+VALID_PRODUCTION_STATUSES = [
+    "Pending",
+    "Waiting for Production",
+    "Scheduled",
+    "In Progress",
+    "On Hold",
+    "Quality Check",
+    "Delayed",
+    "Completed",
+    "Cancelled",
+]
 
 
 def _to_work_order_read(wo: WorkOrder) -> WorkOrderRead:
@@ -62,10 +78,15 @@ def _to_work_order_read(wo: WorkOrder) -> WorkOrderRead:
         id=wo.id,
         work_order_number=wo.work_order_number,
         quotation_id=wo.quotation_id,
+        project_id=wo.project_id,
         customer_id=wo.customer_id,
         title=wo.title,
         status=wo.status,
         priority=wo.priority,
+        production_slot=wo.production_slot,
+        responsible_team=wo.responsible_team,
+        progress_percentage=wo.progress_percentage,
+        delay_reason=wo.delay_reason,
         planned_start_date=wo.planned_start_date,
         planned_end_date=wo.planned_end_date,
         actual_start_date=wo.actual_start_date,
@@ -77,6 +98,19 @@ def _to_work_order_read(wo: WorkOrder) -> WorkOrderRead:
         customer_company=wo.customer.company_name if wo.customer else None,
         tasks=task_reads,
         installations=inst_reads,
+        updates=[
+            ProductionUpdateRead(
+                id=u.id,
+                work_order_id=u.work_order_id,
+                status=u.status,
+                progress_percentage=u.progress_percentage,
+                remarks=u.remarks,
+                expected_completion_date=u.expected_completion_date,
+                updated_by_name=u.updated_by.full_name if u.updated_by else None,
+                created_at=u.created_at,
+            )
+            for u in wo.updates
+        ],
     )
 
 
@@ -129,9 +163,14 @@ def create_work_order(db: Session, data: WorkOrderCreate, user_id: uuid.UUID | N
     wo = WorkOrder(
         work_order_number=work_order_number,
         quotation_id=data.quotation_id,
+        project_id=data.project_id,
         customer_id=data.customer_id,
         title=data.title,
         priority=data.priority,
+        production_slot=data.production_slot,
+        responsible_team=data.responsible_team,
+        progress_percentage=data.progress_percentage,
+        delay_reason=data.delay_reason,
         planned_start_date=data.planned_start_date,
         planned_end_date=data.planned_end_date,
         notes=data.notes,
@@ -169,18 +208,8 @@ def create_work_order(db: Session, data: WorkOrderCreate, user_id: uuid.UUID | N
 
 def update_work_order(db: Session, work_order_id: uuid.UUID, data: WorkOrderUpdate, user_id: uuid.UUID | None = None) -> WorkOrderRead:
     wo = get_work_order(db, work_order_id)
-    if data.title is not None:
-        wo.title = data.title
-    if data.priority is not None:
-        wo.priority = data.priority
-    if data.planned_start_date is not None:
-        wo.planned_start_date = data.planned_start_date
-    if data.planned_end_date is not None:
-        wo.planned_end_date = data.planned_end_date
-    if data.actual_start_date is not None:
-        wo.actual_start_date = data.actual_start_date
-    if data.notes is not None:
-        wo.notes = data.notes
+    for key, value in data.model_dump(exclude_unset=True).items():
+        setattr(wo, key, value)
 
     db.commit()
     db.refresh(wo)
@@ -197,8 +226,11 @@ def update_work_order_status(db: Session, work_order_id: uuid.UUID, data: WorkOr
         return _to_work_order_read(wo)
 
     wo.status = data.status
+    if data.delay_reason is not None:
+        wo.delay_reason = data.delay_reason
     if data.status == "Completed":
         wo.actual_completion_date = date.today()
+        wo.progress_percentage = 100
     elif data.status == "In Progress" and not wo.actual_start_date:
         wo.actual_start_date = date.today()
 
@@ -296,6 +328,201 @@ def add_installation(db: Session, work_order_id: uuid.UUID, data: InstallationCr
     db.commit()
     db.refresh(wo)
     return _to_work_order_read(wo)
+
+
+def add_production_update(
+    db: Session,
+    work_order_id: uuid.UUID,
+    data: ProductionUpdateCreate,
+    user_id: uuid.UUID | None = None,
+) -> WorkOrderRead:
+    if data.status not in VALID_PRODUCTION_STATUSES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid status: {data.status}")
+
+    wo = get_work_order(db, work_order_id)
+    old_status = wo.status
+    try:
+        update = ProductionUpdate(
+            work_order_id=wo.id,
+            status=data.status,
+            progress_percentage=data.progress_percentage,
+            remarks=data.remarks,
+            expected_completion_date=data.expected_completion_date,
+            updated_by_id=user_id,
+        )
+        db.add(update)
+
+        wo.status = data.status
+        wo.progress_percentage = data.progress_percentage
+        if data.expected_completion_date:
+            wo.planned_end_date = data.expected_completion_date
+        if data.status == "In Progress" and not wo.actual_start_date:
+            wo.actual_start_date = date.today()
+        if data.status == "Completed":
+            wo.actual_completion_date = wo.actual_completion_date or date.today()
+
+        if old_status != data.status:
+            db.add(
+                WorkOrderStatusHistory(
+                    work_order_id=wo.id,
+                    from_status=old_status,
+                    to_status=data.status,
+                    changed_by_id=user_id,
+                    notes=data.remarks,
+                )
+            )
+        audit_service.log_audit_action(
+            db,
+            action="UPDATE",
+            entity_type="work_order",
+            entity_id=wo.id,
+            user_id=user_id,
+            changes_summary=f"Production update on {wo.work_order_number}: {data.status} ({data.progress_percentage}%)",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(wo)
+        return _to_work_order_read(wo)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def complete_production_and_transfer_to_accounts(
+    db: Session,
+    work_order_id: uuid.UUID,
+    data: ProductionCompleteHandoverRequest,
+    user_id: uuid.UUID | None = None,
+) -> dict[str, str]:
+    """
+    Transactional Production-to-Accounts handover:
+    1. Marks WorkOrder Completed + records completion date
+    2. Ensures linked Project exists and updates lifecycle status to 'Sent to Accounts'
+    3. Creates AccountsRecord (without marking financially closed)
+    4. Records WorkOrderStatusHistory, ProjectStatusHistory, AuditLog
+    5. Notifies Management & Accounts users
+    """
+    wo = get_work_order(db, work_order_id)
+    if wo.status == "Cancelled":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cancelled work orders cannot be transferred to Accounts.")
+
+    completion_dt = data.completion_date or wo.actual_completion_date or date.today()
+    old_wo_status = wo.status
+
+    try:
+        # 1. Mark WorkOrder completed
+        wo.status = "Completed"
+        wo.progress_percentage = 100
+        wo.actual_completion_date = completion_dt
+        if data.remarks:
+            wo.notes = f"{wo.notes}\n{data.remarks}".strip() if wo.notes else data.remarks
+
+        if old_wo_status != "Completed":
+            db.add(
+                WorkOrderStatusHistory(
+                    work_order_id=wo.id,
+                    from_status=old_wo_status,
+                    to_status="Completed",
+                    changed_by_id=user_id,
+                    notes=data.remarks or "Production completed and transferred to Accounts.",
+                )
+            )
+        db.add(
+            ProductionUpdate(
+                work_order_id=wo.id,
+                status="Completed",
+                progress_percentage=100,
+                remarks=data.remarks or "Production completed; handed over to Accounts.",
+                expected_completion_date=completion_dt,
+                updated_by_id=user_id,
+            )
+        )
+
+        # 2. Ensure Project exists and update lifecycle status
+        project: Project | None = None
+        if wo.project_id:
+            project = db.query(Project).filter(Project.id == wo.project_id, Project.is_deleted == False).first()
+        if not project and wo.quotation:
+            project = project_service.ensure_project_for_quotation(db, wo.quotation, user_id=user_id, commit=False)
+            wo.project_id = project.id
+        if not project:
+            project = Project(
+                project_number=project_service._next_project_number(db),
+                name=wo.title,
+                customer_id=wo.customer_id,
+                priority=wo.priority,
+                approval_date=wo.planned_start_date or date.today(),
+                start_date=wo.actual_start_date or wo.planned_start_date,
+                status="Production Completed",
+            )
+            db.add(project)
+            db.flush()
+            wo.project_id = project.id
+
+        old_proj_status = project.status
+        project.status = "Sent to Accounts"
+        db.add(
+            ProjectStatusHistory(
+                project_id=project.id,
+                from_status=old_proj_status,
+                to_status="Sent to Accounts",
+                changed_by_id=user_id,
+                notes=f"Production {wo.work_order_number} completed on {completion_dt}; transferred to Accounts.",
+            )
+        )
+
+        # 3. Create AccountsRecord
+        acc = accounts_service.create_accounts_record_for_project(
+            db,
+            project=project,
+            work_order_id=wo.id,
+            production_completion_date=completion_dt,
+            user_id=user_id,
+            commit=False,
+        )
+
+        # 4. Notify Management / Accounts / Admin users
+        target_users = (
+            db.query(User)
+            .join(User.roles)
+            .filter(User.is_active == True, Role.name.in_(["Administrator", "Super Admin", "Management", "Accounts Manager", "Sales / Accounts"]))
+            .distinct()
+            .all()
+        )
+        for u in target_users:
+            db.add(
+                Notification(
+                    recipient_id=u.id,
+                    title=f"Project {project.project_number} Ready for Accounts",
+                    message=f"Production {wo.work_order_number} completed. Accounts record {acc.accounts_number} created.",
+                    category="approval",
+                    link=f"/accounts/{acc.id}",
+                    is_read=False,
+                )
+            )
+
+        # 5. Audit log
+        audit_service.log_audit_action(
+            db,
+            action="HANDOVER",
+            entity_type="work_order",
+            entity_id=wo.id,
+            user_id=user_id,
+            changes_summary=f"Completed {wo.work_order_number} and transferred Project {project.project_number} to Accounts ({acc.accounts_number})",
+            commit=False,
+        )
+
+        db.commit()
+        return {
+            "status": "transferred",
+            "work_order_id": str(wo.id),
+            "project_id": str(project.id),
+            "accounts_record_id": str(acc.id),
+            "accounts_number": acc.accounts_number,
+        }
+    except Exception:
+        db.rollback()
+        raise
 
 
 def get_production_summary(db: Session, date_from: date | None = None, date_to: date | None = None) -> ProductionSummaryResponse:

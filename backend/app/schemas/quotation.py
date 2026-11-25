@@ -29,6 +29,11 @@ class QuotationFollowUpBase(BaseModel):
     notes: str
     outcome: str | None = None
     assigned_employee_id: uuid.UUID | None = None
+    contacted_person: str | None = None
+    company: str | None = None
+    contact_method: str | None = None
+    customer_response: str | None = None
+    next_follow_up_date: date | None = None
 
 
 class QuotationFollowUpCreate(QuotationFollowUpBase):
@@ -57,18 +62,26 @@ class QuotationRevisionRead(BaseModel):
 
 class QuotationCreate(BaseModel):
     enquiry_id: uuid.UUID | None = None
+    design_id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
     customer_id: uuid.UUID
     discount_rate: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"), le=Decimal("100.00"))
     tax_rate: Decimal = Field(default=Decimal("18.00"), ge=Decimal("0.00"), le=Decimal("100.00"))
     valid_until: date | None = None
+    sent_date: date | None = None
+    remarks: str | None = None
     currency: str = "INR"
     items: list[QuotationItemCreate] = []
 
 
 class QuotationUpdate(BaseModel):
+    design_id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
     discount_rate: Decimal | None = Field(default=None, ge=Decimal("0.00"), le=Decimal("100.00"))
     tax_rate: Decimal | None = Field(default=None, ge=Decimal("0.00"), le=Decimal("100.00"))
     valid_until: date | None = None
+    sent_date: date | None = None
+    remarks: str | None = None
     currency: str | None = None
     items: list[QuotationItemCreate] | None = None
 
@@ -91,6 +104,8 @@ class QuotationRead(BaseModel):
     quotation_number: str
     revision_number: int
     enquiry_id: uuid.UUID | None = None
+    design_id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
     customer_id: uuid.UUID
     status: str
     subtotal: Decimal
@@ -99,10 +114,13 @@ class QuotationRead(BaseModel):
     tax_rate: Decimal
     tax_amount: Decimal
     total_amount: Decimal
+    approved_value: Decimal | None = None
     currency: str
+    sent_date: date | None = None
     valid_until: date | None = None
     approved_at: datetime | None = None
     rejection_reason: str | None = None
+    remarks: str | None = None
     created_at: datetime
     updated_at: datetime
     customer_name: str | None = None

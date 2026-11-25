@@ -8,9 +8,11 @@ from app.api.deps import get_current_active_user, get_db, require_roles
 from app.models.auth import User
 from app.schemas.production import (
     InstallationCreate,
+    ProductionCompleteHandoverRequest,
     ProductionSummaryResponse,
     ProductionTaskCreate,
     ProductionTaskUpdate,
+    ProductionUpdateCreate,
     WorkOrderCreate,
     WorkOrderListResponse,
     WorkOrderRead,
@@ -126,3 +128,23 @@ def add_installation(
     current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Production Manager"]))],
 ) -> WorkOrderRead:
     return production_service.add_installation(db, work_order_id, data)
+
+
+@router.post("/{work_order_id}/updates", response_model=WorkOrderRead, status_code=status.HTTP_201_CREATED)
+def add_production_update(
+    work_order_id: uuid.UUID,
+    data: ProductionUpdateCreate,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Super Admin", "Management", "Production Manager"]))],
+) -> WorkOrderRead:
+    return production_service.add_production_update(db, work_order_id, data, user_id=current_user.id)
+
+
+@router.post("/{work_order_id}/complete-and-transfer")
+def complete_and_transfer_to_accounts(
+    work_order_id: uuid.UUID,
+    data: ProductionCompleteHandoverRequest,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Super Admin", "Management", "Production Manager"]))],
+) -> dict[str, str]:
+    return production_service.complete_production_and_transfer_to_accounts(db, work_order_id, data, user_id=current_user.id)
