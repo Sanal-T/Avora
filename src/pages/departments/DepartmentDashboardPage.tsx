@@ -759,7 +759,6 @@ export function DepartmentDashboardPage({
                   <th className="py-2.5 px-3 font-semibold">Customer / Project</th>
                   <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Approved Value</th>
                   <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Status</th>
-                  <th className="py-2.5 pl-3 font-semibold text-right whitespace-nowrap">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -774,16 +773,6 @@ export function DepartmentDashboardPage({
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
                         <StatusBadge department="quotations" status="converted" />
-                      </td>
-                      <td className="py-2.5 pl-3 text-right whitespace-nowrap">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/quotations/${q.id}`)}
-                          className="h-7 text-xs"
-                        >
-                          Open
-                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -853,44 +842,10 @@ export function DepartmentDashboardPage({
         })}
       </div>
 
-      {/* Two-Column Bottom: Needs Attention & Actual Records Table */}
+      {/* Full-Width Records Table */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Needs Attention Panel */}
-        <Card className="p-5 lg:col-span-1">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <div>
-              <h3 className="text-sm font-semibold text-foreground">Needs Attention</h3>
-              <p className="text-xs text-muted-foreground">Priority actions and blocker alerts</p>
-            </div>
-            <AlertTriangle className="size-4 text-warning" />
-          </div>
-
-          <div className="divide-y divide-border mt-1">
-            {attentionItems.length === 0 ? (
-              <p className="py-6 text-center text-xs text-muted-foreground">
-                No pending blocker alerts for this department.
-              </p>
-            ) : (
-              attentionItems.map((item, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => navigate(item.link)}
-                  className="py-3 group cursor-pointer hover:bg-muted/40 -mx-5 px-5 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs font-bold text-primary">{item.code}</span>
-                    <ArrowUpRight className="size-3.5 text-muted-foreground group-hover:text-foreground" />
-                  </div>
-                  <p className="mt-1 text-xs font-semibold text-foreground">{item.title}</p>
-                  <p className="text-[11px] text-muted-foreground">{item.subtitle}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </Card>
-
         {/* Actual Records Table */}
-        <Card className="p-5 lg:col-span-2">
+        <Card className="p-5 lg:col-span-3">
           {/* Header with Title, Count, Search & Filter State */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
             <div>
@@ -943,29 +898,28 @@ export function DepartmentDashboardPage({
 
           {/* Table Data */}
           <div className="overflow-x-auto mt-2">
-            <table className="w-full text-left text-xs">
+            <table className="w-full table-fixed text-left text-xs">
               <thead>
                 <tr className="border-b border-border text-muted-foreground">
-                  <th className="py-2.5 font-semibold">Identifier</th>
-                  <th className="py-2.5 font-semibold">Details / Entity</th>
-                  <th className="py-2.5 font-semibold">Requirement / Notes</th>
+                  <th className="py-2.5 pr-3 font-semibold whitespace-nowrap w-28">Identifier</th>
+                  <th className="py-2.5 px-3 font-semibold w-[26%]">Details / Entity</th>
+                  <th className="py-2.5 px-3 font-semibold w-[16%]">Requirement / Notes</th>
                   {departmentId === 'enquiries' && (
                     <>
-                      <th className="py-2.5 font-semibold">Est. Budget</th>
-                      <th className="py-2.5 font-semibold">Qualified By</th>
+                      <th className="py-2.5 px-3 font-semibold whitespace-nowrap w-28">Est. Budget</th>
+                      <th className="py-2.5 px-3 font-semibold whitespace-nowrap w-32">Qualified By</th>
                     </>
                   )}
                   {departmentId === 'designs' && (
                     <>
-                      <th className="py-2.5 font-semibold">Site / Location</th>
-                      <th className="py-2.5 font-semibold">Priority</th>
-                      <th className="py-2.5 font-semibold">Approval</th>
-                      <th className="py-2.5 font-semibold">Due Date</th>
-                      <th className="py-2.5 font-semibold">Value</th>
+                      <th className="py-2.5 px-3 font-semibold whitespace-nowrap w-[14%]">Site / Location</th>
+                      <th className="py-2.5 px-3 font-semibold whitespace-nowrap w-20">Priority</th>
+                      <th className="py-2.5 px-3 font-semibold whitespace-nowrap w-24">Approval</th>
+                      <th className="py-2.5 px-3 font-semibold whitespace-nowrap w-28">Due Date</th>
+                      <th className="py-2.5 px-3 font-semibold whitespace-nowrap w-24">Value</th>
                     </>
                   )}
-                  <th className="py-2.5 font-semibold">Status</th>
-                  <th className="py-2.5 font-semibold text-right">Action</th>
+                  <th className="py-2.5 pl-3 font-semibold whitespace-nowrap w-28">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -1014,7 +968,7 @@ export function DepartmentDashboardPage({
                 ) : (
                   paginatedRecords.map((rec) => (
                     <tr key={rec.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="py-2.5 font-mono font-bold">
+                      <td className="py-2.5 pr-3 font-mono font-bold whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => navigate(rec.link)}
@@ -1023,47 +977,36 @@ export function DepartmentDashboardPage({
                           {rec.code}
                         </button>
                       </td>
-                      <td className="py-2.5">
+                      <td className="py-2.5 px-3">
                         <p className="font-semibold text-foreground">{rec.title}</p>
                         {rec.assignedTo && (
                           <p className="text-[11px] text-muted-foreground">{rec.assignedTo}</p>
                         )}
                       </td>
-                      <td className="py-2.5 text-muted-foreground max-w-xs truncate" title={rec.subtitle}>
+                      <td className="py-2.5 px-3 text-muted-foreground max-w-xs truncate" title={rec.subtitle}>
                         {rec.subtitle || '—'}
                       </td>
                       {departmentId === 'enquiries' && (
                         <>
-                          <td className="py-2.5 font-mono font-medium text-foreground">
+                          <td className="py-2.5 px-3 font-mono font-medium text-foreground whitespace-nowrap">
                             {rec.budget || '—'}
                           </td>
-                          <td className="py-2.5 text-muted-foreground">
+                          <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">
                             {rec.qualifiedBy || '—'}
                           </td>
                         </>
                       )}
                       {departmentId === 'designs' && (
                         <>
-                          <td className="py-2.5 text-muted-foreground">{rec.siteLocation || '—'}</td>
-                          <td className="py-2.5">{rec.priority || '—'}</td>
-                          <td className="py-2.5">{rec.approvalStatus || '—'}</td>
-                          <td className="py-2.5 font-mono text-muted-foreground">{rec.date || '—'}</td>
-                          <td className="py-2.5 font-mono font-medium text-foreground">{rec.designValue || '—'}</td>
+                          <td className="py-2.5 px-3 text-muted-foreground">{rec.siteLocation || '—'}</td>
+                          <td className="py-2.5 px-3 whitespace-nowrap">{rec.priority || '—'}</td>
+                          <td className="py-2.5 px-3 whitespace-nowrap">{rec.approvalStatus || '—'}</td>
+                          <td className="py-2.5 px-3 font-mono text-muted-foreground whitespace-nowrap">{rec.date || '—'}</td>
+                          <td className="py-2.5 px-3 font-mono font-medium text-foreground whitespace-nowrap">{rec.designValue || '—'}</td>
                         </>
                       )}
-                      <td className="py-2.5">
+                      <td className="py-2.5 pl-3 whitespace-nowrap">
                         <StatusBadge department={departmentId} status={rec.status} />
-                      </td>
-                      <td className="py-2.5 text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(rec.link)}
-                          className="h-7 text-xs"
-                        >
-                          <span>Open</span>
-                          <ArrowUpRight className="size-3 ml-1" />
-                        </Button>
                       </td>
                     </tr>
                   ))

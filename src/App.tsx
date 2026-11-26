@@ -103,7 +103,6 @@ function AppShellInner({
           }
         />
         <Route path="/enquiries/list" element={<EnquiriesListPage />} />
-        <Route path="/enquiries/:id" element={<EnquiryDetailPage />} />
 
         <Route
           path="/designs"
@@ -116,7 +115,6 @@ function AppShellInner({
           }
         />
         <Route path="/designs/list" element={<DesignsListPage />} />
-        <Route path="/designs/:id" element={<DesignDetailPage />} />
 
         <Route
           path="/quotations"
@@ -129,8 +127,6 @@ function AppShellInner({
           }
         />
         <Route path="/quotations/list" element={<QuotationsListPage />} />
-        <Route path="/quotations/builder" element={<QuotationBuilderPage />} />
-        <Route path="/quotations/:id" element={<QuotationDetailPage />} />
 
         <Route
           path="/production"
@@ -143,9 +139,6 @@ function AppShellInner({
           }
         />
         <Route path="/production/list" element={<ProductionListPage />} />
-        <Route path="/production/calendar" element={<ProductionCalendarPage />} />
-        <Route path="/production/schedule" element={<ProductionSchedulePage />} />
-        <Route path="/production/:id" element={<WorkOrderDetailPage />} />
 
         <Route
           path="/feedback"
@@ -158,7 +151,6 @@ function AppShellInner({
           }
         />
         <Route path="/feedback/list" element={<FeedbackListPage />} />
-        <Route path="/feedback/:id" element={<FeedbackDetailPage />} />
 
         <Route
           path="/labour"
