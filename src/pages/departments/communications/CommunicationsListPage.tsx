@@ -55,21 +55,6 @@ export function CommunicationsListPage() {
         }
       />
 
-      <Card className="p-4 mb-6">
-        <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <select value={type} onChange={(e) => setType(e.target.value)} className="px-3 py-2 text-sm border rounded-md bg-background">
-            <option value="Request">Request</option>
-            <option value="Approval">Approval</option>
-            <option value="Clarification">Clarification</option>
-            <option value="Issue">Issue</option>
-            <option value="Delay Report">Delay Report</option>
-          </select>
-          <input type="text" placeholder="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} className="px-3 py-2 text-sm border rounded-md bg-background" required />
-          <input type="text" placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} className="px-3 py-2 text-sm border rounded-md bg-background" required />
-          <Button type="submit" size="sm"><Plus className="h-4 w-4 mr-1" />Submit</Button>
-        </form>
-      </Card>
-
       <Card className="overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-sm text-muted-foreground">Loading communications...</div>

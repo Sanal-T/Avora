@@ -432,10 +432,6 @@ export function DepartmentDashboardPage({
               <RefreshCw className={cn('size-3.5', loadingRecords && 'animate-spin')} />
               <span>Refresh</span>
             </Button>
-            <Button variant="primary" size="sm" onClick={onOpenCreate}>
-              <Plus className="size-3.5" />
-              <span>New {meta.noun}</span>
-            </Button>
           </div>
         }
       />

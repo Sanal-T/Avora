@@ -84,10 +84,6 @@ export function AccountsDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-5 space-y-4">
           <h3 className="font-semibold text-sm">Invoices ({record.invoices?.length || 0})</h3>
-          <form onSubmit={handleCreateInvoice} className="flex gap-2">
-            <input type="number" min="1" step="0.01" placeholder="Invoice amount" value={invAmount} onChange={(e) => setInvAmount(e.target.value)} className="flex-1 px-3 py-1.5 text-sm border rounded-md bg-background" required />
-            <Button type="submit" size="sm"><Plus className="h-4 w-4 mr-1" />Generate</Button>
-          </form>
           <div className="divide-y text-sm">
             {(record.invoices || []).map((inv) => (
               <div key={inv.id} className="py-2 flex justify-between items-center">
@@ -97,7 +93,7 @@ export function AccountsDetailPage() {
                 </div>
                 <div className="text-right">
                   <div>₹{Number(inv.total_amount).toLocaleString()}</div>
-                  <StatusBadge status={inv.status} />
+                  <StatusBadge department="accounts" status={inv.status} />
                 </div>
               </div>
             ))}
@@ -106,11 +102,6 @@ export function AccountsDetailPage() {
 
         <Card className="p-5 space-y-4">
           <h3 className="font-semibold text-sm">Payments ({record.payments?.length || 0})</h3>
-          <form onSubmit={handleRecordPayment} className="flex flex-wrap gap-2">
-            <input type="number" min="1" step="0.01" placeholder="Amount" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} className="flex-1 min-w-[120px] px-3 py-1.5 text-sm border rounded-md bg-background" required />
-            <input type="text" placeholder="Reference #" value={payRef} onChange={(e) => setPayRef(e.target.value)} className="flex-1 min-w-[120px] px-3 py-1.5 text-sm border rounded-md bg-background" />
-            <Button type="submit" size="sm"><Plus className="h-4 w-4 mr-1" />Record</Button>
-          </form>
           <div className="divide-y text-sm">
             {(record.payments || []).map((p) => (
               <div key={p.id} className="py-2 flex justify-between items-center">

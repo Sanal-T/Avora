@@ -31,7 +31,7 @@ export function AppShell({
       />
 
       {/* Main Full-width Viewport with Error Boundary */}
-      <main className="flex-1 w-full overflow-x-hidden">
+      <main className="flex-1 w-full overflow-x-clip">
         <ErrorBoundary>
           {children}
         </ErrorBoundary>

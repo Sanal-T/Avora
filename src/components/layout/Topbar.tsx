@@ -144,62 +144,6 @@ export function Topbar({
             </div>
           )}
 
-          {/* Quick Action "+" Dropdown Menu */}
-          {onOpenCreateModal && (
-            <div ref={createRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setCreateMenuOpen((v) => !v)}
-                className="flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-xs transition hover:bg-primary-hover cursor-pointer"
-                title="Create new record"
-              >
-                <Plus className="size-3.5 stroke-[2.5]" />
-                <span className="hidden sm:inline">New</span>
-              </button>
-
-              {createMenuOpen && (
-                <div className="absolute right-0 top-10 z-50 w-52 rounded-xl border border-border bg-popover p-1 shadow-float">
-                  <div className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground tracking-wider uppercase">
-                    Quick Actions
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCreateMenuOpen(false)
-                      onOpenCreateModal('enquiry')
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
-                  >
-                    <Inbox className="size-4 text-dept-enquiries" />
-                    <span>New Customer Enquiry</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCreateMenuOpen(false)
-                      onOpenCreateModal('design')
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
-                  >
-                    <PenTool className="size-4 text-dept-designs" />
-                    <span>New Design Proposal</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCreateMenuOpen(false)
-                      onOpenCreateModal('workOrder')
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium text-foreground hover:bg-muted cursor-pointer transition-colors"
-                  >
-                    <Factory className="size-4 text-dept-production" />
-                    <span>New Work Order</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Search Trigger (Ctrl+K) */}
           <button
             type="button"
