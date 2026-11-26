@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   Plus,
@@ -76,6 +76,7 @@ export function DepartmentDashboardPage({
   onOpenCreate: () => void
 }) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const meta = DEPARTMENT_META[departmentId]
   const Icon = meta.icon
 
@@ -104,7 +105,7 @@ export function DepartmentDashboardPage({
   const [loadingRecords, setLoadingRecords] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
-  const [selectedFilter, setSelectedFilter] = useState<string>('all')
+  const [selectedFilter, setSelectedFilter] = useState<string>(() => searchParams.get('status') || 'all')
   const [searchQuery, setSearchQuery] = useState('')
   const [page, setPage] = useState(1)
   const pageSize = 10

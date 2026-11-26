@@ -112,7 +112,7 @@ export const MainDashboard = memo(function MainDashboard({
       glowColor: '217 91 60',
       glowColors: ['#3b82f6', '#1d4ed8', '#60a5fa'],
       icon: Factory,
-      to: '/production',
+      to: '/designs?status=in_progress',
     },
     {
       label: 'Urgent Attention Items',
