@@ -43,7 +43,7 @@ export function EnquiriesListPage() {
   const loadEnquiries = () => {
     setLoading(true)
     enquiryApi
-      .list({ page_size: 100 })
+      .list({ page_size: 2000 })
       .then((res) => {
         setData((res.items || []).map(toUiEnquiry))
       })

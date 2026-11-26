@@ -303,12 +303,14 @@ export interface EnquiryCreateInput {
 }
 
 export const enquiryApi = {
-  async list(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<EnquiryListResponse> {
+  async list(params: { page?: number; page_size?: number; status?: string; search?: string; date_from?: string; date_to?: string } = {}): Promise<EnquiryListResponse> {
     const query = new URLSearchParams()
     if (params.page) query.set('page', params.page.toString())
     if (params.page_size) query.set('page_size', params.page_size.toString())
     if (params.status && params.status !== 'all') query.set('status', params.status)
     if (params.search) query.set('search', params.search)
+    if (params.date_from) query.set('date_from', params.date_from)
+    if (params.date_to) query.set('date_to', params.date_to)
     return apiFetch<EnquiryListResponse>(`/api/enquiries${query.size ? `?${query.toString()}` : ''}`)
   },
 
@@ -576,12 +578,14 @@ export interface WorkOrderCreateInput {
 }
 
 export const productionApi = {
-  async listWorkOrders(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<WorkOrderListResponse> {
+  async listWorkOrders(params: { page?: number; page_size?: number; status?: string; search?: string; date_from?: string; date_to?: string } = {}): Promise<WorkOrderListResponse> {
     const query = new URLSearchParams()
     if (params.page) query.set('page', params.page.toString())
     if (params.page_size) query.set('page_size', params.page_size.toString())
     if (params.status && params.status !== 'all') query.set('status', params.status)
     if (params.search) query.set('search', params.search)
+    if (params.date_from) query.set('date_from', params.date_from)
+    if (params.date_to) query.set('date_to', params.date_to)
     return apiFetch<WorkOrderListResponse>(`/api/production${query.size ? `?${query.toString()}` : ''}`)
   },
 
@@ -688,12 +692,14 @@ export interface DesignCreateInput {
 }
 
 export const designApi = {
-  async listDesigns(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<DesignListResponse> {
+  async listDesigns(params: { page?: number; page_size?: number; status?: string; search?: string; date_from?: string; date_to?: string } = {}): Promise<DesignListResponse> {
     const query = new URLSearchParams()
     if (params.page) query.set('page', params.page.toString())
     if (params.page_size) query.set('page_size', params.page_size.toString())
     if (params.status && params.status !== 'all') query.set('status', params.status)
     if (params.search) query.set('search', params.search)
+    if (params.date_from) query.set('date_from', params.date_from)
+    if (params.date_to) query.set('date_to', params.date_to)
     return apiFetch<DesignListResponse>(`/api/designs${query.size ? `?${query.toString()}` : ''}`)
   },
 
@@ -824,12 +830,14 @@ export interface QuotationListResponse {
 }
 
 export const quotationApi = {
-  async listQuotations(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<QuotationListResponse> {
+  async listQuotations(params: { page?: number; page_size?: number; status?: string; search?: string; date_from?: string; date_to?: string } = {}): Promise<QuotationListResponse> {
     const query = new URLSearchParams()
     if (params.page) query.set('page', params.page.toString())
     if (params.page_size) query.set('page_size', params.page_size.toString())
     if (params.status && params.status !== 'all') query.set('status', params.status)
     if (params.search) query.set('search', params.search)
+    if (params.date_from) query.set('date_from', params.date_from)
+    if (params.date_to) query.set('date_to', params.date_to)
     return apiFetch<QuotationListResponse>(`/api/quotations${query.size ? `?${query.toString()}` : ''}`)
   },
 
@@ -934,12 +942,14 @@ export interface FeedbackSummaryResponse {
 }
 
 export const feedbackApi = {
-  async listFeedback(params: { page?: number; page_size?: number; status?: string; category?: string } = {}): Promise<FeedbackListResponse> {
+  async listFeedback(params: { page?: number; page_size?: number; status?: string; category?: string; date_from?: string; date_to?: string } = {}): Promise<FeedbackListResponse> {
     const query = new URLSearchParams()
     if (params.page) query.set('page', params.page.toString())
     if (params.page_size) query.set('page_size', params.page_size.toString())
     if (params.status && params.status !== 'all') query.set('status', params.status)
     if (params.category) query.set('category', params.category)
+    if (params.date_from) query.set('date_from', params.date_from)
+    if (params.date_to) query.set('date_to', params.date_to)
     return apiFetch<FeedbackListResponse>(`/api/feedback${query.size ? `?${query.toString()}` : ''}`)
   },
 

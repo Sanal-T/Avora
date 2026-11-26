@@ -59,7 +59,7 @@ export function ProductionListPage() {
   const fetchWorkOrders = () => {
     setLoading(true)
     productionApi
-      .listWorkOrders({ page_size: 100 })
+      .listWorkOrders({ page_size: 2000 })
       .then((res) => {
         if (res.items && res.items.length > 0) {
           setData(res.items.map(toUiWorkOrder))

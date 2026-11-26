@@ -80,7 +80,7 @@ export function FeedbackListPage() {
     else setLoading(true)
 
     try {
-      const res = await feedbackApi.listFeedback({ page_size: 100 })
+      const res = await feedbackApi.listFeedback({ page_size: 2000 })
       if (res.items && res.items.length > 0) {
         setData(res.items.map(toUiFeedback))
       } else {
@@ -111,8 +111,8 @@ export function FeedbackListPage() {
     setModalOpen(true)
     try {
       const [cRes, woRes] = await Promise.all([
-        customerApi.list({ page_size: 100 }).catch(() => ({ items: [] })),
-        productionApi.listWorkOrders({ page_size: 100 }).catch(() => ({ items: [] })),
+        customerApi.list({ page_size: 2000 }).catch(() => ({ items: [] })),
+        productionApi.listWorkOrders({ page_size: 2000 }).catch(() => ({ items: [] })),
       ])
       setCustomers(cRes.items || [])
       setWorkOrders(woRes.items || [])

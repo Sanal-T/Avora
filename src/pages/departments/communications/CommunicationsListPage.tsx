@@ -17,7 +17,7 @@ export function CommunicationsListPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const res = await communicationApi.list({ page_size: 50 })
+      const res = await communicationApi.list({ page_size: 2000 })
       setItems(res.items)
     } finally {
       setLoading(false)

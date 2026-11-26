@@ -16,7 +16,7 @@ export function ProjectsListPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const res = await projectApi.list({ page_size: 50, status: statusFilter, search: search || undefined })
+      const res = await projectApi.list({ page_size: 2000, status: statusFilter, search: search || undefined })
       setItems(res.items)
     } finally {
       setLoading(false)

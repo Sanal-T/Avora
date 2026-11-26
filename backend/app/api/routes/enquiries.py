@@ -17,7 +17,7 @@ def list_enquiries(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_active_user)],
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
+    page_size: int = Query(default=20, ge=1, le=5000),
     status: str | None = Query(default=None),
     search: str | None = Query(default=None),
     date_from: date | None = Query(default=None),

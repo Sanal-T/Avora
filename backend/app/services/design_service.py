@@ -241,10 +241,30 @@ def get_design_summary(db: Session, date_from: date | None = None, date_to: date
     today = date.today()
     stats = query.with_entities(
         func.count(Design.id),
-        func.count(case((Design.status.in_(["Not Started", "Under Review", "Revision Required"]), 1))),
+        func.count(
+            case(
+                (
+                    Design.status.in_(
+                        ["Not Started", "Assigned", "Internal Review", "Client Review", "Under Review", "Revision Required", "On Hold"]
+                    ),
+                    1,
+                )
+            )
+        ),
         func.count(case((Design.status == "In Progress", 1))),
         func.count(case((Design.status.in_(["Approved", "Completed"]), 1))),
-        func.count(case((and_(Design.status.notin_(["Approved", "Completed"]), Design.expected_completion_date != None, Design.expected_completion_date < today), 1))),
+        func.count(
+            case(
+                (
+                    and_(
+                        Design.status.notin_(["Approved", "Completed", "Cancelled", "Rejected"]),
+                        Design.expected_completion_date != None,
+                        Design.expected_completion_date < today,
+                    ),
+                    1,
+                )
+            )
+        ),
     ).first()
 
     total = stats[0] if stats else 0

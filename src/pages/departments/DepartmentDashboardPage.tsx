@@ -141,10 +141,12 @@ export function DepartmentDashboardPage({
     setLoadingRecords(true)
     setLoadError(null)
 
+    const { dateFrom, dateTo } = rangeDates(rangeId)
+
     const fetchRecords = async () => {
       try {
         if (departmentId === 'enquiries') {
-          const res = await enquiryApi.list({ page_size: 100 })
+          const res = await enquiryApi.list({ page_size: 2000, date_from: dateFrom, date_to: dateTo })
           if (res.items) {
             return res.items.map((e) => {
               let uiStatus = 'pending'
@@ -169,13 +171,13 @@ export function DepartmentDashboardPage({
             })
           }
         } else if (departmentId === 'designs') {
-          const res = await designApi.listDesigns({ page_size: 100 })
+          const res = await designApi.listDesigns({ page_size: 2000, date_from: dateFrom, date_to: dateTo })
           if (res.items) {
             return res.items.map((d) => {
               const st = (d.status || '').toLowerCase().replaceAll('_', ' ')
-              let status = 'in_progress'
+              let status = 'pending'
               if (st.includes('complet') || st.includes('approve')) status = 'completed'
-              else if (st.includes('pend') || st.includes('not started')) status = 'pending'
+              else if (st === 'in progress') status = 'in_progress'
 
               return {
                 id: d.id,
@@ -194,7 +196,7 @@ export function DepartmentDashboardPage({
             })
           }
         } else if (departmentId === 'quotations') {
-          const res = await quotationApi.listQuotations({ page_size: 100 })
+          const res = await quotationApi.listQuotations({ page_size: 2000, date_from: dateFrom, date_to: dateTo })
           if (res.items) {
             setRawQuotations(res.items)
             return res.items.map((q) => {
@@ -219,7 +221,7 @@ export function DepartmentDashboardPage({
             })
           }
         } else if (departmentId === 'production') {
-          const res = await productionApi.listWorkOrders({ page_size: 100 })
+          const res = await productionApi.listWorkOrders({ page_size: 2000, date_from: dateFrom, date_to: dateTo })
           if (res.items) {
             setRawProduction(res.items)
             return res.items.map((wo) => {
@@ -241,7 +243,7 @@ export function DepartmentDashboardPage({
             })
           }
         } else if (departmentId === 'feedback') {
-          const res = await feedbackApi.listFeedback({ page_size: 100 })
+          const res = await feedbackApi.listFeedback({ page_size: 2000, date_from: dateFrom, date_to: dateTo })
           if (res.items) {
             setRawFeedback(res.items)
             Promise.all(
@@ -269,7 +271,7 @@ export function DepartmentDashboardPage({
             }))
           }
         } else if (departmentId === 'labour') {
-          const res = await labourApi.listWorkers({ page_size: 100 })
+          const res = await labourApi.listWorkers({ page_size: 2000 })
           if (res.items) {
             return res.items.map((w) => ({
               id: w.id,
@@ -304,7 +306,7 @@ export function DepartmentDashboardPage({
     return () => {
       isMounted = false
     }
-  }, [departmentId, refreshTrigger])
+  }, [departmentId, rangeId, refreshTrigger])
 
   // Build KPI Options
   const kpis: {

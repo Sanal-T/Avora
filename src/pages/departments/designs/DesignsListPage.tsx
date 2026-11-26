@@ -43,7 +43,7 @@ export function DesignsListPage() {
   const loadDesigns = useCallback(() => {
     setLoading(true)
     designApi
-      .listDesigns({ page_size: 100 })
+      .listDesigns({ page_size: 2000 })
       .then((res) => {
         setData((res.items || []).map(toUiDesign))
       })

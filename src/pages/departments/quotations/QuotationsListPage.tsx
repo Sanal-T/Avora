@@ -45,7 +45,7 @@ export function QuotationsListPage() {
   const fetchQuotations = () => {
     setLoading(true)
     quotationApi
-      .listQuotations({ page_size: 100 })
+      .listQuotations({ page_size: 2000 })
       .then((res) => {
         if (res.items && res.items.length > 0) {
           setData(res.items.map(toUiQuotation))

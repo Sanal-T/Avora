@@ -16,7 +16,7 @@ export function AccountsListPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const res = await accountsApi.list({ page_size: 50, status: statusFilter, search: search || undefined })
+      const res = await accountsApi.list({ page_size: 2000, status: statusFilter, search: search || undefined })
       setItems(res.items)
     } finally {
       setLoading(false)

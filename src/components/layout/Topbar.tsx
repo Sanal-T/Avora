@@ -86,9 +86,11 @@ export function Topbar({
         crumbs.push({ label: 'Quotation Builder' })
       } else if (part === 'schedule' || part === 'calendar') {
         crumbs.push({ label: 'Production Schedule' })
+      } else if (part === 'in-progress') {
+        crumbs.push({ label: 'In Progress' })
       } else {
         crumbs.push({
-          label: part.toUpperCase(),
+          label: part.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
           to: isLast ? undefined : currentPath,
         })
       }

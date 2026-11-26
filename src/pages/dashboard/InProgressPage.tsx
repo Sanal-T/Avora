@@ -19,9 +19,9 @@ export function InProgressPage() {
     setLoading(true)
     try {
       const [dRes, qRes, pRes] = await Promise.all([
-        designApi.listDesigns({ page_size: 100 }),
-        quotationApi.listQuotations({ page_size: 100 }),
-        productionApi.listWorkOrders({ page_size: 100 }),
+        designApi.listDesigns({ page_size: 2000 }),
+        quotationApi.listQuotations({ page_size: 2000 }),
+        productionApi.listWorkOrders({ page_size: 2000 }),
       ])
       setDesigns(
         (dRes.items || []).filter((d) => {

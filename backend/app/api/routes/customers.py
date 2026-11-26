@@ -16,7 +16,7 @@ def list_customers(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_active_user)],
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
+    page_size: int = Query(default=20, ge=1, le=5000),
     search: str | None = Query(default=None),
 ) -> CustomerListResponse:
     total, items = customer_service.list_customers(db, page=page, page_size=page_size, search=search)

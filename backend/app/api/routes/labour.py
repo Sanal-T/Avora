@@ -27,7 +27,7 @@ def list_workers(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_active_user)],
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
+    page_size: int = Query(default=20, ge=1, le=5000),
     status: str | None = Query(default=None),
     skill_category: str | None = Query(default=None),
     search: str | None = Query(default=None),
@@ -77,7 +77,7 @@ def list_labour_requests(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_active_user)],
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
+    page_size: int = Query(default=20, ge=1, le=5000),
     status: str | None = Query(default=None),
 ) -> LabourRequestListResponse:
     total, items = labour_service.list_labour_requests(db, page=page, page_size=page_size, status_filter=status)

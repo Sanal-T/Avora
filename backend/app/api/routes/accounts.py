@@ -47,7 +47,7 @@ def list_accounts_records(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(require_roles(FINANCE_VIEW_ROLES))],
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1, le=100),
+    page_size: int = Query(default=20, ge=1, le=5000),
     status_filter: str | None = Query(default=None, alias="status"),
     search: str | None = Query(default=None),
 ) -> AccountsListResponse:
