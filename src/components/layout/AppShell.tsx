@@ -9,6 +9,7 @@ interface AppShellProps {
   children: ReactNode
   rangeId: RangeKey
   onRangeChange: (range: RangeKey) => void
+  onRefresh?: () => void
   onOpenCreateModal?: (type: 'enquiry' | 'design' | 'workOrder') => void
 }
 
@@ -16,6 +17,7 @@ export function AppShell({
   children,
   rangeId,
   onRangeChange,
+  onRefresh,
   onOpenCreateModal,
 }: AppShellProps) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
@@ -27,6 +29,7 @@ export function AppShell({
         onOpenCommandPalette={() => setCommandPaletteOpen(true)}
         rangeId={rangeId}
         onRangeChange={onRangeChange}
+        onRefresh={onRefresh}
         onOpenCreateModal={onOpenCreateModal}
       />
 

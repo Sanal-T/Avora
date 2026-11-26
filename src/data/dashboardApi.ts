@@ -165,9 +165,7 @@ export async function getDashboardOverview({
       console.warn('Backend overview endpoint unreachable or unauthorized:', err)
     }
 
-    const fallback = getMockOverview(selectedRange)
-    overviewCache.set(cacheKey, { data: fallback, timestamp: Date.now() })
-    return fallback
+    return getMockOverview(selectedRange)
   })()
 
   inFlightOverviewRequests.set(cacheKey, fetchPromise)

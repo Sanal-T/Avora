@@ -68,6 +68,7 @@ function AppShellInner({
     <AppShell
       rangeId={rangeId}
       onRangeChange={setRangeId}
+      onRefresh={() => refresh(true)}
       onOpenCreateModal={(type) => {
         if (type === 'enquiry') setEnquiryModalOpen(true)
         else if (type === 'design') setDesignModalOpen(true)

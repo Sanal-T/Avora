@@ -96,9 +96,9 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
 
     const url = endpoint.startsWith('http') ? endpoint : endpoint.startsWith('/') ? endpoint : `/api/${endpoint}`
     
-    // Add default 10-second timeout if signal not provided
+    // Add default 20-second timeout if signal not provided
     const controller = !options.signal ? new AbortController() : null
-    const timeoutId = controller ? setTimeout(() => controller.abort(), 10000) : null
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 20000) : null
     const fetchOptions: RequestInit = {
       ...options,
       headers,

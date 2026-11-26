@@ -24,6 +24,7 @@ interface TopbarProps {
   onOpenCommandPalette: () => void
   rangeId: RangeKey
   onRangeChange: (range: RangeKey) => void
+  onRefresh?: () => void
   onOpenCreateModal?: (type: 'enquiry' | 'design' | 'workOrder') => void
 }
 
@@ -31,6 +32,7 @@ export function Topbar({
   onOpenCommandPalette,
   rangeId,
   onRangeChange,
+  onRefresh,
   onOpenCreateModal,
 }: TopbarProps) {
   const { theme, toggle: toggleTheme } = useTheme()
@@ -100,6 +102,7 @@ export function Topbar({
         <div className="flex items-center gap-4 min-w-0">
           <Link
             to="/"
+            onClick={() => onRefresh?.()}
             className="flex items-center gap-2.5 font-display text-base font-bold tracking-tight text-foreground shrink-0 transition-opacity hover:opacity-90"
           >
             <div className="grid size-7 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary-hover text-xs font-extrabold text-primary-foreground shadow-xs">
