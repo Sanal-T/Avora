@@ -56,6 +56,30 @@ export const STATUS_MAP: Record<DepartmentId, Record<string, StatusEntry>> = {
     assigned: { label: 'Assigned', tone: 'info', icon: Wrench },
     unavailable: { label: 'Unavailable', tone: 'neutral', icon: UserMinus },
   },
+  projects: {
+    approved: { label: 'Approved', tone: 'info', icon: ThumbsUp },
+    in_production: { label: 'In Production', tone: 'info', icon: Wrench },
+    sent_to_accounts: { label: 'Sent to Accounts', tone: 'warning', icon: Clock },
+    partially_paid: { label: 'Partially Paid', tone: 'warning', icon: Hourglass },
+    closed: { label: 'Closed', tone: 'success', icon: CheckCircle2 },
+  },
+  accounts: {
+    sent_to_accounts: { label: 'Sent to Accounts', tone: 'info', icon: Clock },
+    invoice_pending: { label: 'Invoice Pending', tone: 'warning', icon: Hourglass },
+    invoice_generated: { label: 'Invoice Generated', tone: 'info', icon: CheckCircle2 },
+    payment_pending: { label: 'Payment Pending', tone: 'warning', icon: Hourglass },
+    partially_paid: { label: 'Partially Paid', tone: 'warning', icon: Clock },
+    fully_paid: { label: 'Fully Paid', tone: 'success', icon: CheckCircle2 },
+    paid: { label: 'Paid', tone: 'success', icon: CheckCircle2 },
+    closed: { label: 'Closed', tone: 'success', icon: CheckCircle2 },
+  },
+  communications: {
+    open: { label: 'Open', tone: 'warning', icon: Clock },
+    in_progress: { label: 'In Progress', tone: 'info', icon: Loader },
+    responded: { label: 'Responded', tone: 'info', icon: MailCheck },
+    resolved: { label: 'Resolved', tone: 'success', icon: CheckCircle2 },
+    closed: { label: 'Closed', tone: 'neutral', icon: CheckCircle2 },
+  },
 }
 
 const humanise = (status: string) => status.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
@@ -65,12 +89,20 @@ export function StatusBadge({
   status,
   showIcon = false,
 }: {
-  department: DepartmentId
+  department?: DepartmentId
   status: string
   /** Show the status icon in place of the dot. */
   showIcon?: boolean
 }) {
-  const entry = STATUS_MAP[department][status] ?? { label: humanise(status), tone: 'neutral' as Tone, icon: CircleDashed }
+  const safeStatus = status || 'unknown'
+  const normalized = safeStatus.toLowerCase().replace(/\s+/g, '_')
+  const deptMap = department ? STATUS_MAP[department] : undefined
+  const entry = deptMap?.[safeStatus] ??
+    deptMap?.[normalized] ?? {
+      label: humanise(safeStatus),
+      tone: 'neutral' as Tone,
+      icon: CircleDashed,
+    }
   const Icon = entry.icon
   return (
     <Badge tone={entry.tone}>

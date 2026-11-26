@@ -280,6 +280,7 @@ export interface Enquiry {
   source: string | null
   assigned_employee_id: string | null
   assigned_employee_name?: string | null
+  qualified_by_name?: string | null
   created_at: string
   updated_at: string
   status_history?: EnquiryStatusHistory[]
@@ -737,6 +738,11 @@ export interface QuotationFollowUpRead {
   outcome?: string | null
   assigned_employee_id?: string | null
   assigned_employee_name?: string | null
+  contacted_person?: string | null
+  company?: string | null
+  contact_method?: string | null
+  customer_response?: string | null
+  next_follow_up_date?: string | null
   is_completed: boolean
   completed_date?: string | null
   created_at: string
@@ -883,9 +889,13 @@ export interface Feedback {
   customer_company?: string | null
   work_order_id: string | null
   work_order_number?: string | null
+  project_id?: string | null
   category: string
   rating: number | null
   comments: string | null
+  suggestions?: string | null
+  complaints?: string | null
+  internal_review?: string | null
   status: string
   resolution_notes?: string | null
   received_at: string | null

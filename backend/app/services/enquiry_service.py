@@ -27,7 +27,11 @@ VALID_STATUSES = [
 
 def _to_enquiry_read(enquiry: Enquiry) -> EnquiryRead:
     history_reads = []
+    qualified_by_name: str | None = None
     for h in enquiry.status_history:
+        changer_name = h.changed_by.full_name if h.changed_by else None
+        if h.to_status == "Qualified" and qualified_by_name is None:
+            qualified_by_name = changer_name
         history_reads.append(
             EnquiryStatusHistoryRead(
                 id=h.id,
@@ -35,7 +39,7 @@ def _to_enquiry_read(enquiry: Enquiry) -> EnquiryRead:
                 to_status=h.to_status,
                 notes=h.notes,
                 created_at=h.created_at,
-                changed_by_name=h.changed_by.full_name if h.changed_by else None,
+                changed_by_name=changer_name,
             )
         )
     return EnquiryRead(
@@ -55,6 +59,7 @@ def _to_enquiry_read(enquiry: Enquiry) -> EnquiryRead:
         next_follow_up_date=enquiry.next_follow_up_date,
         remarks=enquiry.remarks,
         qualified_at=enquiry.qualified_at,
+        qualified_by_name=qualified_by_name,
         converted_at=enquiry.converted_at,
         created_at=enquiry.created_at,
         updated_at=enquiry.updated_at,

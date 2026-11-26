@@ -60,6 +60,7 @@ class EnquiryRead(EnquiryBase):
     pending_reason: str | None = None
     lost_reason: str | None = None
     qualified_at: datetime | None = None
+    qualified_by_name: str | None = None
     converted_at: datetime | None = None
     created_at: datetime
     updated_at: datetime

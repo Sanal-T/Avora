@@ -38,6 +38,7 @@ interface DashboardRecord {
   date?: string
   budget?: string
   assignedTo?: string
+  qualifiedBy?: string
   priority?: string
   siteLocation?: string
   approvalStatus?: string
@@ -92,6 +93,14 @@ export function DepartmentDashboardPage({
   })
 
   const [records, setRecords] = useState<DashboardRecord[]>([])
+  const [rawQuotations, setRawQuotations] = useState<any[]>([])
+  const [quotationTab, setQuotationTab] = useState<'overview' | 'follow_up' | 'sent_to_production'>('overview')
+  const [rawFeedback, setRawFeedback] = useState<any[]>([])
+  const [feedbackTab, setFeedbackTab] = useState<'all' | 'Interior' | 'Exterior' | 'Signage'>('Interior')
+  const [feedbackFiles, setFeedbackFiles] = useState<Record<string, { id: string; file_name: string }[]>>({})
+  const [rawProduction, setRawProduction] = useState<any[]>([])
+  const [productionTab, setProductionTab] = useState<'overview' | 'calendar'>('overview')
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => new Date())
   const [loadingRecords, setLoadingRecords] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
@@ -153,6 +162,7 @@ export function DepartmentDashboardPage({
                   ? `₹${Number(e.estimated_budget).toLocaleString('en-IN')}`
                   : undefined,
                 assignedTo: e.assigned_employee_name || 'Unassigned',
+                qualifiedBy: e.qualified_by_name || undefined,
                 link: `/enquiries/${e.id}`,
               }
             })
@@ -185,6 +195,7 @@ export function DepartmentDashboardPage({
         } else if (departmentId === 'quotations') {
           const res = await quotationApi.listQuotations({ page_size: 100 })
           if (res.items) {
+            setRawQuotations(res.items)
             return res.items.map((q) => {
               const st = (q.status || '').toLowerCase()
               let status = 'pending'
@@ -209,6 +220,7 @@ export function DepartmentDashboardPage({
         } else if (departmentId === 'production') {
           const res = await productionApi.listWorkOrders({ page_size: 100 })
           if (res.items) {
+            setRawProduction(res.items)
             return res.items.map((wo) => {
               const st = (wo.status || '').toLowerCase()
               let status = 'active'
@@ -230,6 +242,21 @@ export function DepartmentDashboardPage({
         } else if (departmentId === 'feedback') {
           const res = await feedbackApi.listFeedback({ page_size: 100 })
           if (res.items) {
+            setRawFeedback(res.items)
+            Promise.all(
+              res.items.map(async (f) => {
+                try {
+                  const files = await apiFetch<{ id: string; file_name: string }[]>(
+                    `/api/files?entity_type=feedback&entity_id=${f.id}`,
+                  )
+                  return [f.id, files] as const
+                } catch {
+                  return [f.id, []] as const
+                }
+              }),
+            ).then((entries) => {
+              if (isMounted) setFeedbackFiles(Object.fromEntries(entries))
+            })
             return res.items.map((f) => ({
               id: f.id,
               code: `FB-${f.id.slice(0, 4).toUpperCase()}`,
@@ -413,7 +440,363 @@ export function DepartmentDashboardPage({
         }
       />
 
-      {/* 4 Interactive Option Cards */}
+      {departmentId === 'quotations' && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
+          {[
+            { id: 'overview', label: 'Quotations Management' },
+            { id: 'follow_up', label: 'Follow Up' },
+            { id: 'sent_to_production', label: 'Sent to Production' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setQuotationTab(tab.id as any)}
+              className={cn(
+                'px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer',
+                quotationTab === tab.id
+                  ? 'bg-primary text-primary-foreground shadow-xs'
+                  : 'bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-muted/40',
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {departmentId === 'production' && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
+          {[
+            { id: 'overview', label: 'Production Management' },
+            { id: 'calendar', label: 'Production Calendar' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setProductionTab(tab.id as any)}
+              className={cn(
+                'px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer',
+                productionTab === tab.id
+                  ? 'bg-primary text-primary-foreground shadow-xs'
+                  : 'bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-muted/40',
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {departmentId === 'feedback' && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
+          {[
+            { id: 'Interior', label: 'Interior' },
+            { id: 'Exterior', label: 'Exterior' },
+            { id: 'Signage', label: 'Signage' },
+            { id: 'all', label: 'All Feedback' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setFeedbackTab(tab.id as any)}
+              className={cn(
+                'px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer',
+                feedbackTab === tab.id
+                  ? 'bg-primary text-primary-foreground shadow-xs'
+                  : 'bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-muted/40',
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {departmentId === 'production' && productionTab === 'calendar' ? (
+        <Card className="p-5 space-y-4">
+          {(() => {
+            const year = calendarMonth.getFullYear()
+            const month = calendarMonth.getMonth()
+            const firstDay = new Date(year, month, 1)
+            const startOffset = (firstDay.getDay() + 6) % 7 // Monday = 0
+            const daysInMonth = new Date(year, month + 1, 0).getDate()
+            const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7
+            const monthLabel = calendarMonth.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+            const todayIso = new Date().toISOString().slice(0, 10)
+
+            return (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">Production Calendar</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Live work orders scheduled across {monthLabel}.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setCalendarMonth(new Date(year, month - 1, 1))}
+                    >
+                      <ChevronLeft className="size-3.5" />
+                    </Button>
+                    <span className="px-2 text-xs font-semibold min-w-[120px] text-center">{monthLabel}</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setCalendarMonth(new Date(year, month + 1, 1))}
+                    >
+                      <ChevronRight className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2.5 text-xs ml-1"
+                      onClick={() => setCalendarMonth(new Date())}
+                    >
+                      Today
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-7 border border-border rounded-lg overflow-hidden text-xs">
+                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+                    <div key={day} className="bg-muted/40 border-b border-border px-2 py-2 font-semibold text-muted-foreground text-center">
+                      {day}
+                    </div>
+                  ))}
+                  {Array.from({ length: totalCells }).map((_, idx) => {
+                    const dayNum = idx - startOffset + 1
+                    const isCurrentMonth = dayNum >= 1 && dayNum <= daysInMonth
+                    const cellDate = isCurrentMonth
+                      ? `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`
+                      : ''
+                    const dayOrders = isCurrentMonth
+                      ? rawProduction.filter((wo) => {
+                          const start = wo.planned_start_date || wo.actual_start_date
+                          const end = wo.planned_end_date || start
+                          if (!start) return false
+                          return cellDate >= start && cellDate <= (end || start)
+                        })
+                      : []
+
+                    return (
+                      <div
+                        key={idx}
+                        className={cn(
+                          'min-h-[96px] border-b border-r border-border p-1.5 flex flex-col gap-1',
+                          !isCurrentMonth && 'bg-muted/20 text-muted-foreground/40',
+                          cellDate === todayIso && 'bg-primary/5',
+                        )}
+                      >
+                        <span className={cn('text-[11px] font-mono', cellDate === todayIso && 'font-bold text-primary')}>
+                          {isCurrentMonth ? dayNum : ''}
+                        </span>
+                        <div className="flex flex-col gap-1 overflow-y-auto">
+                          {dayOrders.map((wo) => (
+                            <Link
+                              key={wo.id}
+                              to={`/production/${wo.id}`}
+                              title={`${wo.work_order_number}: ${wo.title} (${wo.status})`}
+                              className={cn(
+                                'px-1.5 py-0.5 rounded text-[10px] font-medium truncate border',
+                                (wo.status || '').toLowerCase().includes('complet')
+                                  ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30'
+                                  : (wo.status || '').toLowerCase().includes('delay')
+                                    ? 'bg-rose-500/15 text-rose-500 border-rose-500/30'
+                                    : 'bg-primary/15 text-primary border-primary/30',
+                              )}
+                            >
+                              {wo.work_order_number} · {wo.title}
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )
+          })()}
+        </Card>
+      ) : departmentId === 'feedback' && feedbackTab !== 'all' ? (
+        <Card className="p-5 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">{feedbackTab} Feedback (Google Form Responses)</h3>
+            <p className="text-xs text-muted-foreground">
+              Customer satisfaction ratings, service & product quality responses, and uploaded images.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="py-2.5 pr-3 font-semibold whitespace-nowrap">Customer / Company</th>
+                  <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Rating</th>
+                  <th className="py-2.5 px-3 font-semibold">Service & Product Quality</th>
+                  <th className="py-2.5 px-3 font-semibold">Suggestions / Complaints</th>
+                  <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Images</th>
+                  <th className="py-2.5 pl-3 font-semibold whitespace-nowrap">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {(() => {
+                  const filtered = rawFeedback.filter(
+                    (f) => (f.category || '').toLowerCase() === feedbackTab.toLowerCase(),
+                  )
+                  if (filtered.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                          No {feedbackTab} feedback responses found in the database.
+                        </td>
+                      </tr>
+                    )
+                  }
+                  return filtered.map((f) => {
+                    const imgs = feedbackFiles[f.id] || []
+                    return (
+                      <tr key={f.id} className="hover:bg-muted/30">
+                        <td className="py-2.5 pr-3 font-medium align-top">
+                          <Link to={`/feedback/${f.id}`} className="text-primary hover:underline">
+                            {f.customer_company || f.customer_name || 'Client'}
+                          </Link>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono whitespace-nowrap align-top">
+                          {f.rating != null ? `${f.rating} / 5` : '—'}
+                        </td>
+                        <td className="py-2.5 px-3 text-muted-foreground align-top">{f.comments || '—'}</td>
+                        <td className="py-2.5 px-3 text-muted-foreground align-top">
+                          {[f.suggestions, f.complaints].filter(Boolean).join(' • ') || '—'}
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap align-top">
+                          {imgs.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">
+                              {imgs.map((img) => (
+                                <a
+                                  key={img.id}
+                                  href={`/api/files/${img.id}/download`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-primary underline"
+                                >
+                                  {img.file_name}
+                                </a>
+                              ))}
+                            </div>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="py-2.5 pl-3 whitespace-nowrap align-top">
+                          <StatusBadge
+                            department="feedback"
+                            status={(f.status || '').toLowerCase().includes('await') ? 'awaiting' : 'received'}
+                          />
+                        </td>
+                      </tr>
+                    )
+                  })
+                })()}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : departmentId === 'quotations' && quotationTab === 'follow_up' ? (
+        <Card className="p-5 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Quotation Follow-Ups</h3>
+            <p className="text-xs text-muted-foreground">
+              Customer comments, quotation deadline, contacted person, reminder date, and remarks.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="py-2.5 pr-3 font-semibold whitespace-nowrap">Quotation</th>
+                  <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Deadline</th>
+                  <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Contacted</th>
+                  <th className="py-2.5 px-3 font-semibold">Customer Comments</th>
+                  <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Reminder Date</th>
+                  <th className="py-2.5 pl-3 font-semibold">Remarks</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {rawQuotations.flatMap((q) =>
+                  (q.follow_ups || []).map((f: any) => (
+                    <tr key={f.id} className="hover:bg-muted/30">
+                      <td className="py-2.5 pr-3 font-mono font-semibold text-primary whitespace-nowrap align-top">
+                        <Link to={`/quotations/${q.id}`} className="hover:underline">
+                          {q.quotation_number}
+                        </Link>
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-muted-foreground whitespace-nowrap align-top">{q.valid_until || '—'}</td>
+                      <td className="py-2.5 px-3 align-top">{f.contacted_person || q.customer_company || '—'}</td>
+                      <td className="py-2.5 px-3 text-muted-foreground align-top">{f.customer_response || '—'}</td>
+                      <td className="py-2.5 px-3 font-mono whitespace-nowrap align-top">{f.next_follow_up_date || f.scheduled_date || '—'}</td>
+                      <td className="py-2.5 pl-3 text-muted-foreground align-top">{f.notes || '—'}</td>
+                    </tr>
+                  )),
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : departmentId === 'quotations' && quotationTab === 'sent_to_production' ? (
+        <Card className="p-5 space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Sent to Production</h3>
+            <p className="text-xs text-muted-foreground">
+              Approved quotations converted and transferred to the Production department.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="py-2.5 pr-3 font-semibold whitespace-nowrap">Quotation</th>
+                  <th className="py-2.5 px-3 font-semibold">Customer / Project</th>
+                  <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Approved Value</th>
+                  <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Status</th>
+                  <th className="py-2.5 pl-3 font-semibold text-right whitespace-nowrap">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {rawQuotations
+                  .filter((q) => q.status === 'Converted' || q.has_work_order)
+                  .map((q) => (
+                    <tr key={q.id} className="hover:bg-muted/30">
+                      <td className="py-2.5 pr-3 font-mono font-semibold text-primary whitespace-nowrap">{q.quotation_number}</td>
+                      <td className="py-2.5 px-3">{q.customer_company || q.customer_name || 'Client'}</td>
+                      <td className="py-2.5 px-3 font-mono whitespace-nowrap">
+                        ₹{Number(q.approved_value || q.total_amount || 0).toLocaleString('en-IN')}
+                      </td>
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <StatusBadge department="quotations" status="converted" />
+                      </td>
+                      <td className="py-2.5 pl-3 text-right whitespace-nowrap">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/quotations/${q.id}`)}
+                          className="h-7 text-xs"
+                        >
+                          Open
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : (
+        <>
+          {/* 4 Interactive Option Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi) => {
           const isSelected = selectedFilter === kpi.filterKey
@@ -570,7 +953,10 @@ export function DepartmentDashboardPage({
                   <th className="py-2.5 font-semibold">Details / Entity</th>
                   <th className="py-2.5 font-semibold">Requirement / Notes</th>
                   {departmentId === 'enquiries' && (
-                    <th className="py-2.5 font-semibold">Est. Budget</th>
+                    <>
+                      <th className="py-2.5 font-semibold">Est. Budget</th>
+                      <th className="py-2.5 font-semibold">Qualified By</th>
+                    </>
                   )}
                   {departmentId === 'designs' && (
                     <>
@@ -650,9 +1036,14 @@ export function DepartmentDashboardPage({
                         {rec.subtitle || '—'}
                       </td>
                       {departmentId === 'enquiries' && (
-                        <td className="py-2.5 font-mono font-medium text-foreground">
-                          {rec.budget || '—'}
-                        </td>
+                        <>
+                          <td className="py-2.5 font-mono font-medium text-foreground">
+                            {rec.budget || '—'}
+                          </td>
+                          <td className="py-2.5 text-muted-foreground">
+                            {rec.qualifiedBy || '—'}
+                          </td>
+                        </>
                       )}
                       {departmentId === 'designs' && (
                         <>
@@ -720,6 +1111,8 @@ export function DepartmentDashboardPage({
           )}
         </Card>
       </div>
+        </>
+      )}
     </PageContainer>
   )
 }
