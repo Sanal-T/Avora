@@ -105,14 +105,14 @@ export const MainDashboard = memo(function MainDashboard({
       to: '/quotations',
     },
     {
-      label: 'Open Work Orders',
+      label: 'In Progress',
       value: String(snapshot.open_work_count ?? 0),
-      sub: 'Active shop-floor tasks',
+      sub: 'Designs, quotations & production',
       variant: 'info' as const,
       glowColor: '217 91 60',
       glowColors: ['#3b82f6', '#1d4ed8', '#60a5fa'],
       icon: Factory,
-      to: '/designs?status=in_progress',
+      to: '/in-progress',
     },
     {
       label: 'Urgent Attention Items',

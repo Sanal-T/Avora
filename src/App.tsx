@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
 import { MainDashboard } from './pages/dashboard/MainDashboard'
+import { InProgressPage } from './pages/dashboard/InProgressPage'
 import { DepartmentDashboardPage } from './pages/departments/DepartmentDashboardPage'
 import { EnquiriesListPage } from './pages/departments/enquiries/EnquiriesListPage'
 import { EnquiryDetailPage } from './pages/departments/enquiries/EnquiryDetailPage'
@@ -87,6 +88,7 @@ function AppShellInner({
             />
           }
         />
+        <Route path="/in-progress" element={<InProgressPage />} />
 
         {/* Legacy route compatibility */}
         <Route path="/departments/:id" element={<DepartmentRedirect />} />
