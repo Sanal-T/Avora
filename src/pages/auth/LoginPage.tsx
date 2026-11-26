@@ -34,6 +34,7 @@ export function LoginPage() {
         permissions: (profile.permissions || []) as any,
       })
       toast.success(`Welcome back, ${profile.full_name || 'Staff Member'}`, 'Authenticated successfully against Avora ERP database.')
+      window.dispatchEvent(new Event('avora:login-success'))
       navigate('/')
     } catch (err: any) {
       toast.error('Login Failed', err.message || 'Incorrect email or password.')

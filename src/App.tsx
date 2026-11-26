@@ -232,6 +232,14 @@ export default function App() {
     refresh(true)
   }, [refresh])
 
+  useEffect(() => {
+    const onLoginSuccess = () => {
+      refresh(true)
+    }
+    window.addEventListener('avora:login-success', onLoginSuccess)
+    return () => window.removeEventListener('avora:login-success', onLoginSuccess)
+  }, [refresh])
+
   return (
     <BrowserRouter>
       <Routes>

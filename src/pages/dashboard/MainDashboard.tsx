@@ -1,4 +1,4 @@
-import { useMemo, useState, memo } from 'react'
+import { useEffect, useMemo, useRef, useState, memo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTheme } from '../../lib/hooks'
 import {
@@ -78,6 +78,13 @@ export const MainDashboard = memo(function MainDashboard({
 }) {
   const navigate = useNavigate()
   const [urgentModalOpen, setUrgentModalOpen] = useState(false)
+  const mountedRef = useRef(false)
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true
+      onRefresh()
+    }
+  }, [onRefresh])
   const { theme } = useTheme()
   const cardBgDark = '#0f0f13'
   const cardBgDarkAlt = '#0d0d12'
@@ -124,17 +131,7 @@ export const MainDashboard = memo(function MainDashboard({
       icon: AlertTriangle,
       to: `/${overview.actionItems?.[0]?.department_id || 'quotations'}`,
     },
-    {
-      label: 'Quotation Volume',
-      value: quotationDept?.primary || '₹0',
-      sub: 'Estimated turnover in range',
-      variant: 'success' as const,
-      glowColor: '142 71 45',
-      glowColors: ['#22c55e', '#16a34a', '#4ade80'],
-      icon: FileText,
-      to: '/quotations',
-    },
-  ], [snapshot.active_pipeline_value, snapshot.open_work_count, snapshot.needs_attention_count, quotationDept?.primary])
+  ], [snapshot.active_pipeline_value, snapshot.open_work_count, snapshot.needs_attention_count])
 
   const actions = overview.actionItems || []
 
