@@ -153,6 +153,7 @@ function AppShellInner({
           }
         />
         <Route path="/feedback/list" element={<FeedbackListPage />} />
+        <Route path="/feedback/:id" element={<FeedbackDetailPage />} />
 
         <Route
           path="/labour"
