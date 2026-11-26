@@ -1,33 +1,33 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, Layers } from 'lucide-react'
+import { ArrowLeft, RefreshCw } from 'lucide-react'
 import { PageContainer, PageHeader } from '../../components/shared/PageHeader'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { designApi, quotationApi, productionApi, type Design, type Quotation, type WorkOrder } from '../../lib/api'
+import { rangeDates } from '../../lib/dates'
+import type { RangeKey } from '../../data/dashboard'
 import { cn } from '../../lib/cn'
 
-export function InProgressPage() {
+export function InProgressPage({ rangeId }: { rangeId: RangeKey }) {
   const [tab, setTab] = useState<'designs' | 'quotations' | 'productions'>('designs')
   const [loading, setLoading] = useState(true)
   const [designs, setDesigns] = useState<Design[]>([])
   const [quotations, setQuotations] = useState<Quotation[]>([])
   const [productions, setProductions] = useState<WorkOrder[]>([])
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
+    const { dateFrom, dateTo } = rangeDates(rangeId)
     try {
       const [dRes, qRes, pRes] = await Promise.all([
-        designApi.listDesigns({ page_size: 2000 }),
-        quotationApi.listQuotations({ page_size: 2000 }),
-        productionApi.listWorkOrders({ page_size: 2000 }),
+        designApi.listDesigns({ page_size: 2000, date_from: dateFrom, date_to: dateTo }),
+        quotationApi.listQuotations({ page_size: 2000, date_from: dateFrom, date_to: dateTo }),
+        productionApi.listWorkOrders({ page_size: 2000, date_from: dateFrom, date_to: dateTo }),
       ])
       setDesigns(
-        (dRes.items || []).filter((d) => {
-          const s = (d.status || '').toLowerCase()
-          return s.includes('progress') || s.includes('review') || s.includes('assigned')
-        }),
+        (dRes.items || []).filter((d) => (d.status || '').toLowerCase() === 'in progress'),
       )
       setQuotations(
         (qRes.items || []).filter((q) => {
@@ -44,11 +44,11 @@ export function InProgressPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [rangeId])
 
   useEffect(() => {
     load()
-  }, [])
+  }, [load])
 
   return (
     <PageContainer>

@@ -61,6 +61,7 @@ export function Topbar({
 
   const showDateRange =
     location.pathname === '/' ||
+    location.pathname === '/in-progress' ||
     DEPARTMENT_ORDER.some((dept) => location.pathname === `/${dept}`)
 
   // Dynamic breadcrumbs

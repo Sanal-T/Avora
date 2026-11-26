@@ -88,7 +88,7 @@ function AppShellInner({
             />
           }
         />
-        <Route path="/in-progress" element={<InProgressPage />} />
+        <Route path="/in-progress" element={<InProgressPage rangeId={rangeId} />} />
 
         {/* Legacy route compatibility */}
         <Route path="/departments/:id" element={<DepartmentRedirect />} />
