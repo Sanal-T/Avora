@@ -1,4 +1,4 @@
-import { useMemo, memo } from 'react'
+import { useMemo, useState, memo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTheme } from '../../lib/hooks'
 import {
@@ -77,6 +77,7 @@ export const MainDashboard = memo(function MainDashboard({
   onRefresh: () => void
 }) {
   const navigate = useNavigate()
+  const [urgentModalOpen, setUrgentModalOpen] = useState(false)
   const { theme } = useTheme()
   const cardBgDark = '#0f0f13'
   const cardBgDarkAlt = '#0d0d12'
@@ -101,6 +102,7 @@ export const MainDashboard = memo(function MainDashboard({
       glowColor: '24 95 53',
       glowColors: ['#f97316', '#ea580c', '#fb923c'],
       icon: TrendingUp,
+      to: '/quotations',
     },
     {
       label: 'Open Work Orders',
@@ -110,6 +112,7 @@ export const MainDashboard = memo(function MainDashboard({
       glowColor: '217 91 60',
       glowColors: ['#3b82f6', '#1d4ed8', '#60a5fa'],
       icon: Factory,
+      to: '/production',
     },
     {
       label: 'Urgent Attention Items',
@@ -119,6 +122,7 @@ export const MainDashboard = memo(function MainDashboard({
       glowColor: '0 84 60',
       glowColors: ['#ef4444', '#dc2626', '#f87171'],
       icon: AlertTriangle,
+      to: `/${overview.actionItems?.[0]?.department_id || 'quotations'}`,
     },
     {
       label: 'Quotation Volume',
@@ -128,6 +132,7 @@ export const MainDashboard = memo(function MainDashboard({
       glowColor: '142 71 45',
       glowColors: ['#22c55e', '#16a34a', '#4ade80'],
       icon: FileText,
+      to: '/quotations',
     },
   ], [snapshot.active_pipeline_value, snapshot.open_work_count, snapshot.needs_attention_count, quotationDept?.primary])
 
@@ -191,8 +196,15 @@ export const MainDashboard = memo(function MainDashboard({
               edgeSensitivity={22}
               coneSpread={26}
               fillOpacity={0.25}
+              onClick={() => {
+                if (kpi.label === 'Urgent Attention Items') {
+                  setUrgentModalOpen(true)
+                } else {
+                  navigate(kpi.to)
+                }
+              }}
               className={cn(
-                'relative p-5 transition-card cursor-default',
+                'relative p-5 transition-card cursor-pointer hover:scale-[1.01]',
                 isPrimary && 'border-primary/40 bg-gradient-to-br from-card to-primary-soft/30',
                 isInfo && 'border-info/40 bg-gradient-to-br from-card to-info-soft/30',
                 isDanger && 'border-danger/30 bg-gradient-to-br from-card to-danger-soft/20',
@@ -413,6 +425,58 @@ export const MainDashboard = memo(function MainDashboard({
           </div>
         </BorderGlow>
       </div>
+
+      {urgentModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+          onClick={() => setUrgentModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-xl border border-border bg-card p-5 shadow-float space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="size-4 text-danger" />
+                <h3 className="text-sm font-semibold text-foreground">
+                  Urgent Attention Items ({actions.length})
+                </h3>
+              </div>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setUrgentModalOpen(false)}>
+                Close
+              </Button>
+            </div>
+            <div className="divide-y divide-border max-h-[60vh] overflow-y-auto">
+              {actions.length === 0 ? (
+                <p className="py-6 text-center text-xs text-muted-foreground">No urgent attention items.</p>
+              ) : (
+                actions.map((item, idx) => (
+                  <div key={idx} className="py-3 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-foreground">{item.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>
+                      <span className="inline-block mt-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                        {item.department_id}
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs shrink-0"
+                      onClick={() => {
+                        setUrgentModalOpen(false)
+                        navigate(`/${item.department_id}`)
+                      }}
+                    >
+                      Open
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </PageContainer>
   )
 })

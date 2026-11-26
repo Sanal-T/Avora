@@ -235,7 +235,7 @@ export default function App() {
   }, [rangeId])
 
   useEffect(() => {
-    refresh(false)
+    refresh(true)
   }, [refresh])
 
   return (
