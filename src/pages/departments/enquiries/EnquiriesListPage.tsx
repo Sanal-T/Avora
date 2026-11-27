@@ -7,6 +7,7 @@ import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../compone
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import type { MockEnquiry } from '../../../data/mockData'
 import { enquiryApi, type Enquiry } from '../../../lib/api'
+import { getCachedData, invalidateCache, setCachedData } from '../../../lib/cache'
 import { EnquiryFormModal } from './EnquiryFormModal'
 
 function toUiEnquiry(e: Enquiry): MockEnquiry {
@@ -34,22 +35,31 @@ function toUiEnquiry(e: Enquiry): MockEnquiry {
 
 export function EnquiriesListPage() {
   const navigate = useNavigate()
-  const [data, setData] = useState<MockEnquiry[]>([])
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<MockEnquiry[]>(() => getCachedData<MockEnquiry[]>('list:enquiries') || [])
+  const [loading, setLoading] = useState(() => !getCachedData('list:enquiries'))
   const [activeTab, setActiveTab] = useState<string>('all')
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
-  const loadEnquiries = () => {
-    setLoading(true)
+  const loadEnquiries = (force = false) => {
+    if (force) invalidateCache('list:enquiries')
+    const cached = !force ? getCachedData<MockEnquiry[]>('list:enquiries') : null
+    if (cached) {
+      setData(cached)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
     enquiryApi
-      .list({ page_size: 2000 })
+      .list({ page_size: 2000, compact: true })
       .then((res) => {
-        setData((res.items || []).map(toUiEnquiry))
+        const mapped = (res.items || []).map(toUiEnquiry)
+        setCachedData('list:enquiries', mapped)
+        setData(mapped)
       })
       .catch((err) => {
         console.warn('Could not load live enquiries from PostgreSQL:', err)
-        setData([])
+        if (!cached) setData([])
       })
       .finally(() => {
         setLoading(false)
@@ -57,7 +67,7 @@ export function EnquiriesListPage() {
   }
 
   useEffect(() => {
-    loadEnquiries()
+    loadEnquiries(false)
   }, [])
 
   const filterTabs: QuickFilterTab[] = [
@@ -171,7 +181,7 @@ export function EnquiriesListPage() {
         description="Track incoming customer commercial specifications, qualifications, and hand-offs."
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={loadEnquiries} disabled={loading} title="Reload from PostgreSQL">
+            <Button variant="outline" size="sm" onClick={() => loadEnquiries(true)} disabled={loading} title="Reload from PostgreSQL">
               <RefreshCw className={`size-3.5 ${loading ? 'animate-spin' : ''}`} />
               <span>Refresh</span>
             </Button>

@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy import func, literal, select, union_all
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_active_user, get_db
@@ -220,7 +221,7 @@ def build_department_summaries_with_data(db: Session, date_from: date | None = N
     return summaries, raw_data
 
 
-def build_action_items(db: Session, prod_summary: Any = None) -> list[ActionItem]:
+def build_action_items(db: Session, prod_summary: Any = None, q_summary: Any = None) -> list[ActionItem]:
     actions: list[ActionItem] = []
     # Delayed work orders (use precomputed summary if provided)
     if prod_summary is None:
@@ -229,23 +230,26 @@ def build_action_items(db: Session, prod_summary: Any = None) -> list[ActionItem
     if delayed_wo > 0:
         actions.append(ActionItem(title=f"{delayed_wo} delayed work orders", description="Review production schedules & resources", department_id="production"))
 
-    # Quotation follow-ups due (ensure parent quotation is not deleted)
-    pending_follow_ups = (
-        db.query(QuotationFollowUp)
-        .join(Quotation, QuotationFollowUp.quotation_id == Quotation.id)
-        .filter(Quotation.is_deleted == False, QuotationFollowUp.is_completed == False)
-        .count()
-    )
+    # Quotation follow-ups due (reuse precomputed q_summary if provided)
+    if q_summary is not None:
+        pending_follow_ups = q_summary.pending_follow_ups
+    else:
+        pending_follow_ups = (
+            db.query(func.count(QuotationFollowUp.id))
+            .join(Quotation, QuotationFollowUp.quotation_id == Quotation.id)
+            .filter(Quotation.is_deleted == False, QuotationFollowUp.is_completed == False)
+            .scalar()
+            or 0
+        )
     if pending_follow_ups > 0:
         actions.append(ActionItem(title=f"{pending_follow_ups} quotations need follow-up", description="Contact clients on awaiting proposals", department_id="quotations"))
 
-    # Pending designs
-    pending_designs = db.query(Design).filter(Design.is_deleted == False, Design.status.in_(["Not Started", "Revision Required"])).count()
+    # Pending designs & pending labour requests in parallel/single-scalar queries
+    pending_designs = db.query(func.count(Design.id)).filter(Design.is_deleted == False, Design.status.in_(["Not Started", "Revision Required"])).scalar() or 0
     if pending_designs > 0:
         actions.append(ActionItem(title=f"{pending_designs} designs awaiting action", description="Assign designers or review revisions", department_id="designs"))
 
-    # Pending labour requests
-    pending_labour = db.query(LabourRequest).filter(LabourRequest.status == "Pending").count()
+    pending_labour = db.query(func.count(LabourRequest.id)).filter(LabourRequest.status == "Pending").scalar() or 0
     if pending_labour > 0:
         actions.append(ActionItem(title=f"{pending_labour} labour requests awaiting approval", description="Review worker allocations", department_id="labour"))
 
@@ -292,65 +296,96 @@ def _normalize_dt(dt: datetime | None) -> datetime:
     return dt
 
 
+def _coerce_dt(dt: Any) -> datetime | None:
+    if dt is None:
+        return None
+    if isinstance(dt, datetime):
+        return dt
+    if isinstance(dt, str):
+        try:
+            return datetime.fromisoformat(dt.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
+
+
 def build_recent_activities(db: Session) -> list[ActivityItem]:
-    items: list[tuple[datetime | None, ActivityItem]] = []
+    q_sel = (
+        select(
+            func.coalesce(Quotation.updated_at, Quotation.created_at).label("ts"),
+            literal("Quotation").label("category"),
+            Quotation.quotation_number.label("ref_num"),
+            Quotation.status.label("status_val"),
+            literal("").label("extra_text"),
+        )
+        .where(Quotation.is_deleted == False)
+        .order_by(func.coalesce(Quotation.updated_at, Quotation.created_at).desc())
+        .limit(6)
+    )
+    d_sel = (
+        select(
+            func.coalesce(Design.updated_at, Design.created_at).label("ts"),
+            literal("Design").label("category"),
+            Design.design_number.label("ref_num"),
+            Design.status.label("status_val"),
+            Design.title.label("extra_text"),
+        )
+        .where(Design.is_deleted == False)
+        .order_by(func.coalesce(Design.updated_at, Design.created_at).desc())
+        .limit(6)
+    )
+    w_sel = (
+        select(
+            func.coalesce(WorkOrder.updated_at, WorkOrder.created_at).label("ts"),
+            literal("Production").label("category"),
+            WorkOrder.work_order_number.label("ref_num"),
+            WorkOrder.status.label("status_val"),
+            literal("").label("extra_text"),
+        )
+        .where(WorkOrder.is_deleted == False)
+        .order_by(func.coalesce(WorkOrder.updated_at, WorkOrder.created_at).desc())
+        .limit(6)
+    )
+    e_sel = (
+        select(
+            Enquiry.created_at.label("ts"),
+            literal("Enquiry").label("category"),
+            Enquiry.enquiry_number.label("ref_num"),
+            Enquiry.status.label("status_val"),
+            func.coalesce(Customer.name, "Client").label("extra_text"),
+        )
+        .select_from(Enquiry)
+        .outerjoin(Customer, Enquiry.customer_id == Customer.id)
+        .where(Enquiry.is_deleted == False)
+        .order_by(Enquiry.created_at.desc())
+        .limit(6)
+    )
 
-    # Recent quotation status changes
-    recent_quotes = db.query(Quotation).order_by(Quotation.updated_at.desc()).limit(4).all()
-    for q in recent_quotes:
-        ts = q.updated_at or q.created_at
-        items.append((
-            ts,
-            ActivityItem(
-                title=f"Quotation {q.quotation_number} status is {q.status}",
-                category="Quotation",
-                time_ago=_format_time_ago(ts),
-            ),
-        ))
+    combined = union_all(
+        select(q_sel.subquery()),
+        select(d_sel.subquery()),
+        select(w_sel.subquery()),
+        select(e_sel.subquery()),
+    ).subquery()
+    rows = db.execute(select(combined).order_by(combined.c.ts.desc()).limit(6)).fetchall()
 
-    # Recent designs
-    recent_designs = db.query(Design).order_by(Design.updated_at.desc()).limit(4).all()
-    for d in recent_designs:
-        ts = d.updated_at or d.created_at
-        items.append((
-            ts,
-            ActivityItem(
-                title=f"Design {d.design_number} '{d.title[:30]}' {d.status.lower()}",
-                category="Design",
-                time_ago=_format_time_ago(ts),
-            ),
-        ))
-
-    # Recent work orders
-    recent_wos = db.query(WorkOrder).order_by(WorkOrder.updated_at.desc()).limit(4).all()
-    for w in recent_wos:
-        ts = w.updated_at or w.created_at
-        items.append((
-            ts,
-            ActivityItem(
-                title=f"Work order {w.work_order_number} is {w.status.lower()}",
-                category="Production",
-                time_ago=_format_time_ago(ts),
-            ),
-        ))
-
-    # Recent enquiries (eagerly load customer to prevent N+1 queries)
-    recent_enqs = db.query(Enquiry).options(joinedload(Enquiry.customer)).order_by(Enquiry.created_at.desc()).limit(4).all()
-    for e in recent_enqs:
-        ts = e.created_at
-        cust_name = e.customer.name if e.customer else "Client"
-        items.append((
-            ts,
-            ActivityItem(
-                title=f"New enquiry {e.enquiry_number} from {cust_name}",
-                category="Enquiry",
-                time_ago=_format_time_ago(ts),
-            ),
-        ))
-
-    # Sort in true chronological order (newest first)
-    items.sort(key=lambda x: _normalize_dt(x[0]), reverse=True)
-    return [act for _, act in items[:6]]
+    activities: list[ActivityItem] = []
+    for row in rows:
+        ts = _coerce_dt(row.ts)
+        cat = row.category
+        ref = row.ref_num
+        st = row.status_val or ""
+        extra = row.extra_text or ""
+        if cat == "Quotation":
+            title = f"Quotation {ref} status is {st}"
+        elif cat == "Design":
+            title = f"Design {ref} '{extra[:30]}' {st.lower()}"
+        elif cat == "Production":
+            title = f"Work order {ref} is {st.lower()}"
+        else:
+            title = f"New enquiry {ref} from {extra or 'Client'}"
+        activities.append(ActivityItem(title=title, category=cat, time_ago=_format_time_ago(ts)))
+    return activities
 
 
 @router.get("/overview", response_model=DashboardOverview)
@@ -364,7 +399,7 @@ def get_overview(
         raise HTTPException(status_code=422, detail="date_from must not be after date_to")
 
     summaries, raw_data = build_department_summaries_with_data(db, date_from, date_to)
-    action_items = build_action_items(db, prod_summary=raw_data.get("production"))
+    action_items = build_action_items(db, prod_summary=raw_data.get("production"), q_summary=raw_data.get("quotations"))
     activities = build_recent_activities(db)
 
     # Compute overall snapshot directly from already-calculated department summaries (ZERO duplicate queries!)

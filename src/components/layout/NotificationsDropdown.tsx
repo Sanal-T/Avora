@@ -24,7 +24,11 @@ export function NotificationsDropdown() {
 
   const unreadCount = notifications.filter((n) => !n.is_read).length
 
+  const hasFetchedRef = useRef(false)
+
   useEffect(() => {
+    if (!open && hasFetchedRef.current) return
+    hasFetchedRef.current = true
     let isMounted = true
     const loadNotifications = async () => {
       try {

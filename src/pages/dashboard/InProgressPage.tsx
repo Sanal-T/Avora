@@ -6,48 +6,72 @@ import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { StatusBadge } from '../../components/shared/StatusBadge'
 import { designApi, quotationApi, productionApi, type Design, type Quotation, type WorkOrder } from '../../lib/api'
+import { getCachedData, invalidateCache, setCachedData } from '../../lib/cache'
 import { rangeDates } from '../../lib/dates'
 import type { RangeKey } from '../../data/dashboard'
 import { cn } from '../../lib/cn'
 
+interface InProgressSnapshot {
+  designs: Design[]
+  quotations: Quotation[]
+  productions: WorkOrder[]
+}
+
 export function InProgressPage({ rangeId }: { rangeId: RangeKey }) {
   const [tab, setTab] = useState<'designs' | 'quotations' | 'productions'>('designs')
-  const [loading, setLoading] = useState(true)
-  const [designs, setDesigns] = useState<Design[]>([])
-  const [quotations, setQuotations] = useState<Quotation[]>([])
-  const [productions, setProductions] = useState<WorkOrder[]>([])
+  const { dateFrom, dateTo } = rangeDates(rangeId)
+  const cacheKey = `inprogress:${rangeId}:${dateFrom || ''}:${dateTo || ''}`
+  const initialCached = getCachedData<InProgressSnapshot>(cacheKey)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    const { dateFrom, dateTo } = rangeDates(rangeId)
+  const [loading, setLoading] = useState(!initialCached)
+  const [designs, setDesigns] = useState<Design[]>(initialCached?.designs || [])
+  const [quotations, setQuotations] = useState<Quotation[]>(initialCached?.quotations || [])
+  const [productions, setProductions] = useState<WorkOrder[]>(initialCached?.productions || [])
+
+  const load = useCallback(async (force = false) => {
+    if (force) {
+      invalidateCache('inprogress:')
+    }
+    const cached = !force ? getCachedData<InProgressSnapshot>(cacheKey) : null
+    if (cached) {
+      setDesigns(cached.designs)
+      setQuotations(cached.quotations)
+      setProductions(cached.productions)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
+
     try {
       const [dRes, qRes, pRes] = await Promise.all([
-        designApi.listDesigns({ page_size: 2000, date_from: dateFrom, date_to: dateTo }),
-        quotationApi.listQuotations({ page_size: 2000, date_from: dateFrom, date_to: dateTo }),
-        productionApi.listWorkOrders({ page_size: 2000, date_from: dateFrom, date_to: dateTo }),
+        designApi.listDesigns({ page_size: 2000, status: 'In Progress', date_from: dateFrom, date_to: dateTo, compact: true }),
+        quotationApi.listQuotations({ page_size: 2000, date_from: dateFrom, date_to: dateTo, compact: true }),
+        productionApi.listWorkOrders({ page_size: 2000, date_from: dateFrom, date_to: dateTo, compact: true }),
       ])
-      setDesigns(
-        (dRes.items || []).filter((d) => (d.status || '').toLowerCase() === 'in progress'),
-      )
-      setQuotations(
-        (qRes.items || []).filter((q) => {
-          const s = (q.status || '').toLowerCase()
-          return s.includes('draft') || s.includes('sent') || s.includes('await') || s.includes('pend') || s.includes('revis')
-        }),
-      )
-      setProductions(
-        (pRes.items || []).filter((w) => {
-          const s = (w.status || '').toLowerCase()
-          return !s.includes('complet') && !s.includes('cancel')
-        }),
-      )
+      const nextDesigns = (dRes.items || []).filter((d) => (d.status || '').toLowerCase() === 'in progress')
+      const nextQuotations = (qRes.items || []).filter((q) => {
+        const s = (q.status || '').toLowerCase()
+        return s.includes('draft') || s.includes('sent') || s.includes('await') || s.includes('pend') || s.includes('revis')
+      })
+      const nextProductions = (pRes.items || []).filter((w) => {
+        const s = (w.status || '').toLowerCase()
+        return !s.includes('complet') && !s.includes('cancel')
+      })
+      setDesigns(nextDesigns)
+      setQuotations(nextQuotations)
+      setProductions(nextProductions)
+      setCachedData(cacheKey, {
+        designs: nextDesigns,
+        quotations: nextQuotations,
+        productions: nextProductions,
+      })
     } finally {
       setLoading(false)
     }
-  }, [rangeId])
+  }, [cacheKey, dateFrom, dateTo])
 
   useEffect(() => {
-    load()
+    load(false)
   }, [load])
 
   return (
@@ -63,7 +87,7 @@ export function InProgressPage({ rangeId }: { rangeId: RangeKey }) {
         title="In Progress"
         description="Live operational view of in-progress designs, pending quotations, and active productions."
         actions={
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={() => load(true)} disabled={loading}>
             <RefreshCw className={cn('size-3.5 mr-1.5', loading && 'animate-spin')} />
             Refresh
           </Button>

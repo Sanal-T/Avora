@@ -39,6 +39,7 @@ def list_projects(
     priority: str | None = Query(default=None),
     customer_id: uuid.UUID | None = Query(default=None),
     search: str | None = Query(default=None),
+    compact: bool = Query(default=False),
 ) -> ProjectListResponse:
     total, items = project_service.list_projects(
         db,
@@ -48,6 +49,7 @@ def list_projects(
         priority_filter=priority,
         customer_id=customer_id,
         search=search,
+        compact=compact,
     )
     return ProjectListResponse(total=total, items=items, page=page, page_size=page_size)
 

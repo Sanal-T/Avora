@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime, timezone
 from fastapi import HTTPException, status
-from sqlalchemy import or_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import case, func, or_
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.communication import Communication, CommunicationMessage
 from app.schemas.communication import (
@@ -19,7 +19,7 @@ VALID_COMM_TYPES = ["Request", "Suggestion", "Approval", "Clarification", "Issue
 VALID_COMM_STATUSES = ["Open", "Acknowledged", "In Progress", "Responded", "Resolved", "Closed"]
 
 
-def _to_comm_read(c: Communication) -> CommunicationRead:
+def _to_comm_read(c: Communication, include_messages: bool = True) -> CommunicationRead:
     return CommunicationRead(
         id=c.id,
         communication_number=c.communication_number,
@@ -39,17 +39,21 @@ def _to_comm_read(c: Communication) -> CommunicationRead:
         from_department_name=c.from_department.name if c.from_department else None,
         to_department_name=c.to_department.name if c.to_department else None,
         created_by_name=c.created_by.full_name if c.created_by else None,
-        messages=[
-            CommunicationMessageRead(
-                id=m.id,
-                communication_id=m.communication_id,
-                sender_id=m.sender_id,
-                sender_name=m.sender.full_name if m.sender else None,
-                message=m.message,
-                created_at=m.created_at,
-            )
-            for m in c.messages
-        ],
+        messages=(
+            [
+                CommunicationMessageRead(
+                    id=m.id,
+                    communication_id=m.communication_id,
+                    sender_id=m.sender_id,
+                    sender_name=m.sender.full_name if m.sender else None,
+                    message=m.message,
+                    created_at=m.created_at,
+                )
+                for m in c.messages
+            ]
+            if include_messages
+            else []
+        ),
     )
 
 
@@ -71,6 +75,7 @@ def list_communications(
     department_id: str | None = None,
     project_id: uuid.UUID | None = None,
     search: str | None = None,
+    compact: bool = False,
 ) -> tuple[int, list[CommunicationRead]]:
     query = db.query(Communication)
     if status_filter and status_filter != "all":
@@ -95,20 +100,24 @@ def list_communications(
                 Communication.description.ilike(pattern),
             )
         )
-    total = query.count()
+    options = [
+        joinedload(Communication.project),
+        joinedload(Communication.from_department),
+        joinedload(Communication.to_department),
+        joinedload(Communication.created_by),
+    ]
+    if not compact:
+        options.append(selectinload(Communication.messages).joinedload(CommunicationMessage.sender))
+
     items = (
-        query.options(
-            joinedload(Communication.project),
-            joinedload(Communication.from_department),
-            joinedload(Communication.to_department),
-            joinedload(Communication.created_by),
-        )
+        query.options(*options)
         .order_by(Communication.created_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
     )
-    return total, [_to_comm_read(c) for c in items]
+    total = len(items) if page == 1 and len(items) < page_size else query.count()
+    return total, [_to_comm_read(c, include_messages=not compact) for c in items]
 
 
 def get_communication_orm(db: Session, comm_id: uuid.UUID) -> Communication:
@@ -119,6 +128,7 @@ def get_communication_orm(db: Session, comm_id: uuid.UUID) -> Communication:
             joinedload(Communication.from_department),
             joinedload(Communication.to_department),
             joinedload(Communication.created_by),
+            selectinload(Communication.messages).joinedload(CommunicationMessage.sender),
         )
         .filter(Communication.id == comm_id)
         .first()
@@ -207,11 +217,17 @@ def add_message(db: Session, comm_id: uuid.UUID, data: CommunicationMessageCreat
 
 
 def get_communication_summary(db: Session) -> CommunicationSummaryResponse:
-    items = db.query(Communication).all()
+    stats = db.query(
+        func.count(Communication.id),
+        func.count(case((Communication.status.in_(["Open", "Acknowledged", "In Progress"]), 1))),
+        func.count(case(((Communication.type == "Approval") & (Communication.status.notin_(["Resolved", "Closed"])), 1))),
+        func.count(case(((Communication.priority.in_(["High", "Urgent"])) & (Communication.status.notin_(["Resolved", "Closed"])), 1))),
+        func.count(case((Communication.status.in_(["Resolved", "Closed"]), 1))),
+    ).first()
     return CommunicationSummaryResponse(
-        total_communications=len(items),
-        open_requests=sum(1 for c in items if c.status in ("Open", "Acknowledged", "In Progress")),
-        pending_approvals=sum(1 for c in items if c.type == "Approval" and c.status not in ("Resolved", "Closed")),
-        high_priority_issues=sum(1 for c in items if c.priority in ("High", "Urgent") and c.status not in ("Resolved", "Closed")),
-        resolved_count=sum(1 for c in items if c.status in ("Resolved", "Closed")),
+        total_communications=stats[0] if stats else 0,
+        open_requests=stats[1] if stats else 0,
+        pending_approvals=stats[2] if stats else 0,
+        high_priority_issues=stats[3] if stats else 0,
+        resolved_count=stats[4] if stats else 0,
     )

@@ -3,7 +3,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from sqlalchemy import case, func, or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from fastapi import HTTPException, status
 
 from app.models.auth import Employee
@@ -61,49 +61,65 @@ def calculate_quotation_totals(items: list[QuotationItemCreate], discount_rate: 
     return subtotal, discount_amount, tax_amount, total_amount
 
 
-def _to_quotation_read(quotation: Quotation) -> QuotationRead:
-    item_reads = [
-        QuotationItemRead(
-            id=i.id,
-            item_code=i.item_code,
-            description=i.description,
-            quantity=i.quantity,
-            unit=i.unit,
-            unit_price=i.unit_price,
-            total_price=i.total_price,
-            sort_order=i.sort_order,
-        )
-        for i in quotation.items
-    ]
-    rev_reads = [
-        QuotationRevisionRead(
-            id=r.id,
-            revision_number=r.revision_number,
-            total_amount=r.total_amount,
-            change_summary=r.change_summary,
-            created_at=r.created_at,
-        )
-        for r in quotation.revisions
-    ]
-    follow_reads = [
-        QuotationFollowUpRead(
-            id=f.id,
-            scheduled_date=f.scheduled_date,
-            notes=f.notes,
-            outcome=f.outcome,
-            assigned_employee_id=f.assigned_employee_id,
-            contacted_person=f.contacted_person,
-            company=f.company,
-            contact_method=f.contact_method,
-            customer_response=f.customer_response,
-            next_follow_up_date=f.next_follow_up_date,
-            is_completed=f.is_completed,
-            completed_date=f.completed_date,
-            created_at=f.created_at,
-            assigned_employee_name=f"{f.assigned_employee.first_name} {f.assigned_employee.last_name}" if f.assigned_employee else None,
-        )
-        for f in quotation.follow_ups
-    ]
+def _to_quotation_read(
+    quotation: Quotation,
+    include_details: bool = True,
+    include_follow_ups: bool = True,
+) -> QuotationRead:
+    item_reads = (
+        [
+            QuotationItemRead(
+                id=i.id,
+                item_code=i.item_code,
+                description=i.description,
+                quantity=i.quantity,
+                unit=i.unit,
+                unit_price=i.unit_price,
+                total_price=i.total_price,
+                sort_order=i.sort_order,
+            )
+            for i in quotation.items
+        ]
+        if include_details
+        else []
+    )
+    rev_reads = (
+        [
+            QuotationRevisionRead(
+                id=r.id,
+                revision_number=r.revision_number,
+                total_amount=r.total_amount,
+                change_summary=r.change_summary,
+                created_at=r.created_at,
+            )
+            for r in quotation.revisions
+        ]
+        if include_details
+        else []
+    )
+    follow_reads = (
+        [
+            QuotationFollowUpRead(
+                id=f.id,
+                scheduled_date=f.scheduled_date,
+                notes=f.notes,
+                outcome=f.outcome,
+                assigned_employee_id=f.assigned_employee_id,
+                contacted_person=f.contacted_person,
+                company=f.company,
+                contact_method=f.contact_method,
+                customer_response=f.customer_response,
+                next_follow_up_date=f.next_follow_up_date,
+                is_completed=f.is_completed,
+                completed_date=f.completed_date,
+                created_at=f.created_at,
+                assigned_employee_name=f"{f.assigned_employee.first_name} {f.assigned_employee.last_name}" if f.assigned_employee else None,
+            )
+            for f in quotation.follow_ups
+        ]
+        if (include_details or include_follow_ups)
+        else []
+    )
     return QuotationRead(
         id=quotation.id,
         quotation_number=quotation.quotation_number,
@@ -145,6 +161,8 @@ def list_quotations(
     search: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    compact: bool = False,
+    include_follow_ups: bool = False,
 ) -> tuple[int, list[QuotationRead]]:
     query = db.query(Quotation).filter(Quotation.is_deleted == False)
     if status_filter:
@@ -162,13 +180,52 @@ def list_quotations(
                 Customer.company_name.ilike(search_filter),
             )
         )
-    total = query.count()
-    items = query.order_by(Quotation.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
-    return total, [_to_quotation_read(item) for item in items]
+    options = [
+        joinedload(Quotation.customer),
+        joinedload(Quotation.work_order),
+    ]
+    if not compact:
+        options.extend(
+            [
+                selectinload(Quotation.items),
+                selectinload(Quotation.revisions),
+                selectinload(Quotation.follow_ups).joinedload(QuotationFollowUp.assigned_employee),
+            ]
+        )
+    elif include_follow_ups:
+        options.append(selectinload(Quotation.follow_ups).joinedload(QuotationFollowUp.assigned_employee))
+
+    items = (
+        query.options(*options)
+        .order_by(Quotation.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    total = len(items) if page == 1 and len(items) < page_size else query.count()
+    return total, [
+        _to_quotation_read(
+            item,
+            include_details=not compact,
+            include_follow_ups=(not compact) or include_follow_ups,
+        )
+        for item in items
+    ]
 
 
 def get_quotation(db: Session, quotation_id: uuid.UUID) -> Quotation:
-    quotation = db.query(Quotation).filter(Quotation.id == quotation_id, Quotation.is_deleted == False).first()
+    quotation = (
+        db.query(Quotation)
+        .options(
+            joinedload(Quotation.customer),
+            joinedload(Quotation.work_order),
+            selectinload(Quotation.items),
+            selectinload(Quotation.revisions),
+            selectinload(Quotation.follow_ups).joinedload(QuotationFollowUp.assigned_employee),
+        )
+        .filter(Quotation.id == quotation_id, Quotation.is_deleted == False)
+        .first()
+    )
     if not quotation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quotation not found.")
     return quotation

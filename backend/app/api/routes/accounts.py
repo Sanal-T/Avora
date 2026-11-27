@@ -50,6 +50,7 @@ def list_accounts_records(
     page_size: int = Query(default=20, ge=1, le=5000),
     status_filter: str | None = Query(default=None, alias="status"),
     search: str | None = Query(default=None),
+    compact: bool = Query(default=False),
 ) -> AccountsListResponse:
     total, items = accounts_service.list_accounts_records(
         db,
@@ -57,6 +58,7 @@ def list_accounts_records(
         page_size=page_size,
         status_filter=status_filter,
         search=search,
+        compact=compact,
     )
     return AccountsListResponse(total=total, items=items, page=page, page_size=page_size)
 

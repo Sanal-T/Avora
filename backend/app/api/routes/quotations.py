@@ -31,6 +31,8 @@ def list_quotations(
     search: str | None = Query(default=None),
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
+    compact: bool = Query(default=False),
+    include_follow_ups: bool = Query(default=False),
 ) -> QuotationListResponse:
     total, items = quotation_service.list_quotations(
         db,
@@ -40,6 +42,8 @@ def list_quotations(
         search=search,
         date_from=date_from,
         date_to=date_to,
+        compact=compact,
+        include_follow_ups=include_follow_ups,
     )
     return QuotationListResponse(total=total, items=items, page=page, page_size=page_size)
 

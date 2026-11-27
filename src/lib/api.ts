@@ -2,6 +2,8 @@
  * Unified API Client for Avora ERP Backend
  */
 
+import { notifyDataMutation } from './cache'
+
 const TOKEN_KEY = 'avora_access_token'
 
 export function getToken(): string | null {
@@ -132,6 +134,7 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
     }
 
     if (response.status === 204) {
+      if (method !== 'GET') notifyDataMutation()
       return {} as T
     }
 
@@ -143,6 +146,10 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
       const detail = typeof data === 'object' && data !== null && 'detail' in data ? (data as any).detail : data
       const message = typeof detail === 'string' ? detail : (Array.isArray(detail) ? detail.map((d: any) => d.msg || JSON.stringify(d)).join(', ') : `Request failed with status ${response.status}`)
       throw new ApiError(response.status, message, detail)
+    }
+
+    if (method !== 'GET' && !endpoint.includes('/api/auth/login')) {
+      notifyDataMutation()
     }
 
     return data as T
@@ -303,7 +310,7 @@ export interface EnquiryCreateInput {
 }
 
 export const enquiryApi = {
-  async list(params: { page?: number; page_size?: number; status?: string; search?: string; date_from?: string; date_to?: string } = {}): Promise<EnquiryListResponse> {
+  async list(params: { page?: number; page_size?: number; status?: string; search?: string; date_from?: string; date_to?: string; compact?: boolean } = {}): Promise<EnquiryListResponse> {
     const query = new URLSearchParams()
     if (params.page) query.set('page', params.page.toString())
     if (params.page_size) query.set('page_size', params.page_size.toString())
@@ -311,6 +318,7 @@ export const enquiryApi = {
     if (params.search) query.set('search', params.search)
     if (params.date_from) query.set('date_from', params.date_from)
     if (params.date_to) query.set('date_to', params.date_to)
+    if (params.compact) query.set('compact', 'true')
     return apiFetch<EnquiryListResponse>(`/api/enquiries${query.size ? `?${query.toString()}` : ''}`)
   },
 
@@ -578,7 +586,7 @@ export interface WorkOrderCreateInput {
 }
 
 export const productionApi = {
-  async listWorkOrders(params: { page?: number; page_size?: number; status?: string; search?: string; date_from?: string; date_to?: string } = {}): Promise<WorkOrderListResponse> {
+  async listWorkOrders(params: { page?: number; page_size?: number; status?: string; search?: string; date_from?: string; date_to?: string; compact?: boolean } = {}): Promise<WorkOrderListResponse> {
     const query = new URLSearchParams()
     if (params.page) query.set('page', params.page.toString())
     if (params.page_size) query.set('page_size', params.page_size.toString())
@@ -586,6 +594,7 @@ export const productionApi = {
     if (params.search) query.set('search', params.search)
     if (params.date_from) query.set('date_from', params.date_from)
     if (params.date_to) query.set('date_to', params.date_to)
+    if (params.compact) query.set('compact', 'true')
     return apiFetch<WorkOrderListResponse>(`/api/production${query.size ? `?${query.toString()}` : ''}`)
   },
 
@@ -692,7 +701,7 @@ export interface DesignCreateInput {
 }
 
 export const designApi = {
-  async listDesigns(params: { page?: number; page_size?: number; status?: string; search?: string; date_from?: string; date_to?: string } = {}): Promise<DesignListResponse> {
+  async listDesigns(params: { page?: number; page_size?: number; status?: string; search?: string; date_from?: string; date_to?: string; compact?: boolean } = {}): Promise<DesignListResponse> {
     const query = new URLSearchParams()
     if (params.page) query.set('page', params.page.toString())
     if (params.page_size) query.set('page_size', params.page_size.toString())
@@ -700,6 +709,7 @@ export const designApi = {
     if (params.search) query.set('search', params.search)
     if (params.date_from) query.set('date_from', params.date_from)
     if (params.date_to) query.set('date_to', params.date_to)
+    if (params.compact) query.set('compact', 'true')
     return apiFetch<DesignListResponse>(`/api/designs${query.size ? `?${query.toString()}` : ''}`)
   },
 
@@ -830,7 +840,7 @@ export interface QuotationListResponse {
 }
 
 export const quotationApi = {
-  async listQuotations(params: { page?: number; page_size?: number; status?: string; search?: string; date_from?: string; date_to?: string } = {}): Promise<QuotationListResponse> {
+  async listQuotations(params: { page?: number; page_size?: number; status?: string; search?: string; date_from?: string; date_to?: string; compact?: boolean; include_follow_ups?: boolean } = {}): Promise<QuotationListResponse> {
     const query = new URLSearchParams()
     if (params.page) query.set('page', params.page.toString())
     if (params.page_size) query.set('page_size', params.page_size.toString())
@@ -838,6 +848,8 @@ export const quotationApi = {
     if (params.search) query.set('search', params.search)
     if (params.date_from) query.set('date_from', params.date_from)
     if (params.date_to) query.set('date_to', params.date_to)
+    if (params.compact) query.set('compact', 'true')
+    if (params.include_follow_ups) query.set('include_follow_ups', 'true')
     return apiFetch<QuotationListResponse>(`/api/quotations${query.size ? `?${query.toString()}` : ''}`)
   },
 
@@ -1068,12 +1080,13 @@ export interface ProjectListResponse {
 }
 
 export const projectApi = {
-  async list(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<ProjectListResponse> {
+  async list(params: { page?: number; page_size?: number; status?: string; search?: string; compact?: boolean } = {}): Promise<ProjectListResponse> {
     const query = new URLSearchParams()
     if (params.page) query.set('page', params.page.toString())
     if (params.page_size) query.set('page_size', params.page_size.toString())
     if (params.status && params.status !== 'all') query.set('status', params.status)
     if (params.search) query.set('search', params.search)
+    if (params.compact) query.set('compact', 'true')
     return apiFetch<ProjectListResponse>(`/api/projects${query.size ? `?${query.toString()}` : ''}`)
   },
   async get(id: string): Promise<Project> {
@@ -1152,12 +1165,13 @@ export interface AccountsListResponse {
 }
 
 export const accountsApi = {
-  async list(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<AccountsListResponse> {
+  async list(params: { page?: number; page_size?: number; status?: string; search?: string; compact?: boolean } = {}): Promise<AccountsListResponse> {
     const query = new URLSearchParams()
     if (params.page) query.set('page', params.page.toString())
     if (params.page_size) query.set('page_size', params.page_size.toString())
     if (params.status && params.status !== 'all') query.set('status', params.status)
     if (params.search) query.set('search', params.search)
+    if (params.compact) query.set('compact', 'true')
     return apiFetch<AccountsListResponse>(`/api/accounts${query.size ? `?${query.toString()}` : ''}`)
   },
   async get(id: string): Promise<AccountsRecord> {
@@ -1220,12 +1234,13 @@ export interface CommunicationListResponse {
 }
 
 export const communicationApi = {
-  async list(params: { page?: number; page_size?: number; status?: string; search?: string } = {}): Promise<CommunicationListResponse> {
+  async list(params: { page?: number; page_size?: number; status?: string; search?: string; compact?: boolean } = {}): Promise<CommunicationListResponse> {
     const query = new URLSearchParams()
     if (params.page) query.set('page', params.page.toString())
     if (params.page_size) query.set('page_size', params.page_size.toString())
     if (params.status && params.status !== 'all') query.set('status', params.status)
     if (params.search) query.set('search', params.search)
+    if (params.compact) query.set('compact', 'true')
     return apiFetch<CommunicationListResponse>(`/api/communications${query.size ? `?${query.toString()}` : ''}`)
   },
   async create(data: { project_id?: string | null; from_department_id?: string; to_department_id?: string; type: string; subject: string; description: string; priority?: string }): Promise<Communication> {
@@ -1245,6 +1260,28 @@ export const communicationApi = {
       method: 'POST',
       body: JSON.stringify({ message }),
     })
+  },
+}
+
+export interface AttachmentItem {
+  id: string
+  file_name: string
+  file_size: number
+  mime_type: string
+  created_at: string
+}
+
+export const filesApi = {
+  async list(entityType: string, entityId: string): Promise<AttachmentItem[]> {
+    return apiFetch<AttachmentItem[]>(
+      `/api/files?entity_type=${encodeURIComponent(entityType)}&entity_id=${encodeURIComponent(entityId)}`,
+    )
+  },
+  async batch(entityType: string, entityIds: string[]): Promise<Record<string, AttachmentItem[]>> {
+    if (!entityIds.length) return {}
+    return apiFetch<Record<string, AttachmentItem[]>>(
+      `/api/files/batch?entity_type=${encodeURIComponent(entityType)}&entity_ids=${encodeURIComponent(entityIds.join(','))}`,
+    )
   },
 }
 

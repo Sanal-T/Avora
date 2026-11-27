@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, time, timezone
 from sqlalchemy import and_, case, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from fastapi import HTTPException, status
 
 from app.models.auth import Employee
@@ -27,20 +27,24 @@ VALID_DESIGN_STATUSES = [
 ]
 
 
-def _to_design_read(design: Design) -> DesignRead:
-    version_reads = [
-        DesignVersionRead(
-            id=v.id,
-            version_number=v.version_number,
-            file_name=v.file_name,
-            file_url=v.file_url,
-            change_notes=v.change_notes,
-            is_approved=v.is_approved,
-            created_at=v.created_at,
-            submitted_by_name=v.submitted_by.full_name if v.submitted_by else None,
-        )
-        for v in design.versions
-    ]
+def _to_design_read(design: Design, include_versions: bool = True) -> DesignRead:
+    version_reads = (
+        [
+            DesignVersionRead(
+                id=v.id,
+                version_number=v.version_number,
+                file_name=v.file_name,
+                file_url=v.file_url,
+                change_notes=v.change_notes,
+                is_approved=v.is_approved,
+                created_at=v.created_at,
+                submitted_by_name=v.submitted_by.full_name if v.submitted_by else None,
+            )
+            for v in design.versions
+        ]
+        if include_versions
+        else []
+    )
     return DesignRead(
         id=design.id,
         design_number=design.design_number,
@@ -75,6 +79,7 @@ def list_designs(
     search: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    compact: bool = False,
 ) -> tuple[int, list[DesignRead]]:
     query = db.query(Design).filter(Design.is_deleted == False)
     if status_filter:
@@ -92,13 +97,35 @@ def list_designs(
                 Design.description.ilike(search_filter),
             )
         )
-    total = query.count()
-    items = query.order_by(Design.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
-    return total, [_to_design_read(item) for item in items]
+    options = [
+        joinedload(Design.enquiry),
+        joinedload(Design.assigned_designer),
+    ]
+    if not compact:
+        options.append(selectinload(Design.versions).joinedload(DesignVersion.submitted_by))
+
+    items = (
+        query.options(*options)
+        .order_by(Design.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    total = len(items) if page == 1 and len(items) < page_size else query.count()
+    return total, [_to_design_read(item, include_versions=not compact) for item in items]
 
 
 def get_design(db: Session, design_id: uuid.UUID) -> Design:
-    design = db.query(Design).filter(Design.id == design_id, Design.is_deleted == False).first()
+    design = (
+        db.query(Design)
+        .options(
+            joinedload(Design.enquiry),
+            joinedload(Design.assigned_designer),
+            selectinload(Design.versions).joinedload(DesignVersion.submitted_by),
+        )
+        .filter(Design.id == design_id, Design.is_deleted == False)
+        .first()
+    )
     if not design:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Design not found.")
     return design

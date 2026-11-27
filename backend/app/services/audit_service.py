@@ -1,6 +1,6 @@
 import uuid
 from typing import Any
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.models.system import AuditLog
 
 
@@ -37,6 +37,12 @@ def list_audit_logs(
     query = db.query(AuditLog)
     if entity_type:
         query = query.filter(AuditLog.entity_type == entity_type)
-    total = query.count()
-    items = query.order_by(AuditLog.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    items = (
+        query.options(joinedload(AuditLog.user))
+        .order_by(AuditLog.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    total = len(items) if page == 1 and len(items) < page_size else query.count()
     return total, items

@@ -2,11 +2,11 @@ import uuid
 from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, noload, selectinload
 
 from app.core.security import decode_access_token
 from app.db.session import get_db
-from app.models.auth import User
+from app.models.auth import Role, User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
@@ -33,7 +33,12 @@ def get_current_user(
     except ValueError:
         raise credentials_exception
 
-    user = db.query(User).filter(User.id == user_id).first()
+    user = (
+        db.query(User)
+        .options(joinedload(User.roles).noload(Role.permissions))
+        .filter(User.id == user_id)
+        .first()
+    )
     if not user:
         raise credentials_exception
 
@@ -66,11 +71,20 @@ def require_roles(allowed_roles: list[str]):
 
 
 def require_permissions(required_permissions: list[str]):
-    def perm_checker(current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
+    def perm_checker(
+        db: Annotated[Session, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_current_active_user)],
+    ) -> User:
         if current_user.is_superuser:
             return current_user
+        user_with_perms = (
+            db.query(User)
+            .options(selectinload(User.roles).selectinload(Role.permissions))
+            .filter(User.id == current_user.id)
+            .first()
+        )
         all_perms: set[str] = set()
-        for r in current_user.roles:
+        for r in (user_with_perms.roles if user_with_perms else []):
             for p in r.permissions:
                 all_perms.add(p.code)
         if not all(p in all_perms for p in required_permissions):

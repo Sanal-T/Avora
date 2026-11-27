@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, time, timezone
 from sqlalchemy import and_, case, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from fastapi import HTTPException, status
 
 from app.models.auth import Role, User
@@ -39,41 +39,66 @@ VALID_PRODUCTION_STATUSES = [
 ]
 
 
-def _to_work_order_read(wo: WorkOrder) -> WorkOrderRead:
-    task_reads = [
-        ProductionTaskRead(
-            id=t.id,
-            work_order_id=t.work_order_id,
-            task_name=t.task_name,
-            sequence_order=t.sequence_order,
-            status=t.status,
-            assigned_employee_id=t.assigned_employee_id,
-            planned_hours=t.planned_hours,
-            actual_hours=t.actual_hours,
-            completion_notes=t.completion_notes,
-            created_at=t.created_at,
-            updated_at=t.updated_at,
-            assigned_employee_name=f"{t.assigned_employee.first_name} {t.assigned_employee.last_name}" if t.assigned_employee else None,
-        )
-        for t in wo.tasks
-    ]
-    inst_reads = [
-        InstallationRead(
-            id=i.id,
-            work_order_id=i.work_order_id,
-            site_address=i.site_address,
-            scheduled_date=i.scheduled_date,
-            status=i.status,
-            lead_installer_id=i.lead_installer_id,
-            completion_notes=i.completion_notes,
-            signoff_by=i.signoff_by,
-            signoff_at=i.signoff_at,
-            lead_installer_name=f"{i.lead_installer.first_name} {i.lead_installer.last_name}" if i.lead_installer else None,
-            created_at=i.created_at,
-            updated_at=i.updated_at,
-        )
-        for i in wo.installations
-    ]
+def _to_work_order_read(wo: WorkOrder, include_details: bool = True) -> WorkOrderRead:
+    task_reads = (
+        [
+            ProductionTaskRead(
+                id=t.id,
+                work_order_id=t.work_order_id,
+                task_name=t.task_name,
+                sequence_order=t.sequence_order,
+                status=t.status,
+                assigned_employee_id=t.assigned_employee_id,
+                planned_hours=t.planned_hours,
+                actual_hours=t.actual_hours,
+                completion_notes=t.completion_notes,
+                created_at=t.created_at,
+                updated_at=t.updated_at,
+                assigned_employee_name=f"{t.assigned_employee.first_name} {t.assigned_employee.last_name}" if t.assigned_employee else None,
+            )
+            for t in wo.tasks
+        ]
+        if include_details
+        else []
+    )
+    inst_reads = (
+        [
+            InstallationRead(
+                id=i.id,
+                work_order_id=i.work_order_id,
+                site_address=i.site_address,
+                scheduled_date=i.scheduled_date,
+                status=i.status,
+                lead_installer_id=i.lead_installer_id,
+                completion_notes=i.completion_notes,
+                signoff_by=i.signoff_by,
+                signoff_at=i.signoff_at,
+                lead_installer_name=f"{i.lead_installer.first_name} {i.lead_installer.last_name}" if i.lead_installer else None,
+                created_at=i.created_at,
+                updated_at=i.updated_at,
+            )
+            for i in wo.installations
+        ]
+        if include_details
+        else []
+    )
+    update_reads = (
+        [
+            ProductionUpdateRead(
+                id=u.id,
+                work_order_id=u.work_order_id,
+                status=u.status,
+                progress_percentage=u.progress_percentage,
+                remarks=u.remarks,
+                expected_completion_date=u.expected_completion_date,
+                updated_by_name=u.updated_by.full_name if u.updated_by else None,
+                created_at=u.created_at,
+            )
+            for u in wo.updates
+        ]
+        if include_details
+        else []
+    )
     return WorkOrderRead(
         id=wo.id,
         work_order_number=wo.work_order_number,
@@ -98,19 +123,7 @@ def _to_work_order_read(wo: WorkOrder) -> WorkOrderRead:
         customer_company=wo.customer.company_name if wo.customer else None,
         tasks=task_reads,
         installations=inst_reads,
-        updates=[
-            ProductionUpdateRead(
-                id=u.id,
-                work_order_id=u.work_order_id,
-                status=u.status,
-                progress_percentage=u.progress_percentage,
-                remarks=u.remarks,
-                expected_completion_date=u.expected_completion_date,
-                updated_by_name=u.updated_by.full_name if u.updated_by else None,
-                created_at=u.created_at,
-            )
-            for u in wo.updates
-        ],
+        updates=update_reads,
     )
 
 
@@ -122,6 +135,7 @@ def list_work_orders(
     search: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    compact: bool = False,
 ) -> tuple[int, list[WorkOrderRead]]:
     query = db.query(WorkOrder).filter(WorkOrder.is_deleted == False)
     if status_filter:
@@ -140,13 +154,38 @@ def list_work_orders(
                 Customer.company_name.ilike(search_filter),
             )
         )
-    total = query.count()
-    items = query.order_by(WorkOrder.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
-    return total, [_to_work_order_read(item) for item in items]
+    options = [joinedload(WorkOrder.customer)]
+    if not compact:
+        options.extend(
+            [
+                selectinload(WorkOrder.tasks).joinedload(ProductionTask.assigned_employee),
+                selectinload(WorkOrder.installations).joinedload(Installation.lead_installer),
+                selectinload(WorkOrder.updates).joinedload(ProductionUpdate.updated_by),
+            ]
+        )
+    items = (
+        query.options(*options)
+        .order_by(WorkOrder.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    total = len(items) if page == 1 and len(items) < page_size else query.count()
+    return total, [_to_work_order_read(item, include_details=not compact) for item in items]
 
 
 def get_work_order(db: Session, work_order_id: uuid.UUID) -> WorkOrder:
-    wo = db.query(WorkOrder).filter(WorkOrder.id == work_order_id, WorkOrder.is_deleted == False).first()
+    wo = (
+        db.query(WorkOrder)
+        .options(
+            joinedload(WorkOrder.customer),
+            selectinload(WorkOrder.tasks).joinedload(ProductionTask.assigned_employee),
+            selectinload(WorkOrder.installations).joinedload(Installation.lead_installer),
+            selectinload(WorkOrder.updates).joinedload(ProductionUpdate.updated_by),
+        )
+        .filter(WorkOrder.id == work_order_id, WorkOrder.is_deleted == False)
+        .first()
+    )
     if not wo:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work order not found.")
     return wo

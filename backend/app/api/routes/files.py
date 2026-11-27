@@ -59,6 +59,41 @@ def list_files(
     ]
 
 
+@router.get("/batch")
+def list_files_batch(
+    entity_type: str,
+    entity_ids: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict[str, list[dict[str, str | int]]]:
+    if entity_type not in ALLOWED_ENTITY_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported entity_type '{entity_type}'.",
+        )
+    ids = [eid.strip() for eid in entity_ids.split(",") if eid.strip()]
+    if not ids:
+        return {}
+    items = (
+        db.query(Attachment)
+        .filter(Attachment.entity_type == entity_type, Attachment.entity_id.in_(ids))
+        .order_by(Attachment.created_at.desc())
+        .all()
+    )
+    grouped: dict[str, list[dict[str, str | int]]] = {eid: [] for eid in ids}
+    for att in items:
+        grouped.setdefault(att.entity_id, []).append(
+            {
+                "id": str(att.id),
+                "file_name": att.file_name,
+                "file_size": att.file_size,
+                "mime_type": att.mime_type,
+                "created_at": att.created_at.isoformat() if att.created_at else "",
+            }
+        )
+    return grouped
+
+
 @router.post("/upload")
 async def upload_file(
     entity_type: str,

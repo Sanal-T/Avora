@@ -74,7 +74,7 @@ export const MainDashboard = memo(function MainDashboard({
 }: {
   overview: DashboardOverviewResponse & { loading?: boolean; error?: boolean }
   rangeId: RangeKey
-  onRefresh: () => void
+  onRefresh: (force?: boolean) => void
 }) {
   const navigate = useNavigate()
   const [urgentModalOpen, setUrgentModalOpen] = useState(false)
@@ -82,7 +82,7 @@ export const MainDashboard = memo(function MainDashboard({
   useEffect(() => {
     if (!mountedRef.current) {
       mountedRef.current = true
-      onRefresh()
+      onRefresh(false)
     }
   }, [onRefresh])
   const { theme } = useTheme()
@@ -156,7 +156,7 @@ export const MainDashboard = memo(function MainDashboard({
               variant="outline"
               size="sm"
               disabled={overview.loading}
-              onClick={onRefresh}
+              onClick={() => onRefresh(true)}
             >
               <RefreshCw className={`size-3.5 ${overview.loading ? 'animate-spin' : ''}`} />
               <span>{overview.loading ? 'Syncing…' : 'Sync Live Data'}</span>
@@ -167,7 +167,7 @@ export const MainDashboard = memo(function MainDashboard({
 
       {/* Fallback Banner if API error */}
       {overview.error && (
-        <Alert tone="warning" action={<Button size="sm" variant="outline" onClick={onRefresh}>Retry</Button>}>
+        <Alert tone="warning" action={<Button size="sm" variant="outline" onClick={() => onRefresh(true)}>Retry</Button>}>
           Live ERP API is currently unreachable. Displaying cached operational snapshot.
         </Alert>
       )}

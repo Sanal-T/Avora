@@ -6,25 +6,35 @@ import { Card } from '../../../components/ui/Card'
 import { Button } from '../../../components/ui/Button'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { accountsApi, type AccountsRecord } from '../../../lib/api'
+import { getCachedData, invalidateCache, setCachedData } from '../../../lib/cache'
 
 export function AccountsListPage() {
-  const [items, setItems] = useState<AccountsRecord[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const cacheKey = `list:accounts:${statusFilter}`
+  const [items, setItems] = useState<AccountsRecord[]>(() => getCachedData<AccountsRecord[]>(cacheKey) || [])
+  const [loading, setLoading] = useState(() => !getCachedData(cacheKey))
 
-  const load = async () => {
-    setLoading(true)
+  const load = async (force = false) => {
+    if (force) invalidateCache('list:accounts:')
+    const cached = !force && !search ? getCachedData<AccountsRecord[]>(cacheKey) : null
+    if (cached) {
+      setItems(cached)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
     try {
-      const res = await accountsApi.list({ page_size: 2000, status: statusFilter, search: search || undefined })
+      const res = await accountsApi.list({ page_size: 2000, status: statusFilter, search: search || undefined, compact: true })
       setItems(res.items)
+      if (!search) setCachedData(cacheKey, res.items)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    load()
+    load(false)
   }, [statusFilter])
 
   return (
@@ -33,7 +43,7 @@ export function AccountsListPage() {
         title="Accounts & Financial Tracking"
         description="Track projects transferred from Production, invoices, partial payments, and financial closure."
         actions={
-          <Button variant="outline" size="sm" onClick={load}>
+          <Button variant="outline" size="sm" onClick={() => load(true)}>
             <RefreshCw className="h-4 w-4 mr-1.5" />
             Refresh
           </Button>

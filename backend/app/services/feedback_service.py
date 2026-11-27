@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, time, timezone
 from sqlalchemy import case, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, status
 
 from app.models.customer import Customer
@@ -54,13 +54,30 @@ def list_feedback(
     if date_to:
         query = query.filter(Feedback.created_at <= datetime.combine(date_to, time.max, tzinfo=timezone.utc))
 
-    total = query.count()
-    items = query.order_by(Feedback.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    items = (
+        query.options(
+            joinedload(Feedback.customer),
+            joinedload(Feedback.work_order),
+        )
+        .order_by(Feedback.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    total = len(items) if page == 1 and len(items) < page_size else query.count()
     return total, [_to_feedback_read(item) for item in items]
 
 
 def get_feedback(db: Session, feedback_id: uuid.UUID) -> FeedbackRead:
-    fb = db.query(Feedback).filter(Feedback.id == feedback_id, Feedback.is_deleted == False).first()
+    fb = (
+        db.query(Feedback)
+        .options(
+            joinedload(Feedback.customer),
+            joinedload(Feedback.work_order),
+        )
+        .filter(Feedback.id == feedback_id, Feedback.is_deleted == False)
+        .first()
+    )
     if not fb:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feedback record not found.")
     return _to_feedback_read(fb)

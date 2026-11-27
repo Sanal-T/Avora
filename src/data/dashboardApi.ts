@@ -6,6 +6,7 @@ import {
   type DepartmentDetail,
 } from './dashboard'
 import { apiFetch } from '../lib/api'
+import { onDataMutation } from '../lib/cache'
 import { rangeDates } from '../lib/dates'
 
 type ApiMetric = { label: string; value: string }
@@ -102,8 +103,16 @@ const overviewCache = new Map<string, CachedOverview>()
 const inFlightOverviewRequests = new Map<string, Promise<DashboardOverviewResponse>>()
 const CACHE_TTL_MS = 60_000 // 60 seconds TTL
 
+onDataMutation(() => {
+  overviewCache.clear()
+})
+
+export function clearOverviewCache(): void {
+  overviewCache.clear()
+}
+
 export function getCachedOverview(rangeId: RangeKey): DashboardOverviewResponse | null {
-  const cached = overviewCache.get(rangeId)
+  const cached = overviewCache.get(`${rangeId}::`)
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
     return cached.data
   }

@@ -1,33 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
+import { lazy, Suspense, useState, useEffect, useCallback } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
 import { MainDashboard } from './pages/dashboard/MainDashboard'
 import { InProgressPage } from './pages/dashboard/InProgressPage'
 import { DepartmentDashboardPage } from './pages/departments/DepartmentDashboardPage'
-import { EnquiriesListPage } from './pages/departments/enquiries/EnquiriesListPage'
-import { EnquiryDetailPage } from './pages/departments/enquiries/EnquiryDetailPage'
 import { EnquiryFormModal } from './pages/departments/enquiries/EnquiryFormModal'
-import { DesignsListPage } from './pages/departments/designs/DesignsListPage'
-import { DesignDetailPage } from './pages/departments/designs/DesignDetailPage'
 import { DesignFormModal } from './pages/departments/designs/DesignFormModal'
-import { QuotationsListPage } from './pages/departments/quotations/QuotationsListPage'
-import { QuotationDetailPage } from './pages/departments/quotations/QuotationDetailPage'
-import { QuotationBuilderPage } from './pages/departments/quotations/QuotationBuilderPage'
-import { ProductionListPage } from './pages/departments/production/ProductionListPage'
-import { WorkOrderDetailPage } from './pages/departments/production/WorkOrderDetailPage'
-import { ProductionSchedulePage } from './pages/departments/production/ProductionSchedulePage'
-import { ProductionCalendarPage } from './pages/departments/production/ProductionCalendarPage'
 import { WorkOrderFormModal } from './pages/departments/production/WorkOrderFormModal'
-import { FeedbackListPage } from './pages/departments/feedback/FeedbackListPage'
-import { FeedbackDetailPage } from './pages/departments/feedback/FeedbackDetailPage'
-import { LabourListPage } from './pages/departments/labour/LabourListPage'
-import { ProjectsListPage } from './pages/departments/projects/ProjectsListPage'
-import { ProjectDetailPage } from './pages/departments/projects/ProjectDetailPage'
-import { AccountsListPage } from './pages/departments/accounts/AccountsListPage'
-import { AccountsDetailPage } from './pages/departments/accounts/AccountsDetailPage'
-import { CommunicationsListPage } from './pages/departments/communications/CommunicationsListPage'
-import { ReportsPage } from './pages/reports/ReportsPage'
-import { LoginPage } from './pages/auth/LoginPage'
 import { NotFoundPage } from './pages/system/NotFoundPage'
 import { ForbiddenPage } from './pages/system/ForbiddenPage'
 import {
@@ -39,7 +18,21 @@ import {
   getDashboardOverview,
   type DashboardOverviewResponse,
 } from './data/dashboardApi'
-import { isDepartmentId, type DepartmentId } from './lib/departments'
+
+const EnquiriesListPage = lazy(() => import('./pages/departments/enquiries/EnquiriesListPage').then((m) => ({ default: m.EnquiriesListPage })))
+const DesignsListPage = lazy(() => import('./pages/departments/designs/DesignsListPage').then((m) => ({ default: m.DesignsListPage })))
+const QuotationsListPage = lazy(() => import('./pages/departments/quotations/QuotationsListPage').then((m) => ({ default: m.QuotationsListPage })))
+const ProductionListPage = lazy(() => import('./pages/departments/production/ProductionListPage').then((m) => ({ default: m.ProductionListPage })))
+const FeedbackListPage = lazy(() => import('./pages/departments/feedback/FeedbackListPage').then((m) => ({ default: m.FeedbackListPage })))
+const FeedbackDetailPage = lazy(() => import('./pages/departments/feedback/FeedbackDetailPage').then((m) => ({ default: m.FeedbackDetailPage })))
+const LabourListPage = lazy(() => import('./pages/departments/labour/LabourListPage').then((m) => ({ default: m.LabourListPage })))
+const ProjectsListPage = lazy(() => import('./pages/departments/projects/ProjectsListPage').then((m) => ({ default: m.ProjectsListPage })))
+const ProjectDetailPage = lazy(() => import('./pages/departments/projects/ProjectDetailPage').then((m) => ({ default: m.ProjectDetailPage })))
+const AccountsListPage = lazy(() => import('./pages/departments/accounts/AccountsListPage').then((m) => ({ default: m.AccountsListPage })))
+const AccountsDetailPage = lazy(() => import('./pages/departments/accounts/AccountsDetailPage').then((m) => ({ default: m.AccountsDetailPage })))
+const CommunicationsListPage = lazy(() => import('./pages/departments/communications/CommunicationsListPage').then((m) => ({ default: m.CommunicationsListPage })))
+const ReportsPage = lazy(() => import('./pages/reports/ReportsPage').then((m) => ({ default: m.ReportsPage })))
+const LoginPage = lazy(() => import('./pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })))
 
 function DepartmentRedirect() {
   const { id } = useParams<{ id: string }>()
@@ -76,115 +69,123 @@ function AppShellInner({
         else if (type === 'workOrder') setWorkOrderModalOpen(true)
       }}
     >
-      <Routes>
-        {/* Main Dashboard */}
-        <Route
-          path="/"
-          element={
-            <MainDashboard
-              overview={overview}
-              rangeId={rangeId}
-              onRefresh={() => refresh(true)}
-            />
-          }
-        />
-        <Route path="/in-progress" element={<InProgressPage rangeId={rangeId} />} />
+      <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground">Loading view…</div>}>
+        <Routes>
+          {/* Main Dashboard */}
+          <Route
+            path="/"
+            element={
+              <MainDashboard
+                overview={overview}
+                rangeId={rangeId}
+                onRefresh={(force = true) => refresh(force)}
+              />
+            }
+          />
+          <Route path="/in-progress" element={<InProgressPage rangeId={rangeId} />} />
 
-        {/* Legacy route compatibility */}
-        <Route path="/departments/:id" element={<DepartmentRedirect />} />
+          {/* Legacy route compatibility */}
+          <Route path="/departments/:id" element={<DepartmentRedirect />} />
 
-        {/* Department Dashboards */}
-        <Route
-          path="/enquiries"
-          element={
-            <DepartmentDashboardPage
-              departmentId="enquiries"
-              rangeId={rangeId}
-              onOpenCreate={() => setEnquiryModalOpen(true)}
-            />
-          }
-        />
-        <Route path="/enquiries/list" element={<EnquiriesListPage />} />
+          {/* Department Dashboards */}
+          <Route
+            path="/enquiries"
+            element={
+              <DepartmentDashboardPage
+                key="enquiries"
+                departmentId="enquiries"
+                rangeId={rangeId}
+                onOpenCreate={() => setEnquiryModalOpen(true)}
+              />
+            }
+          />
+          <Route path="/enquiries/list" element={<EnquiriesListPage />} />
 
-        <Route
-          path="/designs"
-          element={
-            <DepartmentDashboardPage
-              departmentId="designs"
-              rangeId={rangeId}
-              onOpenCreate={() => setDesignModalOpen(true)}
-            />
-          }
-        />
-        <Route path="/designs/list" element={<DesignsListPage />} />
+          <Route
+            path="/designs"
+            element={
+              <DepartmentDashboardPage
+                key="designs"
+                departmentId="designs"
+                rangeId={rangeId}
+                onOpenCreate={() => setDesignModalOpen(true)}
+              />
+            }
+          />
+          <Route path="/designs/list" element={<DesignsListPage />} />
 
-        <Route
-          path="/quotations"
-          element={
-            <DepartmentDashboardPage
-              departmentId="quotations"
-              rangeId={rangeId}
-              onOpenCreate={() => navigate('/quotations/builder')}
-            />
-          }
-        />
-        <Route path="/quotations/list" element={<QuotationsListPage />} />
+          <Route
+            path="/quotations"
+            element={
+              <DepartmentDashboardPage
+                key="quotations"
+                departmentId="quotations"
+                rangeId={rangeId}
+                onOpenCreate={() => navigate('/quotations/builder')}
+              />
+            }
+          />
+          <Route path="/quotations/list" element={<QuotationsListPage />} />
 
-        <Route
-          path="/production"
-          element={
-            <DepartmentDashboardPage
-              departmentId="production"
-              rangeId={rangeId}
-              onOpenCreate={() => setWorkOrderModalOpen(true)}
-            />
-          }
-        />
-        <Route path="/production/list" element={<ProductionListPage />} />
+          <Route
+            path="/production"
+            element={
+              <DepartmentDashboardPage
+                key="production"
+                departmentId="production"
+                rangeId={rangeId}
+                onOpenCreate={() => setWorkOrderModalOpen(true)}
+              />
+            }
+          />
+          <Route path="/production/list" element={<ProductionListPage />} />
 
-        <Route
-          path="/feedback"
-          element={
-            <DepartmentDashboardPage
-              departmentId="feedback"
-              rangeId={rangeId}
-              onOpenCreate={() => navigate('/feedback/list')}
-            />
-          }
-        />
-        <Route path="/feedback/list" element={<FeedbackListPage />} />
-        <Route path="/feedback/:id" element={<FeedbackDetailPage />} />
+          <Route
+            path="/feedback"
+            element={
+              <DepartmentDashboardPage
+                key="feedback"
+                departmentId="feedback"
+                rangeId={rangeId}
+                onOpenCreate={() => navigate('/feedback/list')}
+              />
+            }
+          />
+          <Route path="/feedback/list" element={<FeedbackListPage />} />
+          <Route path="/feedback/:id" element={<FeedbackDetailPage />} />
 
-        <Route
-          path="/labour"
-          element={
-            <DepartmentDashboardPage
-              departmentId="labour"
-              rangeId={rangeId}
-              onOpenCreate={() => navigate('/labour/list')}
-            />
-          }
-        />
-        <Route path="/labour/list" element={<LabourListPage />} />
+          <Route
+            path="/labour"
+            element={
+              <DepartmentDashboardPage
+                key="labour"
+                departmentId="labour"
+                rangeId={rangeId}
+                onOpenCreate={() => navigate('/labour/list')}
+              />
+            }
+          />
+          <Route path="/labour/list" element={<LabourListPage />} />
 
-        {/* Projects, Accounts, Communications & Reports */}
-        <Route path="/projects" element={<ProjectsListPage />} />
-        <Route path="/projects/list" element={<ProjectsListPage />} />
-        <Route path="/projects/:id" element={<ProjectDetailPage />} />
+          {/* Projects, Accounts, Communications & Reports */}
+          <Route path="/projects" element={<ProjectsListPage />} />
+          <Route path="/projects/list" element={<ProjectsListPage />} />
+          <Route path="/projects/:id" element={<ProjectDetailPage />} />
 
-        <Route path="/accounts" element={<AccountsListPage />} />
-        <Route path="/accounts/list" element={<AccountsListPage />} />
-        <Route path="/accounts/:id" element={<AccountsDetailPage />} />
+          <Route path="/accounts" element={<AccountsListPage />} />
+          <Route path="/accounts/list" element={<AccountsListPage />} />
+          <Route path="/accounts/:id" element={<AccountsDetailPage />} />
 
-        <Route path="/communications" element={<CommunicationsListPage />} />
-        <Route path="/communications/list" element={<CommunicationsListPage />} />
+          <Route path="/communications" element={<CommunicationsListPage />} />
+          <Route path="/communications/list" element={<CommunicationsListPage />} />
 
-        <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/reports" element={<ReportsPage />} />
 
-        {/* System & Error Pages */}
-        <Route path="/403" element={<ForbiddenPage />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
+          {/* System & Error Pages */}
+          <Route path="/403" element={<ForbiddenPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </Suspense>
     </AppShell>
   )
 }
@@ -230,7 +231,7 @@ export default function App() {
   }, [rangeId])
 
   useEffect(() => {
-    refresh(true)
+    refresh(false)
   }, [refresh])
 
   useEffect(() => {
@@ -243,9 +244,10 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Auth standalone screen */}
-        <Route path="/login" element={<LoginPage />} />
+      <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground">Loading…</div>}>
+        <Routes>
+          {/* Auth standalone screen */}
+          <Route path="/login" element={<LoginPage />} />
 
         {/* Application Shell Routes */}
         <Route
@@ -263,6 +265,7 @@ export default function App() {
           }
         />
       </Routes>
+      </Suspense>
 
       {/* Global Modals */}
       <EnquiryFormModal

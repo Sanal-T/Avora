@@ -2,8 +2,8 @@ import uuid
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from fastapi import HTTPException, status
-from sqlalchemy import or_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_, case, func, or_
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.accounts import AccountsRecord
 from app.models.communication import Communication
@@ -41,7 +41,7 @@ VALID_PROJECT_STATUSES = [
 ]
 
 
-def _to_project_read(project: Project) -> ProjectRead:
+def _to_project_read(project: Project, include_details: bool = True) -> ProjectRead:
     return ProjectRead(
         id=project.id,
         project_number=project.project_number,
@@ -70,18 +70,26 @@ def _to_project_read(project: Project) -> ProjectRead:
             if project.project_manager
             else None
         ),
-        status_history=[
-            ProjectStatusHistoryRead(
-                id=h.id,
-                from_status=h.from_status,
-                to_status=h.to_status,
-                notes=h.notes,
-                created_at=h.created_at,
-                changed_by_name=h.changed_by.full_name if h.changed_by else None,
-            )
-            for h in project.status_history
-        ],
-        milestones=[ProjectMilestoneRead.model_validate(m) for m in project.milestones],
+        status_history=(
+            [
+                ProjectStatusHistoryRead(
+                    id=h.id,
+                    from_status=h.from_status,
+                    to_status=h.to_status,
+                    notes=h.notes,
+                    created_at=h.created_at,
+                    changed_by_name=h.changed_by.full_name if h.changed_by else None,
+                )
+                for h in project.status_history
+            ]
+            if include_details
+            else []
+        ),
+        milestones=(
+            [ProjectMilestoneRead.model_validate(m) for m in project.milestones]
+            if include_details
+            else []
+        ),
     )
 
 
@@ -171,6 +179,7 @@ def list_projects(
     priority_filter: str | None = None,
     customer_id: uuid.UUID | None = None,
     search: str | None = None,
+    compact: bool = False,
 ) -> tuple[int, list[ProjectRead]]:
     query = db.query(Project).filter(Project.is_deleted == False)
     if status_filter and status_filter != "all":
@@ -188,20 +197,28 @@ def list_projects(
                 Project.site_location.ilike(pattern),
             )
         )
-    total = query.count()
-    items = (
-        query.options(
-            joinedload(Project.customer),
-            joinedload(Project.enquiry),
-            joinedload(Project.approved_quotation),
-            joinedload(Project.project_manager),
+    options = [
+        joinedload(Project.customer),
+        joinedload(Project.enquiry),
+        joinedload(Project.approved_quotation),
+        joinedload(Project.project_manager),
+    ]
+    if not compact:
+        options.extend(
+            [
+                selectinload(Project.status_history).joinedload(ProjectStatusHistory.changed_by),
+                selectinload(Project.milestones),
+            ]
         )
+    items = (
+        query.options(*options)
         .order_by(Project.created_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
     )
-    return total, [_to_project_read(p) for p in items]
+    total = len(items) if page == 1 and len(items) < page_size else query.count()
+    return total, [_to_project_read(p, include_details=not compact) for p in items]
 
 
 def get_project_orm(db: Session, project_id: uuid.UUID) -> Project:
@@ -212,6 +229,8 @@ def get_project_orm(db: Session, project_id: uuid.UUID) -> Project:
             joinedload(Project.enquiry),
             joinedload(Project.approved_quotation),
             joinedload(Project.project_manager),
+            selectinload(Project.status_history).joinedload(ProjectStatusHistory.changed_by),
+            selectinload(Project.milestones),
         )
         .filter(Project.id == project_id, Project.is_deleted == False)
         .first()
@@ -579,20 +598,31 @@ def get_project_timeline(db: Session, project_id: uuid.UUID) -> list[ProjectTime
 
 
 def get_project_summary(db: Session) -> ProjectSummaryResponse:
-    projects = db.query(Project).filter(Project.is_deleted == False).all()
     today = date.today()
-    total_val = sum((p.project_value or Decimal("0.00") for p in projects), Decimal("0.00"))
-    delayed = sum(
-        1
-        for p in projects
-        if p.expected_completion_date and p.expected_completion_date < today and p.status not in ("Closed", "Cancelled", "Production Completed", "Sent to Accounts")
+    delayed_cond = and_(
+        Project.expected_completion_date != None,
+        Project.expected_completion_date < today,
+        Project.status.notin_(["Closed", "Cancelled", "Production Completed", "Sent to Accounts"]),
+    )
+    stats = (
+        db.query(
+            func.count(Project.id),
+            func.count(case((Project.status == "Approved", 1))),
+            func.count(case((Project.status.in_(["Waiting for Production", "In Production"]), 1))),
+            func.count(case((Project.status.in_(["Sent to Accounts", "Partially Paid"]), 1))),
+            func.count(case((Project.status == "Closed", 1))),
+            func.count(case((delayed_cond, 1))),
+            func.coalesce(func.sum(Project.project_value), Decimal("0.00")),
+        )
+        .filter(Project.is_deleted == False)
+        .first()
     )
     return ProjectSummaryResponse(
-        total_projects=len(projects),
-        approved_projects=sum(1 for p in projects if p.status == "Approved"),
-        in_production_projects=sum(1 for p in projects if p.status in ("Waiting for Production", "In Production")),
-        sent_to_accounts_projects=sum(1 for p in projects if p.status in ("Sent to Accounts", "Partially Paid")),
-        closed_projects=sum(1 for p in projects if p.status == "Closed"),
-        delayed_projects=delayed,
-        total_project_value=total_val,
+        total_projects=stats[0] if stats else 0,
+        approved_projects=stats[1] if stats else 0,
+        in_production_projects=stats[2] if stats else 0,
+        sent_to_accounts_projects=stats[3] if stats else 0,
+        closed_projects=stats[4] if stats else 0,
+        delayed_projects=stats[5] if stats else 0,
+        total_project_value=stats[6] if stats else Decimal("0.00"),
     )

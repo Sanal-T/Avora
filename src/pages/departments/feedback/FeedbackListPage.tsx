@@ -28,6 +28,7 @@ import {
   type Customer,
   type WorkOrder,
 } from '../../../lib/api'
+import { getCachedData, invalidateCache, setCachedData } from '../../../lib/cache'
 import { toast } from '../../../lib/toast'
 
 function toUiFeedback(f: Feedback): MockFeedback {
@@ -58,8 +59,8 @@ function toUiFeedback(f: Feedback): MockFeedback {
 
 export function FeedbackListPage() {
   const navigate = useNavigate()
-  const [data, setData] = useState<MockFeedback[]>([])
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<MockFeedback[]>(() => getCachedData<MockFeedback[]>('list:feedback') || [])
+  const [loading, setLoading] = useState(() => !getCachedData('list:feedback'))
   const [refreshing, setRefreshing] = useState(false)
   const [activeTab, setActiveTab] = useState<string>('all')
 
@@ -76,23 +77,24 @@ export function FeedbackListPage() {
   const [submitting, setSubmitting] = useState(false)
 
   const loadFeedback = useCallback(async (isManualRefresh = false) => {
-    if (isManualRefresh) setRefreshing(true)
-    else setLoading(true)
+    if (isManualRefresh) {
+      invalidateCache('list:feedback')
+      setRefreshing(true)
+    } else if (!getCachedData('list:feedback')) {
+      setLoading(true)
+    }
 
     try {
       const res = await feedbackApi.listFeedback({ page_size: 2000 })
-      if (res.items && res.items.length > 0) {
-        setData(res.items.map(toUiFeedback))
-      } else {
-        // If DB has 0 items, start clean or show empty array
-        setData([])
-      }
+      const mapped = res.items && res.items.length > 0 ? res.items.map(toUiFeedback) : []
+      setCachedData('list:feedback', mapped)
+      setData(mapped)
       if (isManualRefresh) {
         toast.success('Feedback records refreshed from database')
       }
     } catch (err) {
       console.warn('Could not load live feedback from PostgreSQL:', err)
-      setData([])
+      if (!getCachedData('list:feedback')) setData([])
       if (isManualRefresh) {
         toast.error('Unable to refresh from database')
       }
@@ -112,7 +114,7 @@ export function FeedbackListPage() {
     try {
       const [cRes, woRes] = await Promise.all([
         customerApi.list({ page_size: 2000 }).catch(() => ({ items: [] })),
-        productionApi.listWorkOrders({ page_size: 2000 }).catch(() => ({ items: [] })),
+        productionApi.listWorkOrders({ page_size: 2000, compact: true }).catch(() => ({ items: [] })),
       ])
       setCustomers(cRes.items || [])
       setWorkOrders(woRes.items || [])

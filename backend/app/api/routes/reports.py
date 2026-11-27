@@ -3,7 +3,7 @@ import io
 from datetime import date, datetime, time, timezone
 from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_active_user, get_db, require_roles
 from app.models.accounts import AccountsRecord
@@ -24,7 +24,7 @@ def export_enquiries_csv(
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
 ) -> Response:
-    query = db.query(Enquiry).filter(Enquiry.is_deleted == False)
+    query = db.query(Enquiry).options(joinedload(Enquiry.customer)).filter(Enquiry.is_deleted == False)
     items = query.all()
 
     output = io.StringIO()
@@ -52,7 +52,7 @@ def export_quotations_csv(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Sales / Accounts"]))],
 ) -> Response:
-    items = db.query(Quotation).filter(Quotation.is_deleted == False).all()
+    items = db.query(Quotation).options(joinedload(Quotation.customer)).filter(Quotation.is_deleted == False).all()
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["Quotation Number", "Rev", "Customer", "Status", "Subtotal", "Tax", "Total", "Created At"])
@@ -80,7 +80,7 @@ def export_production_csv(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(require_roles(["Administrator", "Management", "Production Manager"]))],
 ) -> Response:
-    items = db.query(WorkOrder).filter(WorkOrder.is_deleted == False).all()
+    items = db.query(WorkOrder).options(joinedload(WorkOrder.customer)).filter(WorkOrder.is_deleted == False).all()
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["Work Order Number", "Title", "Customer", "Status", "Priority", "Planned End", "Actual End"])
@@ -107,7 +107,7 @@ def export_projects_csv(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(require_roles(["Administrator", "Super Admin", "Management"]))],
 ) -> Response:
-    items = db.query(Project).filter(Project.is_deleted == False).all()
+    items = db.query(Project).options(joinedload(Project.customer)).filter(Project.is_deleted == False).all()
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["Project Number", "Name", "Customer", "Status", "Priority", "Value", "Approval Date"])
@@ -133,7 +133,7 @@ def export_accounts_csv(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(require_roles(["Administrator", "Super Admin", "Management", "Accounts Manager", "Sales / Accounts"]))],
 ) -> Response:
-    items = db.query(AccountsRecord).filter(AccountsRecord.is_deleted == False).all()
+    items = db.query(AccountsRecord).options(joinedload(AccountsRecord.project)).filter(AccountsRecord.is_deleted == False).all()
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["Accounts Number", "Project", "Status", "Total Invoiced", "Total Received", "Outstanding", "Transfer Date"])

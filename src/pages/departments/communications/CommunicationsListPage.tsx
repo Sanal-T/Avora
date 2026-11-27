@@ -5,19 +5,28 @@ import { Card } from '../../../components/ui/Card'
 import { Button } from '../../../components/ui/Button'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { communicationApi, type Communication } from '../../../lib/api'
+import { getCachedData, invalidateCache, setCachedData } from '../../../lib/cache'
 import { toast } from '../../../lib/toast'
 
 export function CommunicationsListPage() {
-  const [items, setItems] = useState<Communication[]>([])
-  const [loading, setLoading] = useState(true)
+  const [items, setItems] = useState<Communication[]>(() => getCachedData<Communication[]>('list:communications') || [])
+  const [loading, setLoading] = useState(() => !getCachedData('list:communications'))
   const [subject, setSubject] = useState('')
   const [description, setDescription] = useState('')
   const [type, setType] = useState('Request')
 
-  const load = async () => {
-    setLoading(true)
+  const load = async (force = false) => {
+    if (force) invalidateCache('list:communications')
+    const cached = !force ? getCachedData<Communication[]>('list:communications') : null
+    if (cached) {
+      setItems(cached)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
     try {
-      const res = await communicationApi.list({ page_size: 2000 })
+      const res = await communicationApi.list({ page_size: 2000, compact: true })
+      setCachedData('list:communications', res.items)
       setItems(res.items)
     } finally {
       setLoading(false)
@@ -25,7 +34,7 @@ export function CommunicationsListPage() {
   }
 
   useEffect(() => {
-    load()
+    load(false)
   }, [])
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -48,7 +57,7 @@ export function CommunicationsListPage() {
         title="Interdepartmental Communications"
         description="Structured requests, approvals, clarifications, and issue tracking across departments."
         actions={
-          <Button variant="outline" size="sm" onClick={load}>
+          <Button variant="outline" size="sm" onClick={() => load(true)}>
             <RefreshCw className="h-4 w-4 mr-1.5" />
             Refresh
           </Button>

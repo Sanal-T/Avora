@@ -6,25 +6,35 @@ import { Card } from '../../../components/ui/Card'
 import { Button } from '../../../components/ui/Button'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import { projectApi, type Project } from '../../../lib/api'
+import { getCachedData, invalidateCache, setCachedData } from '../../../lib/cache'
 
 export function ProjectsListPage() {
-  const [items, setItems] = useState<Project[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const cacheKey = `list:projects:${statusFilter}`
+  const [items, setItems] = useState<Project[]>(() => getCachedData<Project[]>(cacheKey) || [])
+  const [loading, setLoading] = useState(() => !getCachedData(cacheKey))
 
-  const load = async () => {
-    setLoading(true)
+  const load = async (force = false) => {
+    if (force) invalidateCache('list:projects:')
+    const cached = !force && !search ? getCachedData<Project[]>(cacheKey) : null
+    if (cached) {
+      setItems(cached)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
     try {
-      const res = await projectApi.list({ page_size: 2000, status: statusFilter, search: search || undefined })
+      const res = await projectApi.list({ page_size: 2000, status: statusFilter, search: search || undefined, compact: true })
       setItems(res.items)
+      if (!search) setCachedData(cacheKey, res.items)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    load()
+    load(false)
   }, [statusFilter])
 
   return (
@@ -33,7 +43,7 @@ export function ProjectsListPage() {
         title="Projects"
         description="Centralized lifecycle tracking from client approval through production and accounts."
         actions={
-          <Button variant="outline" size="sm" onClick={load}>
+          <Button variant="outline" size="sm" onClick={() => load(true)}>
             <RefreshCw className="h-4 w-4 mr-1.5" />
             Refresh
           </Button>

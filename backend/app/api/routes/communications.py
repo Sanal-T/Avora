@@ -37,6 +37,7 @@ def list_communications(
     department_id: str | None = Query(default=None),
     project_id: uuid.UUID | None = Query(default=None),
     search: str | None = Query(default=None),
+    compact: bool = Query(default=False),
 ) -> CommunicationListResponse:
     total, items = communication_service.list_communications(
         db,
@@ -47,6 +48,7 @@ def list_communications(
         department_id=department_id,
         project_id=project_id,
         search=search,
+        compact=compact,
     )
     return CommunicationListResponse(total=total, items=items, page=page, page_size=page_size)
 

@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, time, timezone
 from sqlalchemy import case, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from fastapi import HTTPException, status
 
 from app.models.auth import Employee, User
@@ -25,23 +25,24 @@ VALID_STATUSES = [
 ]
 
 
-def _to_enquiry_read(enquiry: Enquiry) -> EnquiryRead:
+def _to_enquiry_read(enquiry: Enquiry, include_history: bool = True) -> EnquiryRead:
     history_reads = []
     qualified_by_name: str | None = None
     for h in enquiry.status_history:
         changer_name = h.changed_by.full_name if h.changed_by else None
         if h.to_status == "Qualified" and qualified_by_name is None:
             qualified_by_name = changer_name
-        history_reads.append(
-            EnquiryStatusHistoryRead(
-                id=h.id,
-                from_status=h.from_status,
-                to_status=h.to_status,
-                notes=h.notes,
-                created_at=h.created_at,
-                changed_by_name=changer_name,
+        if include_history:
+            history_reads.append(
+                EnquiryStatusHistoryRead(
+                    id=h.id,
+                    from_status=h.from_status,
+                    to_status=h.to_status,
+                    notes=h.notes,
+                    created_at=h.created_at,
+                    changed_by_name=changer_name,
+                )
             )
-        )
     return EnquiryRead(
         id=enquiry.id,
         enquiry_number=enquiry.enquiry_number,
@@ -78,6 +79,7 @@ def list_enquiries(
     search: str | None = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    compact: bool = False,
 ) -> tuple[int, list[EnquiryRead]]:
     query = db.query(Enquiry).filter(Enquiry.is_deleted == False)
 
@@ -102,13 +104,32 @@ def list_enquiries(
             )
         )
 
-    total = query.count()
-    items = query.order_by(Enquiry.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
-    return total, [_to_enquiry_read(item) for item in items]
+    items = (
+        query.options(
+            joinedload(Enquiry.customer),
+            joinedload(Enquiry.assigned_employee),
+            selectinload(Enquiry.status_history).joinedload(EnquiryStatusHistory.changed_by),
+        )
+        .order_by(Enquiry.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    total = len(items) if page == 1 and len(items) < page_size else query.count()
+    return total, [_to_enquiry_read(item, include_history=not compact) for item in items]
 
 
 def get_enquiry(db: Session, enquiry_id: uuid.UUID) -> Enquiry:
-    enquiry = db.query(Enquiry).filter(Enquiry.id == enquiry_id, Enquiry.is_deleted == False).first()
+    enquiry = (
+        db.query(Enquiry)
+        .options(
+            joinedload(Enquiry.customer),
+            joinedload(Enquiry.assigned_employee),
+            selectinload(Enquiry.status_history).joinedload(EnquiryStatusHistory.changed_by),
+        )
+        .filter(Enquiry.id == enquiry_id, Enquiry.is_deleted == False)
+        .first()
+    )
     if not enquiry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Enquiry not found.")
     return enquiry

@@ -4,13 +4,20 @@ import { PageContainer, PageHeader } from '../../components/shared/PageHeader'
 import { Card } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { reportsApi } from '../../lib/api'
+import { getCachedData, setCachedData } from '../../lib/cache'
 
 export function ReportsPage() {
-  const [summary, setSummary] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const [summary, setSummary] = useState<any>(() => getCachedData('reports:summary'))
+  const [loading, setLoading] = useState(() => !getCachedData('reports:summary'))
 
   useEffect(() => {
-    reportsApi.getSummary().then(setSummary).finally(() => setLoading(false))
+    reportsApi
+      .getSummary()
+      .then((res) => {
+        setCachedData('reports:summary', res)
+        setSummary(res)
+      })
+      .finally(() => setLoading(false))
   }, [])
 
   const downloadCsv = (endpoint: string) => {

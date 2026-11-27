@@ -7,6 +7,7 @@ import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../compone
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import type { MockQuotation } from '../../../data/mockData'
 import { quotationApi, type Quotation } from '../../../lib/api'
+import { getCachedData, invalidateCache, setCachedData } from '../../../lib/cache'
 
 function toUiQuotation(q: Quotation): MockQuotation {
   const st = (q.status || '').toLowerCase()
@@ -38,24 +39,31 @@ function toUiQuotation(q: Quotation): MockQuotation {
 
 export function QuotationsListPage() {
   const navigate = useNavigate()
-  const [data, setData] = useState<MockQuotation[]>([])
+  const [data, setData] = useState<MockQuotation[]>(() => getCachedData<MockQuotation[]>('list:quotations') || [])
   const [activeTab, setActiveTab] = useState<string>('all')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(() => !getCachedData('list:quotations'))
 
-  const fetchQuotations = () => {
-    setLoading(true)
+  const fetchQuotations = (force = false) => {
+    if (force) invalidateCache('list:quotations')
+    const cached = !force ? getCachedData<MockQuotation[]>('list:quotations') : null
+    if (cached) {
+      setData(cached)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
     quotationApi
-      .listQuotations({ page_size: 2000 })
+      .listQuotations({ page_size: 2000, compact: true })
       .then((res) => {
-        if (res.items && res.items.length > 0) {
-          setData(res.items.map(toUiQuotation))
-        } else if (res.items) {
-          setData([])
+        if (res.items) {
+          const mapped = res.items.map(toUiQuotation)
+          setCachedData('list:quotations', mapped)
+          setData(mapped)
         }
       })
       .catch((err) => {
         console.warn('Could not load live quotations from PostgreSQL:', err)
-        setData([])
+        if (!cached) setData([])
       })
       .finally(() => {
         setLoading(false)
@@ -63,7 +71,7 @@ export function QuotationsListPage() {
   }
 
   useEffect(() => {
-    fetchQuotations()
+    fetchQuotations(false)
   }, [])
 
   const filterTabs: QuickFilterTab[] = [
@@ -177,7 +185,7 @@ export function QuotationsListPage() {
         description="Formal estimates, line item pricing, customer approvals, and commercial hand-offs."
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={fetchQuotations} disabled={loading}>
+            <Button variant="outline" size="sm" onClick={() => fetchQuotations(true)} disabled={loading}>
               <RefreshCw className={`size-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} />
               <span>Refresh</span>
             </Button>

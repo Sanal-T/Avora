@@ -7,6 +7,7 @@ import { DataTable, type ColumnDef, type QuickFilterTab } from '../../../compone
 import { StatusBadge } from '../../../components/shared/StatusBadge'
 import type { MockDesign } from '../../../data/mockData'
 import { designApi, type Design } from '../../../lib/api'
+import { getCachedData, invalidateCache, setCachedData } from '../../../lib/cache'
 import { DesignFormModal } from './DesignFormModal'
 
 function toUiDesign(d: Design): MockDesign {
@@ -35,21 +36,30 @@ function toUiDesign(d: Design): MockDesign {
 
 export function DesignsListPage() {
   const navigate = useNavigate()
-  const [data, setData] = useState<MockDesign[]>([])
+  const [data, setData] = useState<MockDesign[]>(() => getCachedData<MockDesign[]>('list:designs') || [])
   const [activeTab, setActiveTab] = useState<string>('all')
   const [createModalOpen, setCreateModalOpen] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !getCachedData('list:designs'))
 
-  const loadDesigns = useCallback(() => {
-    setLoading(true)
+  const loadDesigns = useCallback((force = false) => {
+    if (force) invalidateCache('list:designs')
+    const cached = !force ? getCachedData<MockDesign[]>('list:designs') : null
+    if (cached) {
+      setData(cached)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
     designApi
-      .listDesigns({ page_size: 2000 })
+      .listDesigns({ page_size: 2000, compact: true })
       .then((res) => {
-        setData((res.items || []).map(toUiDesign))
+        const mapped = (res.items || []).map(toUiDesign)
+        setCachedData('list:designs', mapped)
+        setData(mapped)
       })
       .catch((err) => {
         console.warn('Could not load live designs from PostgreSQL:', err)
-        setData([])
+        if (!cached) setData([])
       })
       .finally(() => {
         setLoading(false)
@@ -57,7 +67,7 @@ export function DesignsListPage() {
   }, [])
 
   useEffect(() => {
-    loadDesigns()
+    loadDesigns(false)
   }, [loadDesigns])
 
   const filterTabs: QuickFilterTab[] = [
@@ -174,7 +184,7 @@ export function DesignsListPage() {
         description="CAD drawings, 3D renderings, material finishes, and technical drafting packets."
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={loadDesigns} disabled={loading} title="Reload from PostgreSQL">
+            <Button variant="outline" size="sm" onClick={() => loadDesigns(true)} disabled={loading} title="Reload from PostgreSQL">
               <RefreshCw className={`size-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} />
               <span>Refresh</span>
             </Button>

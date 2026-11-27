@@ -22,6 +22,7 @@ def list_enquiries(
     search: str | None = Query(default=None),
     date_from: date | None = Query(default=None),
     date_to: date | None = Query(default=None),
+    compact: bool = Query(default=False),
 ) -> EnquiryListResponse:
     total, items = enquiry_service.list_enquiries(
         db,
@@ -31,6 +32,7 @@ def list_enquiries(
         search=search,
         date_from=date_from,
         date_to=date_to,
+        compact=compact,
     )
     return EnquiryListResponse(total=total, items=items, page=page, page_size=page_size)
 

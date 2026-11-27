@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -27,7 +27,9 @@ import {
   productionApi,
   feedbackApi,
   labourApi,
+  filesApi,
 } from '../../lib/api'
+import { getCachedData, invalidateCache, setCachedData } from '../../lib/cache'
 
 interface DashboardRecord {
   id: string
@@ -64,7 +66,13 @@ function normalizeFilterKey(label: string): string {
   return l.replace(/\s+/g, '_')
 }
 
-const deptSummaryCache = new Map<string, any>()
+interface CachedDepartmentRecords {
+  records: DashboardRecord[]
+  rawQuotations?: any[]
+  rawFeedback?: any[]
+  feedbackFiles?: Record<string, { id: string; file_name: string }[]>
+  rawProduction?: any[]
+}
 
 export function DepartmentDashboardPage({
   departmentId,
@@ -80,6 +88,16 @@ export function DepartmentDashboardPage({
   const meta = DEPARTMENT_META[departmentId]
   const Icon = meta.icon
 
+  const { dateFrom, dateTo } = rangeDates(rangeId)
+  const summaryCacheKey = `dept-summary:${departmentId}:${rangeId}:${dateFrom || ''}:${dateTo || ''}`
+  const recordsCacheKey =
+    departmentId === 'labour'
+      ? 'dept-records:labour'
+      : `dept-records:${departmentId}:${dateFrom || ''}:${dateTo || ''}`
+
+  const initialSummary = getCachedData<any>(summaryCacheKey)
+  const initialRecords = getCachedData<CachedDepartmentRecords>(recordsCacheKey)
+
   const [liveSummary, setLiveSummary] = useState<{
     id: string
     name: string
@@ -87,36 +105,36 @@ export function DepartmentDashboardPage({
     primary_label: string
     metrics: { label: string; value: string }[]
     trend: string
-  } | null>(() => {
-    const { dateFrom, dateTo } = rangeDates(rangeId)
-    const cacheKey = `${departmentId}:${rangeId}:${dateFrom || ''}:${dateTo || ''}`
-    return deptSummaryCache.get(cacheKey) || null
-  })
+  } | null>(initialSummary)
 
-  const [records, setRecords] = useState<DashboardRecord[]>([])
-  const [rawQuotations, setRawQuotations] = useState<any[]>([])
+  const [records, setRecords] = useState<DashboardRecord[]>(initialRecords?.records || [])
+  const [rawQuotations, setRawQuotations] = useState<any[]>(initialRecords?.rawQuotations || [])
   const [quotationTab, setQuotationTab] = useState<'overview' | 'follow_up' | 'sent_to_production'>('overview')
-  const [rawFeedback, setRawFeedback] = useState<any[]>([])
+  const [rawFeedback, setRawFeedback] = useState<any[]>(initialRecords?.rawFeedback || [])
   const [feedbackTab, setFeedbackTab] = useState<'all' | 'Interior' | 'Exterior' | 'Signage'>('Interior')
-  const [feedbackFiles, setFeedbackFiles] = useState<Record<string, { id: string; file_name: string }[]>>({})
-  const [rawProduction, setRawProduction] = useState<any[]>([])
+  const [feedbackFiles, setFeedbackFiles] = useState<Record<string, { id: string; file_name: string }[]>>(
+    initialRecords?.feedbackFiles || {},
+  )
+  const [rawProduction, setRawProduction] = useState<any[]>(initialRecords?.rawProduction || [])
   const [productionTab, setProductionTab] = useState<'overview' | 'calendar'>('overview')
   const [calendarMonth, setCalendarMonth] = useState<Date>(() => new Date())
-  const [loadingRecords, setLoadingRecords] = useState(false)
+  const [loadingRecords, setLoadingRecords] = useState(!initialRecords)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [selectedFilter, setSelectedFilter] = useState<string>(() => searchParams.get('status') || 'all')
   const [searchQuery, setSearchQuery] = useState('')
   const [page, setPage] = useState(1)
   const pageSize = 10
+  const handledRefreshRef = useRef(0)
 
-  // Load summary KPIs (cached per department & range to make filter clicks instant)
+  // Load summary KPIs (SWR cached per department & range)
   useEffect(() => {
-    const { dateFrom, dateTo } = rangeDates(rangeId)
-    const cacheKey = `${departmentId}:${rangeId}:${dateFrom || ''}:${dateTo || ''}`
-    const cached = deptSummaryCache.get(cacheKey)
-    if (cached) {
-      setLiveSummary(cached)
+    const isManualRefresh = refreshTrigger > 0
+    if (isManualRefresh) {
+      invalidateCache(`dept-summary:${departmentId}:`)
+    } else {
+      const cached = getCachedData<any>(summaryCacheKey)
+      if (cached) setLiveSummary(cached)
     }
 
     const params = new URLSearchParams()
@@ -126,178 +144,195 @@ export function DepartmentDashboardPage({
     apiFetch<any>(url)
       .then((data) => {
         if (data) {
-          deptSummaryCache.set(cacheKey, data)
+          setCachedData(summaryCacheKey, data)
           setLiveSummary(data)
         }
       })
       .catch((err) => {
         console.warn(`Could not load live summary for ${departmentId}:`, err)
       })
-  }, [departmentId, rangeId, refreshTrigger])
+  }, [departmentId, summaryCacheKey, dateFrom, dateTo, refreshTrigger])
 
-  // Load actual department data (only when departmentId changes or manual refresh triggered)
+  // Load actual department data with instant SWR hydration + fast compact backend fetch
   useEffect(() => {
     let isMounted = true
-    setLoadingRecords(true)
+    const isManualRefresh = refreshTrigger !== handledRefreshRef.current
+    handledRefreshRef.current = refreshTrigger
+
+    if (isManualRefresh) {
+      invalidateCache(`dept-records:${departmentId}:`)
+      if (departmentId === 'labour') invalidateCache('dept-records:labour')
+    }
+
+    const cached = !isManualRefresh ? getCachedData<CachedDepartmentRecords>(recordsCacheKey) : null
+    if (cached) {
+      setRecords(cached.records)
+      if (cached.rawQuotations) setRawQuotations(cached.rawQuotations)
+      if (cached.rawFeedback) setRawFeedback(cached.rawFeedback)
+      if (cached.feedbackFiles) setFeedbackFiles(cached.feedbackFiles)
+      if (cached.rawProduction) setRawProduction(cached.rawProduction)
+      setLoadingRecords(false)
+    } else {
+      setLoadingRecords(true)
+    }
     setLoadError(null)
 
-    const { dateFrom, dateTo } = rangeDates(rangeId)
+    const fetchRecords = async (): Promise<CachedDepartmentRecords> => {
+      if (departmentId === 'enquiries') {
+        const res = await enquiryApi.list({ page_size: 2000, date_from: dateFrom, date_to: dateTo, compact: true })
+        const mapped = (res.items || []).map((e) => {
+          let uiStatus = 'pending'
+          const s = (e.status || '').toLowerCase()
+          if (s.includes('qualif')) uiStatus = 'qualified'
+          else if (s.includes('convert')) uiStatus = 'converted'
 
-    const fetchRecords = async () => {
-      try {
-        if (departmentId === 'enquiries') {
-          const res = await enquiryApi.list({ page_size: 2000, date_from: dateFrom, date_to: dateTo })
-          if (res.items) {
-            return res.items.map((e) => {
-              let uiStatus = 'pending'
-              const s = (e.status || '').toLowerCase()
-              if (s.includes('qualif')) uiStatus = 'qualified'
-              else if (s.includes('convert')) uiStatus = 'converted'
+          return {
+            id: e.id,
+            code: e.enquiry_number,
+            title: e.customer_company || e.customer_name || 'Direct Customer',
+            subtitle: e.requirement_summary || e.customer_name || 'Commercial Enquiry',
+            status: uiStatus,
+            date: (e.created_at || '').slice(0, 10),
+            budget: e.estimated_budget
+              ? `₹${Number(e.estimated_budget).toLocaleString('en-IN')}`
+              : undefined,
+            assignedTo: e.assigned_employee_name || 'Unassigned',
+            qualifiedBy: e.qualified_by_name || undefined,
+            link: `/enquiries/${e.id}`,
+          }
+        })
+        return { records: mapped }
+      } else if (departmentId === 'designs') {
+        const res = await designApi.listDesigns({ page_size: 2000, date_from: dateFrom, date_to: dateTo, compact: true })
+        const mapped = (res.items || []).map((d) => {
+          const st = (d.status || '').toLowerCase().replaceAll('_', ' ')
+          let status = 'pending'
+          if (st.includes('complet') || st.includes('approve')) status = 'completed'
+          else if (st === 'in progress') status = 'in_progress'
 
-              return {
-                id: e.id,
-                code: e.enquiry_number,
-                title: e.customer_company || e.customer_name || 'Direct Customer',
-                subtitle: e.requirement_summary || e.customer_name || 'Commercial Enquiry',
-                status: uiStatus,
-                date: (e.created_at || '').slice(0, 10),
-                budget: e.estimated_budget
-                  ? `₹${Number(e.estimated_budget).toLocaleString('en-IN')}`
-                  : undefined,
-                assignedTo: e.assigned_employee_name || 'Unassigned',
-                qualifiedBy: e.qualified_by_name || undefined,
-                link: `/enquiries/${e.id}`,
-              }
-            })
+          return {
+            id: d.id,
+            code: d.design_number,
+            title: d.title,
+            subtitle: d.enquiry_number ? `Ref: ${d.enquiry_number}` : 'Internal Project',
+            status,
+            date: d.expected_completion_date || (d.created_at || '').slice(0, 10),
+            assignedTo: d.assigned_designer_name || 'Design Team',
+            priority: d.priority || 'Medium',
+            siteLocation: d.site_location || '-',
+            approvalStatus: d.approval_status || 'Pending',
+            designValue: d.design_value != null ? `₹${Number(d.design_value).toLocaleString()}` : '-',
+            link: `/designs/${d.id}`,
           }
-        } else if (departmentId === 'designs') {
-          const res = await designApi.listDesigns({ page_size: 2000, date_from: dateFrom, date_to: dateTo })
-          if (res.items) {
-            return res.items.map((d) => {
-              const st = (d.status || '').toLowerCase().replaceAll('_', ' ')
-              let status = 'pending'
-              if (st.includes('complet') || st.includes('approve')) status = 'completed'
-              else if (st === 'in progress') status = 'in_progress'
+        })
+        return { records: mapped }
+      } else if (departmentId === 'quotations') {
+        const res = await quotationApi.listQuotations({
+          page_size: 2000,
+          date_from: dateFrom,
+          date_to: dateTo,
+          compact: true,
+          include_follow_ups: true,
+        })
+        const items = res.items || []
+        const mapped = items.map((q) => {
+          const st = (q.status || '').toLowerCase()
+          let status = 'pending'
+          if (st.includes('approv')) status = 'approved'
+          else if (st.includes('convert')) status = 'converted'
+          else if (st.includes('reject')) status = 'rejected'
 
-              return {
-                id: d.id,
-                code: d.design_number,
-                title: d.title,
-                subtitle: d.enquiry_number ? `Ref: ${d.enquiry_number}` : 'Internal Project',
-                status,
-                date: d.expected_completion_date || (d.created_at || '').slice(0, 10),
-                assignedTo: d.assigned_designer_name || 'Design Team',
-                priority: d.priority || 'Medium',
-                siteLocation: d.site_location || '-',
-                approvalStatus: d.approval_status || 'Pending',
-                designValue: d.design_value != null ? `₹${Number(d.design_value).toLocaleString()}` : '-',
-                link: `/designs/${d.id}`,
-              }
-            })
+          return {
+            id: q.id,
+            code: q.quotation_number,
+            title: q.customer_company || q.customer_name || 'Client',
+            subtitle: q.enquiry_number ? `Ref: ${q.enquiry_number}` : 'Estimate',
+            status,
+            budget: q.total_amount
+              ? `₹${Number(q.total_amount).toLocaleString('en-IN')}`
+              : undefined,
+            date: (q.created_at || '').slice(0, 10),
+            link: `/quotations/${q.id}`,
           }
-        } else if (departmentId === 'quotations') {
-          const res = await quotationApi.listQuotations({ page_size: 2000, date_from: dateFrom, date_to: dateTo })
-          if (res.items) {
-            setRawQuotations(res.items)
-            return res.items.map((q) => {
-              const st = (q.status || '').toLowerCase()
-              let status = 'pending'
-              if (st.includes('approv')) status = 'approved'
-              else if (st.includes('convert')) status = 'converted'
-              else if (st.includes('reject')) status = 'rejected'
+        })
+        return { records: mapped, rawQuotations: items }
+      } else if (departmentId === 'production') {
+        const res = await productionApi.listWorkOrders({ page_size: 2000, date_from: dateFrom, date_to: dateTo, compact: true })
+        const items = res.items || []
+        const mapped = items.map((wo) => {
+          const st = (wo.status || '').toLowerCase()
+          let status = 'active'
+          if (st.includes('complet')) status = 'completed'
+          else if (st.includes('delay')) status = 'delayed'
 
-              return {
-                id: q.id,
-                code: q.quotation_number,
-                title: q.customer_company || q.customer_name || 'Client',
-                subtitle: q.enquiry_number ? `Ref: ${q.enquiry_number}` : 'Estimate',
-                status,
-                budget: q.total_amount
-                  ? `₹${Number(q.total_amount).toLocaleString('en-IN')}`
-                  : undefined,
-                date: (q.created_at || '').slice(0, 10),
-                link: `/quotations/${q.id}`,
-              }
-            })
+          return {
+            id: wo.id,
+            code: wo.work_order_number,
+            title: wo.title,
+            subtitle: wo.customer_company || wo.customer_name || 'Production Order',
+            status,
+            date: wo.planned_end_date || wo.planned_start_date || 'In Progress',
+            assignedTo: 'Production Lead',
+            link: `/production/${wo.id}`,
           }
-        } else if (departmentId === 'production') {
-          const res = await productionApi.listWorkOrders({ page_size: 2000, date_from: dateFrom, date_to: dateTo })
-          if (res.items) {
-            setRawProduction(res.items)
-            return res.items.map((wo) => {
-              const st = (wo.status || '').toLowerCase()
-              let status = 'active'
-              if (st.includes('complet')) status = 'completed'
-              else if (st.includes('delay')) status = 'delayed'
-
-              return {
-                id: wo.id,
-                code: wo.work_order_number,
-                title: wo.title,
-                subtitle: wo.customer_company || wo.customer_name || 'Production Order',
-                status,
-                date: wo.planned_end_date || wo.planned_start_date || 'In Progress',
-                assignedTo: 'Production Lead',
-                link: `/production/${wo.id}`,
-              }
-            })
-          }
-        } else if (departmentId === 'feedback') {
-          const res = await feedbackApi.listFeedback({ page_size: 2000, date_from: dateFrom, date_to: dateTo })
-          if (res.items) {
-            setRawFeedback(res.items)
-            Promise.all(
-              res.items.map(async (f) => {
-                try {
-                  const files = await apiFetch<{ id: string; file_name: string }[]>(
-                    `/api/files?entity_type=feedback&entity_id=${f.id}`,
-                  )
-                  return [f.id, files] as const
-                } catch {
-                  return [f.id, []] as const
-                }
-              }),
-            ).then((entries) => {
-              if (isMounted) setFeedbackFiles(Object.fromEntries(entries))
-            })
-            return res.items.map((f) => ({
-              id: f.id,
-              code: `FB-${f.id.slice(0, 4).toUpperCase()}`,
-              title: f.customer_company || f.customer_name || 'Client',
-              subtitle: f.comments || 'Feedback entry',
-              status: (f.status || '').toLowerCase().includes('await') ? 'awaiting' : 'received',
-              date: (f.received_at || f.created_at || '').slice(0, 10),
-              link: `/feedback/${f.id}`,
-            }))
-          }
-        } else if (departmentId === 'labour') {
-          const res = await labourApi.listWorkers({ page_size: 2000 })
-          if (res.items) {
-            return res.items.map((w) => ({
-              id: w.id,
-              code: w.worker_code,
-              title: `${w.first_name} ${w.last_name}`.trim(),
-              subtitle: w.skill_category,
-              status: (w.status || '').toLowerCase() === 'assigned' ? 'assigned' : 'available',
-              date: `Rate: ₹${Number(w.daily_rate || 0).toLocaleString('en-IN')}/day`,
-              assignedTo: w.phone || 'Labour Roster',
-              link: `/labour`,
-            }))
+        })
+        return { records: mapped, rawProduction: items }
+      } else if (departmentId === 'feedback') {
+        const res = await feedbackApi.listFeedback({ page_size: 2000, date_from: dateFrom, date_to: dateTo })
+        const items = res.items || []
+        let filesMap: Record<string, { id: string; file_name: string }[]> = {}
+        if (items.length > 0) {
+          try {
+            filesMap = await filesApi.batch(
+              'feedback',
+              items.map((f) => f.id),
+            )
+          } catch {
+            filesMap = {}
           }
         }
-        return []
-      } catch (err: any) {
+        const mapped = items.map((f) => ({
+          id: f.id,
+          code: `FB-${f.id.slice(0, 4).toUpperCase()}`,
+          title: f.customer_company || f.customer_name || 'Client',
+          subtitle: f.comments || 'Feedback entry',
+          status: (f.status || '').toLowerCase().includes('await') ? 'awaiting' : 'received',
+          date: (f.received_at || f.created_at || '').slice(0, 10),
+          link: `/feedback/${f.id}`,
+        }))
+        return { records: mapped, rawFeedback: items, feedbackFiles: filesMap }
+      } else if (departmentId === 'labour') {
+        const res = await labourApi.listWorkers({ page_size: 2000 })
+        const mapped = (res.items || []).map((w) => ({
+          id: w.id,
+          code: w.worker_code,
+          title: `${w.first_name} ${w.last_name}`.trim(),
+          subtitle: w.skill_category,
+          status: (w.status || '').toLowerCase() === 'assigned' ? 'assigned' : 'available',
+          date: `Rate: ₹${Number(w.daily_rate || 0).toLocaleString('en-IN')}/day`,
+          assignedTo: w.phone || 'Labour Roster',
+          link: `/labour`,
+        }))
+        return { records: mapped }
+      }
+      return { records: [] }
+    }
+
+    fetchRecords()
+      .then((payload) => {
+        setCachedData(recordsCacheKey, payload)
+        if (!isMounted) return
+        setRecords(payload.records)
+        if (payload.rawQuotations !== undefined) setRawQuotations(payload.rawQuotations)
+        if (payload.rawFeedback !== undefined) setRawFeedback(payload.rawFeedback)
+        if (payload.feedbackFiles !== undefined) setFeedbackFiles(payload.feedbackFiles)
+        if (payload.rawProduction !== undefined) setRawProduction(payload.rawProduction)
+      })
+      .catch((err: any) => {
         console.warn(`Could not load records for ${departmentId}:`, err)
         if (isMounted) {
           setLoadError(err?.message || 'Failed to load records from database')
         }
-        return []
-      }
-    }
-
-    fetchRecords()
-      .then((items) => {
-        if (isMounted) setRecords(items)
       })
       .finally(() => {
         if (isMounted) setLoadingRecords(false)
@@ -306,7 +341,7 @@ export function DepartmentDashboardPage({
     return () => {
       isMounted = false
     }
-  }, [departmentId, rangeId, refreshTrigger])
+  }, [departmentId, recordsCacheKey, dateFrom, dateTo, refreshTrigger])
 
   // Build KPI Options
   const kpis: {

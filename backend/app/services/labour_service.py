@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, timezone
 from sqlalchemy import case, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from fastapi import HTTPException, status
 
 from app.models.labour import LabourAssignment, LabourRequest, Worker
@@ -87,8 +87,8 @@ def list_workers(
                 Worker.worker_code.ilike(search_filter),
             )
         )
-    total = query.count()
     items = query.order_by(Worker.first_name.asc()).offset((page - 1) * page_size).limit(page_size).all()
+    total = len(items) if page == 1 and len(items) < page_size else query.count()
     return total, [_to_worker_read(item) for item in items]
 
 
@@ -153,8 +153,16 @@ def list_labour_requests(
     query = db.query(LabourRequest)
     if status_filter:
         query = query.filter(LabourRequest.status == status_filter)
-    total = query.count()
-    items = query.order_by(LabourRequest.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    items = (
+        query.options(
+            selectinload(LabourRequest.assignments).joinedload(LabourAssignment.worker),
+        )
+        .order_by(LabourRequest.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    total = len(items) if page == 1 and len(items) < page_size else query.count()
     return total, [_to_labour_request_read(item) for item in items]
 
 

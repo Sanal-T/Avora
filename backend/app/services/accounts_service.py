@@ -2,8 +2,8 @@ import uuid
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from fastapi import HTTPException, status
-from sqlalchemy import or_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_, case, func, or_
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.accounts import AccountsRecord, Invoice, Payment
 from app.models.project import Project, ProjectStatusHistory
@@ -30,7 +30,7 @@ VALID_ACCOUNTS_STATUSES = [
 ]
 
 
-def _to_accounts_read(record: AccountsRecord) -> AccountsRecordRead:
+def _to_accounts_read(record: AccountsRecord, include_details: bool = True) -> AccountsRecordRead:
     return AccountsRecordRead(
         id=record.id,
         accounts_number=record.accounts_number,
@@ -49,23 +49,27 @@ def _to_accounts_read(record: AccountsRecord) -> AccountsRecordRead:
         project_number=record.project.project_number if record.project else None,
         project_name=record.project.name if record.project else None,
         customer_name=record.project.customer.name if record.project and record.project.customer else None,
-        invoices=[InvoiceRead.model_validate(inv) for inv in record.invoices],
-        payments=[
-            PaymentRead(
-                id=p.id,
-                accounts_record_id=p.accounts_record_id,
-                invoice_id=p.invoice_id,
-                project_id=p.project_id,
-                payment_date=p.payment_date,
-                amount=p.amount,
-                payment_method=p.payment_method,
-                reference_number=p.reference_number,
-                remarks=p.remarks,
-                recorded_by_name=p.recorded_by.full_name if p.recorded_by else None,
-                created_at=p.created_at,
-            )
-            for p in record.payments
-        ],
+        invoices=[InvoiceRead.model_validate(inv) for inv in record.invoices] if include_details else [],
+        payments=(
+            [
+                PaymentRead(
+                    id=p.id,
+                    accounts_record_id=p.accounts_record_id,
+                    invoice_id=p.invoice_id,
+                    project_id=p.project_id,
+                    payment_date=p.payment_date,
+                    amount=p.amount,
+                    payment_method=p.payment_method,
+                    reference_number=p.reference_number,
+                    remarks=p.remarks,
+                    recorded_by_name=p.recorded_by.full_name if p.recorded_by else None,
+                    created_at=p.created_at,
+                )
+                for p in record.payments
+            ]
+            if include_details
+            else []
+        ),
     )
 
 
@@ -119,6 +123,7 @@ def list_accounts_records(
     page_size: int = 20,
     status_filter: str | None = None,
     search: str | None = None,
+    compact: bool = False,
 ) -> tuple[int, list[AccountsRecordRead]]:
     query = db.query(AccountsRecord).filter(AccountsRecord.is_deleted == False)
     if status_filter and status_filter != "all":
@@ -132,21 +137,33 @@ def list_accounts_records(
                 Project.name.ilike(pattern),
             )
         )
-    total = query.count()
+    options = [joinedload(AccountsRecord.project).joinedload(Project.customer)]
+    if not compact:
+        options.extend(
+            [
+                selectinload(AccountsRecord.invoices),
+                selectinload(AccountsRecord.payments).joinedload(Payment.recorded_by),
+            ]
+        )
     items = (
-        query.options(joinedload(AccountsRecord.project).joinedload(Project.customer))
+        query.options(*options)
         .order_by(AccountsRecord.created_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
     )
-    return total, [_to_accounts_read(r) for r in items]
+    total = len(items) if page == 1 and len(items) < page_size else query.count()
+    return total, [_to_accounts_read(r, include_details=not compact) for r in items]
 
 
 def get_accounts_record_orm(db: Session, record_id: uuid.UUID) -> AccountsRecord:
     record = (
         db.query(AccountsRecord)
-        .options(joinedload(AccountsRecord.project).joinedload(Project.customer))
+        .options(
+            joinedload(AccountsRecord.project).joinedload(Project.customer),
+            selectinload(AccountsRecord.invoices),
+            selectinload(AccountsRecord.payments).joinedload(Payment.recorded_by),
+        )
         .filter(AccountsRecord.id == record_id, AccountsRecord.is_deleted == False)
         .first()
     )
@@ -342,29 +359,49 @@ def record_payment(
 
 
 def get_accounts_summary(db: Session) -> AccountsSummaryResponse:
-    records = db.query(AccountsRecord).filter(AccountsRecord.is_deleted == False).all()
-    invoices = db.query(Invoice).filter(Invoice.status != "Cancelled").all()
     today = date.today()
-
-    total_invoiced = sum((r.total_invoiced or Decimal("0.00") for r in records), Decimal("0.00"))
-    total_received = sum((r.total_received or Decimal("0.00") for r in records), Decimal("0.00"))
-    outstanding_balance = sum((r.outstanding_amount or Decimal("0.00") for r in records), Decimal("0.00"))
-    collection_rate = round(float(total_received / total_invoiced) * 100.0, 1) if total_invoiced > Decimal("0.00") else 0.0
-
-    overdue_payments = sum(
-        1
-        for inv in invoices
-        if inv.due_date and inv.due_date < today and inv.outstanding_amount > Decimal("0.00")
+    stats = (
+        db.query(
+            func.count(AccountsRecord.id),
+            func.count(case((AccountsRecord.status.in_(["Sent to Accounts", "Invoice Pending"]), 1))),
+            func.count(case((AccountsRecord.status == "Invoice Generated", 1))),
+            func.count(case((AccountsRecord.status == "Payment Pending", 1))),
+            func.count(case((AccountsRecord.status == "Partially Paid", 1))),
+            func.count(case((AccountsRecord.status == "Fully Paid", 1))),
+            func.count(case((AccountsRecord.status == "Closed", 1))),
+            func.coalesce(func.sum(AccountsRecord.total_invoiced), Decimal("0.00")),
+            func.coalesce(func.sum(AccountsRecord.total_received), Decimal("0.00")),
+            func.coalesce(func.sum(AccountsRecord.outstanding_amount), Decimal("0.00")),
+        )
+        .filter(AccountsRecord.is_deleted == False)
+        .first()
     )
 
+    overdue_payments = (
+        db.query(func.count(Invoice.id))
+        .filter(
+            Invoice.status != "Cancelled",
+            Invoice.due_date != None,
+            Invoice.due_date < today,
+            Invoice.outstanding_amount > Decimal("0.00"),
+        )
+        .scalar()
+        or 0
+    )
+
+    total_invoiced = stats[7] if stats else Decimal("0.00")
+    total_received = stats[8] if stats else Decimal("0.00")
+    outstanding_balance = stats[9] if stats else Decimal("0.00")
+    collection_rate = round(float(total_received / total_invoiced) * 100.0, 1) if total_invoiced > Decimal("0.00") else 0.0
+
     return AccountsSummaryResponse(
-        total_accounts_records=len(records),
-        invoices_pending=sum(1 for r in records if r.status in ("Sent to Accounts", "Invoice Pending")),
-        invoices_generated=sum(1 for r in records if r.status == "Invoice Generated"),
-        payments_pending=sum(1 for r in records if r.status == "Payment Pending"),
-        partially_paid=sum(1 for r in records if r.status == "Partially Paid"),
-        fully_paid=sum(1 for r in records if r.status == "Fully Paid"),
-        closed_records=sum(1 for r in records if r.status == "Closed"),
+        total_accounts_records=stats[0] if stats else 0,
+        invoices_pending=stats[1] if stats else 0,
+        invoices_generated=stats[2] if stats else 0,
+        payments_pending=stats[3] if stats else 0,
+        partially_paid=stats[4] if stats else 0,
+        fully_paid=stats[5] if stats else 0,
+        closed_records=stats[6] if stats else 0,
         overdue_payments=overdue_payments,
         total_invoiced=total_invoiced,
         total_received=total_received,

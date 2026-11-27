@@ -21,8 +21,8 @@ def list_customers(db: Session, page: int = 1, page_size: int = 20, search: str 
                 Customer.customer_code.ilike(search_filter),
             )
         )
-    total = query.count()
     items = query.order_by(Customer.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    total = len(items) if page == 1 and len(items) < page_size else query.count()
     return total, items
 
 
