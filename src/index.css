@@ -284,3 +284,16 @@ textarea,
     animation-iteration-count: 1 !important;
   }
 }
+
+@layer base {
+  table {
+    border-collapse: collapse;
+  }
+  table th,
+  table td {
+    border: 1px solid var(--border-subtle);
+  }
+  table thead th {
+    border-bottom: 1px solid var(--border);
+  }
+}

@@ -40,3 +40,44 @@ def test_department_summary_endpoints(client):
         assert summary["id"] == dept_id
         assert "primary_value" in summary
         assert "metrics" in summary
+
+
+def test_dashboard_accounts_access_restricted_to_finance_roles(client, db_session):
+    from app.core.security import get_password_hash
+    from app.models.auth import User
+
+    admin_token = get_auth_token(client)
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    # Admin / finance role can access accounts summary card
+    acc_res = client.get("/api/dashboard/accounts/summary", headers=admin_headers)
+    assert acc_res.status_code == 200
+    assert acc_res.json()["id"] == "accounts"
+
+    # Create a non-finance user (active, non-superuser, no finance roles)
+    user = User(
+        email="designer_dash@avora.io",
+        full_name="Dashboard Designer",
+        hashed_password=get_password_hash("Password@123"),
+        is_active=True,
+        is_superuser=False,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    login_res = client.post(
+        "/api/auth/login",
+        json={"email": "designer_dash@avora.io", "password": "Password@123"},
+    )
+    assert login_res.status_code == 200
+    designer_headers = {"Authorization": f"Bearer {login_res.json()['access_token']}"}
+
+    # Overview should succeed but omit the accounts card
+    overview_res = client.get("/api/dashboard/overview", headers=designer_headers)
+    assert overview_res.status_code == 200
+    dept_ids = [d["id"] for d in overview_res.json()["departments"]]
+    assert "accounts" not in dept_ids
+
+    # Direct accounts summary card should be forbidden
+    acc_forbidden = client.get("/api/dashboard/accounts/summary", headers=designer_headers)
+    assert acc_forbidden.status_code == 403

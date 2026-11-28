@@ -2,12 +2,13 @@ import uuid
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Annotated, Any
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, literal, select, union_all
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_active_user, get_db
+from app.api.routes.accounts import FINANCE_VIEW_ROLES
 from app.models.auth import Department, User
 from app.models.customer import Customer
 from app.models.design import Design
@@ -184,40 +185,57 @@ def _build_labour_summary(db: Session) -> tuple[DepartmentSummary, Any]:
     return card, lab_summary
 
 
+def _has_finance_view_access(user: User) -> bool:
+    if user.is_superuser:
+        return True
+    user_role_names = {r.name for r in user.roles}
+    return any(role in user_role_names for role in FINANCE_VIEW_ROLES)
+
+
 def build_department_summaries(db: Session, date_from: date | None = None, date_to: date | None = None) -> list[DepartmentSummary]:
     summaries, _ = build_department_summaries_with_data(db, date_from, date_to)
     return summaries
 
 
-def build_department_summaries_with_data(db: Session, date_from: date | None = None, date_to: date | None = None) -> tuple[list[DepartmentSummary], dict[str, Any]]:
+def build_department_summaries_with_data(
+    db: Session,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    include_accounts: bool = True,
+) -> tuple[list[DepartmentSummary], dict[str, Any]]:
     enq_card, enq_data = _build_enquiries_summary(db, date_from, date_to)
     des_card, des_data = _build_designs_summary(db, date_from, date_to)
     q_card, q_data = _build_quotations_summary(db, date_from, date_to)
     prod_card, prod_data = _build_production_summary(db, date_from, date_to)
-    a_sum = accounts_service.get_accounts_summary(db)
-    acc_card = DepartmentSummary(
-        id="accounts",
-        name="Accounts",
-        primary_value=_format_inr(a_sum.total_invoiced),
-        primary_label="Total invoiced",
-        metrics=[
-            Metric(label="Received", value=_format_inr(a_sum.total_received)),
-            Metric(label="Outstanding", value=_format_inr(a_sum.outstanding_balance)),
-            Metric(label="Overdue", value=str(a_sum.overdue_payments)),
-        ],
-        trend=f"{a_sum.collection_rate}% collected",
-    )
     fb_card, fb_data = _build_feedback_summary(db, date_from, date_to)
 
-    summaries = [enq_card, des_card, q_card, prod_card, acc_card, fb_card]
-    raw_data = {
+    summaries = [enq_card, des_card, q_card, prod_card]
+    raw_data: dict[str, Any] = {
         "enquiries": enq_data,
         "designs": des_data,
         "quotations": q_data,
         "production": prod_data,
-        "accounts": a_sum,
         "feedback": fb_data,
     }
+
+    if include_accounts:
+        a_sum = accounts_service.get_accounts_summary(db)
+        acc_card = DepartmentSummary(
+            id="accounts",
+            name="Accounts",
+            primary_value=_format_inr(a_sum.total_invoiced),
+            primary_label="Total invoiced",
+            metrics=[
+                Metric(label="Received", value=_format_inr(a_sum.total_received)),
+                Metric(label="Outstanding", value=_format_inr(a_sum.outstanding_balance)),
+                Metric(label="Overdue", value=str(a_sum.overdue_payments)),
+            ],
+            trend=f"{a_sum.collection_rate}% collected",
+        )
+        summaries.append(acc_card)
+        raw_data["accounts"] = a_sum
+
+    summaries.append(fb_card)
     return summaries, raw_data
 
 
@@ -398,7 +416,12 @@ def get_overview(
     if date_from and date_to and date_from > date_to:
         raise HTTPException(status_code=422, detail="date_from must not be after date_to")
 
-    summaries, raw_data = build_department_summaries_with_data(db, date_from, date_to)
+    summaries, raw_data = build_department_summaries_with_data(
+        db,
+        date_from,
+        date_to,
+        include_accounts=_has_finance_view_access(current_user),
+    )
     action_items = build_action_items(db, prod_summary=raw_data.get("production"), q_summary=raw_data.get("quotations"))
     activities = build_recent_activities(db)
 
@@ -466,6 +489,11 @@ def get_department_summary(
             trend=f"{p_sum.delayed_projects} delayed" if p_sum.delayed_projects > 0 else "On schedule",
         )
     elif department_id == "accounts":
+        if not _has_finance_view_access(current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Operation not permitted. Required roles: {FINANCE_VIEW_ROLES}",
+            )
         a_sum = accounts_service.get_accounts_summary(db)
         return DepartmentSummary(
             id="accounts",

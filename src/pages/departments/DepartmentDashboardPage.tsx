@@ -656,12 +656,16 @@ export function DepartmentDashboardPage({
             )
           })()}
         </Card>
-      ) : departmentId === 'feedback' && feedbackTab !== 'all' ? (
+      ) : departmentId === 'feedback' ? (
         <Card className="p-5 space-y-4">
           <div>
-            <h3 className="text-sm font-semibold text-foreground">{feedbackTab} Feedback (Google Form Responses)</h3>
+            <h3 className="text-sm font-semibold text-foreground">
+              {feedbackTab === 'all'
+                ? 'All Feedback (Google Form Responses)'
+                : `${feedbackTab} Feedback (Google Form Responses)`}
+            </h3>
             <p className="text-xs text-muted-foreground">
-              Customer satisfaction ratings, service & product quality responses, and uploaded images.
+              Customer satisfaction ratings, service &amp; product quality responses, and uploaded images.
             </p>
           </div>
           <div className="overflow-x-auto">
@@ -669,8 +673,11 @@ export function DepartmentDashboardPage({
               <thead>
                 <tr className="border-b border-border text-muted-foreground">
                   <th className="py-2.5 pr-3 font-semibold whitespace-nowrap">Customer / Company</th>
+                  {feedbackTab === 'all' && (
+                    <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Category</th>
+                  )}
                   <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Rating</th>
-                  <th className="py-2.5 px-3 font-semibold">Service & Product Quality</th>
+                  <th className="py-2.5 px-3 font-semibold">Service &amp; Product Quality</th>
                   <th className="py-2.5 px-3 font-semibold">Suggestions / Complaints</th>
                   <th className="py-2.5 px-3 font-semibold whitespace-nowrap">Images</th>
                   <th className="py-2.5 pl-3 font-semibold whitespace-nowrap">Status</th>
@@ -678,14 +685,17 @@ export function DepartmentDashboardPage({
               </thead>
               <tbody className="divide-y divide-border">
                 {(() => {
-                  const filtered = rawFeedback.filter(
-                    (f) => (f.category || '').toLowerCase() === feedbackTab.toLowerCase(),
-                  )
+                  const filtered =
+                    feedbackTab === 'all'
+                      ? rawFeedback
+                      : rawFeedback.filter(
+                          (f) => (f.category || '').toLowerCase() === feedbackTab.toLowerCase(),
+                        )
                   if (filtered.length === 0) {
                     return (
                       <tr>
-                        <td colSpan={6} className="py-8 text-center text-muted-foreground">
-                          No {feedbackTab} feedback responses found in the database.
+                        <td colSpan={feedbackTab === 'all' ? 7 : 6} className="py-8 text-center text-muted-foreground">
+                          No {feedbackTab === 'all' ? '' : `${feedbackTab} `}feedback responses found in the database.
                         </td>
                       </tr>
                     )
@@ -699,6 +709,13 @@ export function DepartmentDashboardPage({
                             {f.customer_company || f.customer_name || 'Client'}
                           </Link>
                         </td>
+                        {feedbackTab === 'all' && (
+                          <td className="py-2.5 px-3 whitespace-nowrap align-top">
+                            <span className="rounded bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                              {f.category || '—'}
+                            </span>
+                          </td>
+                        )}
                         <td className="py-2.5 px-3 font-mono whitespace-nowrap align-top">
                           {f.rating != null ? `${f.rating} / 5` : '—'}
                         </td>
@@ -939,13 +956,13 @@ export function DepartmentDashboardPage({
               <thead>
                 <tr className="border-b border-border text-muted-foreground">
                   <th className="py-2.5 pr-3 font-semibold whitespace-nowrap w-28">Identifier</th>
-                  <th className="py-2.5 px-3 font-semibold w-[26%]">Details / Entity</th>
-                  <th className="py-2.5 px-3 font-semibold w-[16%]">Requirement / Notes</th>
+                  <th className={cn('py-2.5 px-3 font-semibold', departmentId === 'designs' && 'w-[26%]')}>Details / Entity</th>
+                  <th className={cn('py-2.5 px-3 font-semibold', departmentId === 'designs' && 'w-[16%]')}>Requirement / Notes</th>
                   {departmentId === 'enquiries' && (
-                    <>
-                      <th className="py-2.5 px-3 font-semibold whitespace-nowrap w-28">Est. Budget</th>
-                      <th className="py-2.5 px-3 font-semibold whitespace-nowrap w-32">Qualified By</th>
-                    </>
+                    <th className="py-2.5 px-3 font-semibold whitespace-nowrap w-36">Qualified By</th>
+                  )}
+                  {departmentId === 'quotations' && (
+                    <th className="py-2.5 px-3 font-semibold whitespace-nowrap w-36">Quotation Value</th>
                   )}
                   {departmentId === 'designs' && (
                     <>
@@ -963,7 +980,7 @@ export function DepartmentDashboardPage({
                 {loadingRecords ? (
                   <tr>
                     <td
-                      colSpan={departmentId === 'enquiries' ? 6 : 5}
+                      colSpan={departmentId === 'designs' ? 9 : departmentId === 'enquiries' || departmentId === 'quotations' ? 5 : 4}
                       className="py-8 text-center text-xs text-muted-foreground"
                     >
                       <div className="flex items-center justify-center gap-2">
@@ -975,7 +992,7 @@ export function DepartmentDashboardPage({
                 ) : loadError ? (
                   <tr>
                     <td
-                      colSpan={departmentId === 'enquiries' ? 6 : 5}
+                      colSpan={departmentId === 'designs' ? 9 : departmentId === 'enquiries' || departmentId === 'quotations' ? 5 : 4}
                       className="py-8 text-center text-xs"
                     >
                       <div className="flex flex-col items-center gap-2 text-danger">
@@ -994,7 +1011,7 @@ export function DepartmentDashboardPage({
                 ) : paginatedRecords.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={departmentId === 'enquiries' ? 6 : 5}
+                      colSpan={departmentId === 'designs' ? 9 : departmentId === 'enquiries' || departmentId === 'quotations' ? 5 : 4}
                       className="py-8 text-center text-xs text-muted-foreground"
                     >
                       No records found
@@ -1024,14 +1041,14 @@ export function DepartmentDashboardPage({
                         {rec.subtitle || '—'}
                       </td>
                       {departmentId === 'enquiries' && (
-                        <>
-                          <td className="py-2.5 px-3 font-mono font-medium text-foreground whitespace-nowrap">
-                            {rec.budget || '—'}
-                          </td>
-                          <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">
-                            {rec.qualifiedBy || '—'}
-                          </td>
-                        </>
+                        <td className="py-2.5 px-3 text-muted-foreground whitespace-nowrap">
+                          {rec.qualifiedBy || '—'}
+                        </td>
+                      )}
+                      {departmentId === 'quotations' && (
+                        <td className="py-2.5 px-3 font-mono font-medium text-foreground whitespace-nowrap">
+                          {rec.budget || '—'}
+                        </td>
                       )}
                       {departmentId === 'designs' && (
                         <>

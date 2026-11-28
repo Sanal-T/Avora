@@ -5,18 +5,37 @@ import { PageContainer, PageHeader } from '../../../components/shared/PageHeader
 import { Card } from '../../../components/ui/Card'
 import { Button } from '../../../components/ui/Button'
 import { StatusBadge } from '../../../components/shared/StatusBadge'
-import { accountsApi, type AccountsRecord } from '../../../lib/api'
+import { accountsApi, apiFetch, type AccountsRecord } from '../../../lib/api'
 import { getCachedData, invalidateCache, setCachedData } from '../../../lib/cache'
+
+interface AccountsSummary {
+  total_accounts_records: number
+  invoices_pending: number
+  invoices_generated: number
+  payments_pending: number
+  partially_paid: number
+  fully_paid: number
+  closed_records: number
+  overdue_payments: number
+  total_invoiced: number | string
+  total_received: number | string
+  outstanding_balance: number | string
+  collection_rate: number
+}
 
 export function AccountsListPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const cacheKey = `list:accounts:${statusFilter}`
   const [items, setItems] = useState<AccountsRecord[]>(() => getCachedData<AccountsRecord[]>(cacheKey) || [])
+  const [summary, setSummary] = useState<AccountsSummary | null>(() => getCachedData<AccountsSummary>('summary:accounts'))
   const [loading, setLoading] = useState(() => !getCachedData(cacheKey))
 
   const load = async (force = false) => {
-    if (force) invalidateCache('list:accounts:')
+    if (force) {
+      invalidateCache('list:accounts:')
+      invalidateCache('summary:accounts')
+    }
     const cached = !force && !search ? getCachedData<AccountsRecord[]>(cacheKey) : null
     if (cached) {
       setItems(cached)
@@ -25,9 +44,16 @@ export function AccountsListPage() {
       setLoading(true)
     }
     try {
-      const res = await accountsApi.list({ page_size: 2000, status: statusFilter, search: search || undefined, compact: true })
+      const [res, sumRes] = await Promise.all([
+        accountsApi.list({ page_size: 2000, status: statusFilter, search: search || undefined, compact: true }),
+        apiFetch<AccountsSummary>('/api/accounts/summary').catch(() => null),
+      ])
       setItems(res.items)
       if (!search) setCachedData(cacheKey, res.items)
+      if (sumRes) {
+        setSummary(sumRes)
+        setCachedData('summary:accounts', sumRes)
+      }
     } finally {
       setLoading(false)
     }
@@ -49,6 +75,45 @@ export function AccountsListPage() {
           </Button>
         }
       />
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+        <Card className="p-4">
+          <p className="text-xs font-medium text-muted-foreground">Total Invoiced</p>
+          <p className="mt-1.5 font-display text-2xl font-extrabold tabular-nums">
+            ₹{Number(summary?.total_invoiced || 0).toLocaleString('en-IN')}
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {summary?.total_accounts_records ?? 0} accounts records
+          </p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs font-medium text-muted-foreground">Total Received</p>
+          <p className="mt-1.5 font-display text-2xl font-extrabold text-emerald-500 tabular-nums">
+            ₹{Number(summary?.total_received || 0).toLocaleString('en-IN')}
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {summary?.collection_rate ?? 0}% collection rate
+          </p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs font-medium text-muted-foreground">Outstanding Balance</p>
+          <p className="mt-1.5 font-display text-2xl font-extrabold text-amber-500 tabular-nums">
+            ₹{Number(summary?.outstanding_balance || 0).toLocaleString('en-IN')}
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {(summary?.payments_pending ?? 0) + (summary?.partially_paid ?? 0)} pending / partial
+          </p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-xs font-medium text-muted-foreground">Overdue Payments</p>
+          <p className="mt-1.5 font-display text-2xl font-extrabold text-rose-500 tabular-nums">
+            {summary?.overdue_payments ?? 0}
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {summary?.closed_records ?? 0} closed records
+          </p>
+        </Card>
+      </div>
 
       <Card className="p-4 mb-6">
         <div className="flex flex-wrap gap-3 items-center justify-between">
@@ -83,7 +148,9 @@ export function AccountsListPage() {
         {loading ? (
           <div className="p-8 text-center text-sm text-muted-foreground">Loading accounts records...</div>
         ) : items.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">No accounts records found.</div>
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            No accounts records found. Records appear here once completed production work orders are transferred to Accounts.
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
