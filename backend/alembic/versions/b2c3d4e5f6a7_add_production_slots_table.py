@@ -45,7 +45,6 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["created_by_id"], ["users.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["work_order_id"], ["work_orders.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("code"),
     )
     op.create_index("ix_production_slots_code", "production_slots", ["code"], unique=True)
     op.create_index("ix_production_slots_work_order_id", "production_slots", ["work_order_id"], unique=False)
@@ -53,6 +52,7 @@ def upgrade() -> None:
     op.create_index("ix_production_slots_start_date", "production_slots", ["start_date"], unique=False)
     op.create_index("ix_production_slots_end_date", "production_slots", ["end_date"], unique=False)
     op.create_index("ix_production_slots_status", "production_slots", ["status"], unique=False)
+    op.create_index("ix_production_slots_is_deleted", "production_slots", ["is_deleted"], unique=False)
     op.create_index(
         "ix_production_slots_bay_dates",
         "production_slots",
@@ -63,6 +63,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index("ix_production_slots_bay_dates", table_name="production_slots")
+    op.drop_index("ix_production_slots_is_deleted", table_name="production_slots")
     op.drop_index("ix_production_slots_status", table_name="production_slots")
     op.drop_index("ix_production_slots_end_date", table_name="production_slots")
     op.drop_index("ix_production_slots_start_date", table_name="production_slots")

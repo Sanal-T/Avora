@@ -235,3 +235,41 @@ def test_production_slot_persistence_and_overlap_validation(client, db_session):
         },
     )
     assert recreate_res.status_code == 201
+
+
+def test_concurrent_slot_allocation_prevents_double_booking(client):
+    from concurrent.futures import ThreadPoolExecutor
+
+    token = get_auth_token(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    payload_1 = {
+        "client": "Concurrent Client A",
+        "title": "Concurrent Job A",
+        "bay": "Finishing Booth 1",
+        "stage": "Finishing",
+        "start_date": "2027-01-10",
+        "end_date": "2027-01-12",
+        "start_time": "08:00",
+        "end_time": "17:00",
+    }
+    payload_2 = {
+        "client": "Concurrent Client B",
+        "title": "Concurrent Job B",
+        "bay": "Finishing Booth 1",
+        "stage": "Finishing",
+        "start_date": "2027-01-11",
+        "end_date": "2027-01-13",
+        "start_time": "09:00",
+        "end_time": "15:00",
+    }
+
+    def book(payload):
+        return client.post("/api/production/slots", headers=headers, json=payload)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f1 = pool.submit(book, payload_1)
+        f2 = pool.submit(book, payload_2)
+        statuses = sorted([f1.result().status_code, f2.result().status_code])
+
+    assert statuses == [201, 409]

@@ -1,6 +1,9 @@
+import threading
 import uuid
+from contextlib import contextmanager
 from datetime import date, datetime, time, timezone
-from sqlalchemy import and_, case, func, or_
+from sqlalchemy import and_, case, func, or_, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
 from fastapi import HTTPException, status
 
@@ -620,6 +623,32 @@ def get_production_summary(db: Session, date_from: date | None = None, date_to: 
     )
 
 
+_bay_locks_guard = threading.Lock()
+_bay_locks: dict[str, threading.Lock] = {}
+
+
+@contextmanager
+def _bay_booking_lock(db: Session, *bays: str):
+    """Serialize slot conflict checks and writes per bay across threads and DB transactions."""
+    unique_bays = sorted({b.strip() for b in bays if b and b.strip()})
+    acquired: list[threading.Lock] = []
+    try:
+        with _bay_locks_guard:
+            locks = [_bay_locks.setdefault(b, threading.Lock()) for b in unique_bays]
+        for lock in locks:
+            lock.acquire()
+            acquired.append(lock)
+
+        if db.bind is not None and db.bind.dialect.name == "postgresql":
+            for b in unique_bays:
+                db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:bay))"), {"bay": b})
+
+        yield
+    finally:
+        for lock in reversed(acquired):
+            lock.release()
+
+
 def _check_slot_overlap(
     db: Session,
     *,
@@ -710,60 +739,67 @@ def create_production_slot(
         if not work_order_code:
             work_order_code = wo.work_order_number
 
-    _check_slot_overlap(
-        db,
-        bay=bay,
-        start_date=data.start_date,
-        end_date=data.end_date,
-        start_time=data.start_time,
-        end_time=data.end_time,
-        slot_status=data.status,
-    )
-
-    code = (data.code or "").strip()
-    if code:
-        if db.query(ProductionSlot).filter(ProductionSlot.code == code).first():
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Slot code '{code}' already exists.")
-    else:
-        code = _generate_slot_code(db)
-
-    slot = ProductionSlot(
-        code=code,
-        work_order_id=data.work_order_id,
-        work_order_code=work_order_code,
-        client=data.client.strip(),
-        title=data.title.strip(),
-        bay=bay,
-        stage=data.stage.strip(),
-        start_date=data.start_date,
-        end_date=data.end_date,
-        start_time=data.start_time,
-        end_time=data.end_time,
-        lead_worker=data.lead_worker.strip() or "Unassigned",
-        status=data.status,
-        capacity_hours=data.capacity_hours,
-        priority=data.priority,
-        notes=data.notes.strip() if data.notes else None,
-        created_by_id=user_id,
-    )
-    try:
-        db.add(slot)
-        db.flush()
-        audit_service.log_audit_action(
+    with _bay_booking_lock(db, bay):
+        _check_slot_overlap(
             db,
-            action="CREATE",
-            entity_type="production_slot",
-            entity_id=slot.id,
-            user_id=user_id,
-            changes_summary=f"Allocated slot {slot.code} on {slot.bay} ({slot.start_date} to {slot.end_date})",
-            commit=False,
+            bay=bay,
+            start_date=data.start_date,
+            end_date=data.end_date,
+            start_time=data.start_time,
+            end_time=data.end_time,
+            slot_status=data.status,
         )
-        db.commit()
-        db.refresh(slot)
-        return ProductionSlotRead.model_validate(slot)
-    except Exception:
-        db.rollback()
-        raise
+
+        code = (data.code or "").strip()
+        if code:
+            if db.query(ProductionSlot).filter(ProductionSlot.code == code).first():
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Slot code '{code}' already exists.")
+        else:
+            code = _generate_slot_code(db)
+
+        slot = ProductionSlot(
+            code=code,
+            work_order_id=data.work_order_id,
+            work_order_code=work_order_code,
+            client=data.client.strip(),
+            title=data.title.strip(),
+            bay=bay,
+            stage=data.stage.strip(),
+            start_date=data.start_date,
+            end_date=data.end_date,
+            start_time=data.start_time,
+            end_time=data.end_time,
+            lead_worker=data.lead_worker.strip() or "Unassigned",
+            status=data.status,
+            capacity_hours=data.capacity_hours,
+            priority=data.priority,
+            notes=data.notes.strip() if data.notes else None,
+            created_by_id=user_id,
+        )
+        try:
+            db.add(slot)
+            db.flush()
+            audit_service.log_audit_action(
+                db,
+                action="CREATE",
+                entity_type="production_slot",
+                entity_id=slot.id,
+                user_id=user_id,
+                changes_summary=f"Allocated slot {slot.code} on {slot.bay} ({slot.start_date} to {slot.end_date})",
+                commit=False,
+            )
+            db.commit()
+            db.refresh(slot)
+            return ProductionSlotRead.model_validate(slot)
+        except IntegrityError as exc:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Production slot conflicts with an existing slot or code.",
+            ) from exc
+        except Exception:
+            db.rollback()
+            raise
 
 
 def update_production_slot(
@@ -799,38 +835,45 @@ def update_production_slot(
             detail="end_time must be after start_time",
         )
 
-    _check_slot_overlap(
-        db,
-        bay=new_bay,
-        start_date=new_start_date,
-        end_date=new_end_date,
-        start_time=new_start_time,
-        end_time=new_end_time,
-        slot_status=new_status,
-        exclude_slot_id=slot.id,
-    )
-
-    for key, value in updates.items():
-        if isinstance(value, str):
-            value = value.strip()
-        setattr(slot, key, value)
-
-    try:
-        audit_service.log_audit_action(
+    with _bay_booking_lock(db, slot.bay, new_bay):
+        _check_slot_overlap(
             db,
-            action="UPDATE",
-            entity_type="production_slot",
-            entity_id=slot.id,
-            user_id=user_id,
-            changes_summary=f"Updated slot {slot.code} on {slot.bay} ({slot.start_date} to {slot.end_date})",
-            commit=False,
+            bay=new_bay,
+            start_date=new_start_date,
+            end_date=new_end_date,
+            start_time=new_start_time,
+            end_time=new_end_time,
+            slot_status=new_status,
+            exclude_slot_id=slot.id,
         )
-        db.commit()
-        db.refresh(slot)
-        return ProductionSlotRead.model_validate(slot)
-    except Exception:
-        db.rollback()
-        raise
+
+        for key, value in updates.items():
+            if isinstance(value, str):
+                value = value.strip()
+            setattr(slot, key, value)
+
+        try:
+            audit_service.log_audit_action(
+                db,
+                action="UPDATE",
+                entity_type="production_slot",
+                entity_id=slot.id,
+                user_id=user_id,
+                changes_summary=f"Updated slot {slot.code} on {slot.bay} ({slot.start_date} to {slot.end_date})",
+                commit=False,
+            )
+            db.commit()
+            db.refresh(slot)
+            return ProductionSlotRead.model_validate(slot)
+        except IntegrityError as exc:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Production slot conflicts with an existing slot or code.",
+            ) from exc
+        except Exception:
+            db.rollback()
+            raise
 
 
 def delete_production_slot(

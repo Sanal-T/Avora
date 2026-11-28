@@ -98,3 +98,72 @@ def test_health_check_verifies_database(client):
         assert res_err.json() == {"status": "error", "database": "unavailable"}
     finally:
         app.dependency_overrides.pop(get_db, None)
+
+
+def test_file_attachment_record_authorization(client, db_session):
+    from app.core.security import get_password_hash
+    from app.models.accounts import AccountsRecord
+    from app.models.auth import User
+
+    admin_token = get_auth_token(client)
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+    # Find an existing accounts record (or verify via API)
+    acc = db_session.query(AccountsRecord).filter(AccountsRecord.is_deleted == False).first()
+    if acc is None:
+        # Ensure we have a project to attach an accounts record to
+        from app.models.project import Project
+        proj = db_session.query(Project).filter(Project.is_deleted == False).first()
+        assert proj is not None
+        acc = AccountsRecord(accounts_number="ACC-TEST-FILE-01", project_id=proj.id)
+        db_session.add(acc)
+        db_session.commit()
+        db_session.refresh(acc)
+
+    # Admin uploads a PDF to the accounts record
+    up_res = client.post(
+        f"/api/files/upload?entity_type=accounts&entity_id={acc.id}",
+        headers=admin_headers,
+        files={"file": ("ledger.pdf", b"%PDF-1.4 test", "application/pdf")},
+    )
+    assert up_res.status_code == 200
+    att_id = up_res.json()["id"]
+
+    # Admin can list and download the attachment
+    assert client.get(f"/api/files?entity_type=accounts&entity_id={acc.id}", headers=admin_headers).status_code == 200
+    assert client.get(f"/api/files/{att_id}/download", headers=admin_headers).status_code == 200
+
+    # Non-finance user must be denied read/list/batch/upload/download on accounts attachments
+    non_fin = User(
+        email="nonfinance_files@avora.io",
+        full_name="Non Finance User",
+        hashed_password=get_password_hash("Password@123"),
+        is_active=True,
+        is_superuser=False,
+    )
+    db_session.add(non_fin)
+    db_session.commit()
+
+    login_res = client.post(
+        "/api/auth/login",
+        json={"email": "nonfinance_files@avora.io", "password": "Password@123"},
+    )
+    assert login_res.status_code == 200
+    non_fin_headers = {"Authorization": f"Bearer {login_res.json()['access_token']}"}
+
+    assert client.get(f"/api/files/{att_id}/download", headers=non_fin_headers).status_code == 403
+    assert client.get(f"/api/files?entity_type=accounts&entity_id={acc.id}", headers=non_fin_headers).status_code == 403
+    assert client.get(f"/api/files/batch?entity_type=accounts&entity_ids={acc.id}", headers=non_fin_headers).status_code == 403
+    assert (
+        client.post(
+            f"/api/files/upload?entity_type=accounts&entity_id={acc.id}",
+            headers=non_fin_headers,
+            files={"file": ("hack.pdf", b"%PDF-1.4", "application/pdf")},
+        ).status_code
+        == 403
+    )
+
+    # Non-existent linked record returns 404
+    import uuid
+    missing_id = uuid.uuid4()
+    assert client.get(f"/api/files?entity_type=enquiry&entity_id={missing_id}", headers=admin_headers).status_code == 404
