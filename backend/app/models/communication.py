@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
-from sqlalchemy import DateTime, ForeignKey, String, Text, Uuid
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, utc_now
@@ -13,6 +13,9 @@ if TYPE_CHECKING:
 
 class Communication(Base, TimestampMixin):
     __tablename__ = "communications"
+    __table_args__ = (
+        Index("ix_communications_created_at", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     communication_number: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)

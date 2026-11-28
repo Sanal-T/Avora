@@ -1,6 +1,6 @@
 import uuid
 from typing import TYPE_CHECKING
-from sqlalchemy import Boolean, ForeignKey, String, Text, Uuid
+from sqlalchemy import Boolean, ForeignKey, Index, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, SoftDeleteMixin, TimestampMixin
@@ -15,6 +15,9 @@ if TYPE_CHECKING:
 
 class Customer(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "customers"
+    __table_args__ = (
+        Index("ix_customers_deleted_created", "is_deleted", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     customer_code: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)

@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text, Uuid
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, SoftDeleteMixin, TimestampMixin, utc_now
@@ -17,6 +17,10 @@ if TYPE_CHECKING:
 
 class WorkOrder(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "work_orders"
+    __table_args__ = (
+        Index("ix_work_orders_deleted_created", "is_deleted", "created_at"),
+        Index("ix_work_orders_deleted_status", "is_deleted", "status"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     work_order_number: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
@@ -121,6 +125,9 @@ class WorkOrderStatusHistory(Base):
 
 class ProductionSlot(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "production_slots"
+    __table_args__ = (
+        Index("ix_production_slots_bay_dates", "is_deleted", "bay", "start_date", "end_date"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     code: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)

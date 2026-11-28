@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, Uuid
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Numeric, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, SoftDeleteMixin, TimestampMixin, utc_now
@@ -17,13 +17,22 @@ if TYPE_CHECKING:
 
 class Project(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "projects"
+    __table_args__ = (
+        Index("ix_projects_deleted_created", "is_deleted", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_number: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     customer_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("customers.id", ondelete="RESTRICT"), nullable=False, index=True)
     enquiry_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("enquiries.id", ondelete="SET NULL"), nullable=True, index=True)
-    approved_quotation_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("quotations.id", ondelete="SET NULL"), unique=True, nullable=True, index=True)
+    approved_quotation_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("quotations.id", ondelete="SET NULL", name="fk_projects_approved_quotation_id", use_alter=True),
+        unique=True,
+        nullable=True,
+        index=True,
+    )
     project_manager_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True)
 
     site_location: Mapped[str | None] = mapped_column(Text, nullable=True)

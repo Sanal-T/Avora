@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, Uuid
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Numeric, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, SoftDeleteMixin, TimestampMixin
@@ -15,6 +15,9 @@ if TYPE_CHECKING:
 
 class AccountsRecord(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "accounts_records"
+    __table_args__ = (
+        Index("ix_accounts_records_deleted_created", "is_deleted", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     accounts_number: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)

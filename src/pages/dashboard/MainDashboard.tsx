@@ -57,6 +57,14 @@ const DEPARTMENT_GLOW: Record<DepartmentId, { glowColor: string; colors: string[
     glowColor: '43 96 56',
     colors: ['#fbbf24', '#f59e0b', '#fde68a'],
   },
+  projects: {
+    glowColor: '217 91 60',
+    colors: ['#60a5fa', '#2563eb', '#93c5fd'],
+  },
+  accounts: {
+    glowColor: '38 92 50',
+    colors: ['#fbbf24', '#d97706', '#fde68a'],
+  },
   feedback: {
     glowColor: '352 95 71',
     colors: ['#fb7185', '#f43f5e', '#fda4af'],
@@ -64,6 +72,10 @@ const DEPARTMENT_GLOW: Record<DepartmentId, { glowColor: string; colors: string[
   labour: {
     glowColor: '158 64 52',
     colors: ['#34d399', '#10b981', '#6ee7b7'],
+  },
+  communications: {
+    glowColor: '263 85 68',
+    colors: ['#a78bfa', '#7c3aed', '#c4b5fd'],
   },
 }
 
@@ -179,7 +191,6 @@ export const MainDashboard = memo(function MainDashboard({
           const isPrimary = kpi.variant === 'primary'
           const isInfo = kpi.variant === 'info'
           const isDanger = kpi.variant === 'danger'
-          const isSuccess = kpi.variant === 'success'
 
           return (
             <BorderGlow
@@ -205,7 +216,6 @@ export const MainDashboard = memo(function MainDashboard({
                 isPrimary && 'border-primary/40 bg-gradient-to-br from-card to-primary-soft/30',
                 isInfo && 'border-info/40 bg-gradient-to-br from-card to-info-soft/30',
                 isDanger && 'border-danger/30 bg-gradient-to-br from-card to-danger-soft/20',
-                isSuccess && 'border-success/40 bg-gradient-to-br from-card to-success-soft/30',
                 '[&>.border-glow-inner]:overflow-visible [&>.border-glow-inner]:h-full [&>.border-glow-inner]:justify-between',
               )}
             >
@@ -217,7 +227,6 @@ export const MainDashboard = memo(function MainDashboard({
                     isPrimary && 'bg-primary-soft text-primary',
                     isInfo && 'bg-info-soft text-info',
                     isDanger && 'bg-danger-soft text-danger',
-                    isSuccess && 'bg-success-soft text-success',
                   )}
                 >
                   <Icon className="size-4" />
@@ -230,7 +239,6 @@ export const MainDashboard = memo(function MainDashboard({
                   isPrimary && 'text-primary',
                   isInfo && 'text-info',
                   isDanger && 'text-danger',
-                  isSuccess && 'text-success',
                 )}
               >
                 {kpi.value}

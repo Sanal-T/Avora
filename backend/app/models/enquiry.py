@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, Uuid
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Numeric, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, SoftDeleteMixin, TimestampMixin, utc_now
@@ -16,6 +16,10 @@ if TYPE_CHECKING:
 
 class Enquiry(Base, TimestampMixin, SoftDeleteMixin):
     __tablename__ = "enquiries"
+    __table_args__ = (
+        Index("ix_enquiries_deleted_created", "is_deleted", "created_at"),
+        Index("ix_enquiries_deleted_status", "is_deleted", "status"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     enquiry_number: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
