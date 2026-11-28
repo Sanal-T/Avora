@@ -32,6 +32,7 @@ const AccountsListPage = lazy(() => import('./pages/departments/accounts/Account
 const AccountsDetailPage = lazy(() => import('./pages/departments/accounts/AccountsDetailPage').then((m) => ({ default: m.AccountsDetailPage })))
 const CommunicationsListPage = lazy(() => import('./pages/departments/communications/CommunicationsListPage').then((m) => ({ default: m.CommunicationsListPage })))
 const ReportsPage = lazy(() => import('./pages/reports/ReportsPage').then((m) => ({ default: m.ReportsPage })))
+const SyncOperationsPage = lazy(() => import('./pages/sync/SyncOperationsPage').then((m) => ({ default: m.SyncOperationsPage })))
 const LoginPage = lazy(() => import('./pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })))
 
 function DepartmentRedirect() {
@@ -180,6 +181,7 @@ function AppShellInner({
           <Route path="/communications/list" element={<CommunicationsListPage />} />
 
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/sync" element={<SyncOperationsPage />} />
 
           {/* System & Error Pages */}
           <Route path="/403" element={<ForbiddenPage />} />

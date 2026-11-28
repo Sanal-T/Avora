@@ -11,6 +11,19 @@ from app.models.feedback import Feedback, FeedbackCategory
 from app.models.labour import Worker, LabourRequest, LabourAssignment
 from app.models.communication import Communication, CommunicationMessage
 from app.models.system import AuditLog, Notification, Attachment, SystemSetting
+from app.models.sync_mirrors import (
+    ExternalIdMapping,
+    SyncComplaint,
+    SyncDesignTask,
+    SyncEnquiry,
+    SyncFailedEvent,
+    SyncProcessedEvent,
+    SyncQuotation,
+    SyncSchedulerQuotationRef,
+    SyncSource,
+    SyncStaffDirectory,
+    SyncWorkConfirmed,
+)
 
 __all__ = [
     "Base",
@@ -58,4 +71,15 @@ __all__ = [
     "Notification",
     "Attachment",
     "SystemSetting",
+    "SyncSource",
+    "SyncProcessedEvent",
+    "SyncFailedEvent",
+    "ExternalIdMapping",
+    "SyncStaffDirectory",
+    "SyncEnquiry",
+    "SyncDesignTask",
+    "SyncQuotation",
+    "SyncWorkConfirmed",
+    "SyncComplaint",
+    "SyncSchedulerQuotationRef",
 ]

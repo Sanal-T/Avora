@@ -10,6 +10,7 @@ import {
   Inbox,
   PenTool,
   Factory,
+  Database,
 } from 'lucide-react'
 import { currentUser, clearCurrentUser } from '../../lib/auth'
 import { removeToken } from '../../lib/api'
@@ -149,6 +150,16 @@ export function Topbar({
               <DateRangeControl value={rangeId} onChange={onRangeChange} />
             </div>
           )}
+
+          {/* Cross-App Read-Only Sync Mirrors */}
+          <Link
+            to="/sync"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            title="Cross-App Read-Only Sync Health & Mirrors"
+          >
+            <Database className="size-3.5" />
+            <span>Sync Mirrors</span>
+          </Link>
 
           {/* Search Trigger (Ctrl+K) */}
           <button

@@ -17,6 +17,7 @@ from app.api.routes.production import router as production_router
 from app.api.routes.projects import router as projects_router
 from app.api.routes.quotations import router as quotations_router
 from app.api.routes.reports import router as reports_router
+from app.api.routes.sync_mirrors import router as sync_mirrors_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
@@ -36,3 +37,4 @@ api_router.include_router(notifications_router, prefix="/notifications", tags=["
 api_router.include_router(audit_router, prefix="/audit-logs", tags=["audit-logs"])
 api_router.include_router(files_router, prefix="/files", tags=["files"])
 api_router.include_router(reports_router, prefix="/reports", tags=["reports"])
+api_router.include_router(sync_mirrors_router, prefix="/sync", tags=["sync"])
