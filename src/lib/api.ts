@@ -30,38 +30,6 @@ export class ApiError extends Error {
   }
 }
 
-let devLoginPromise: Promise<string | null> | null = null
-
-async function getOrCreateDevToken(devEmail: string, devPassword: string): Promise<string | null> {
-  const currentToken = getToken()
-  if (currentToken) return currentToken
-  if (devLoginPromise) return devLoginPromise
-
-  devLoginPromise = (async () => {
-    try {
-      const loginRes = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: devEmail, password: devPassword }),
-      })
-      if (loginRes.ok) {
-        const tokenData = await loginRes.json()
-        if (tokenData.access_token) {
-          setToken(tokenData.access_token)
-          return tokenData.access_token as string
-        }
-      }
-    } catch {
-      // Backend may be offline; proceed without token
-    } finally {
-      devLoginPromise = null
-    }
-    return null
-  })()
-
-  return devLoginPromise
-}
-
 const inFlightGetRequests = new Map<string, Promise<any>>()
 
 export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -76,15 +44,7 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
   }
 
   const executeFetch = async (): Promise<T> => {
-    let token = getToken()
-
-    // In development, optionally acquire an active dev session if environment variables are explicitly supplied
-    const devEmail = import.meta.env.VITE_DEV_ADMIN_EMAIL || ''
-    const devPassword = import.meta.env.VITE_DEV_ADMIN_PASSWORD || ''
-
-    if (!token && !endpoint.includes('/api/auth/login') && devEmail && devPassword) {
-      token = await getOrCreateDevToken(devEmail, devPassword)
-    }
+    const token = getToken()
 
     const headers = new Headers(options.headers || {})
 
@@ -114,18 +74,7 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
       if (timeoutId) clearTimeout(timeoutId)
     }
 
-    // Auto-recover if token expired or invalid from database switch
-    if (response.status === 401 && !endpoint.includes('/api/auth/login') && devEmail && devPassword) {
-      removeToken()
-      token = await getOrCreateDevToken(devEmail, devPassword)
-      if (token) {
-        const retryHeaders = new Headers(headers)
-        retryHeaders.set('Authorization', `Bearer ${token}`)
-        response = await fetch(url, { ...options, headers: retryHeaders })
-      }
-    }
-
-    // If still unauthorized on a protected route, clear stale token and redirect to login
+    // If unauthorized on a protected route, clear stale token and redirect to login
     if (response.status === 401 && !endpoint.includes('/api/auth/login')) {
       removeToken()
       if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {

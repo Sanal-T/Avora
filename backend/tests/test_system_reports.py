@@ -74,3 +74,27 @@ def test_reports_csv_exports(client):
     assert res_prod.status_code == 200
     assert "text/csv" in res_prod.headers["content-type"]
     assert "Work Order Number" in res_prod.text
+
+
+def test_health_check_verifies_database(client):
+    from app.api.deps import get_db
+    from app.main import app
+
+    res_ok = client.get("/api/health")
+    assert res_ok.status_code == 200
+    assert res_ok.json() == {"status": "ok", "database": "ok"}
+
+    class BrokenSession:
+        def execute(self, *_args, **_kwargs):
+            raise RuntimeError("DB unreachable")
+
+    def override_broken_db():
+        yield BrokenSession()
+
+    app.dependency_overrides[get_db] = override_broken_db
+    try:
+        res_err = client.get("/api/health")
+        assert res_err.status_code == 503
+        assert res_err.json() == {"status": "error", "database": "unavailable"}
+    finally:
+        app.dependency_overrides.pop(get_db, None)
