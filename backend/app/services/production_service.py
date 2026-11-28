@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 
 from app.models.auth import Role, User
 from app.models.customer import Customer
-from app.models.production import Installation, ProductionTask, ProductionUpdate, WorkOrder, WorkOrderStatusHistory
+from app.models.production import Installation, ProductionSlot, ProductionTask, ProductionUpdate, WorkOrder, WorkOrderStatusHistory
 from app.models.project import Project, ProjectStatusHistory
 from app.models.system import Notification
 from app.services import accounts_service, audit_service, project_service
@@ -14,6 +14,9 @@ from app.schemas.production import (
     InstallationCreate,
     InstallationRead,
     ProductionCompleteHandoverRequest,
+    ProductionSlotCreate,
+    ProductionSlotRead,
+    ProductionSlotUpdate,
     ProductionSummaryResponse,
     ProductionTaskCreate,
     ProductionTaskRead,
@@ -615,3 +618,240 @@ def get_production_summary(db: Session, date_from: date | None = None, date_to: 
         delayed_work_orders=total_delayed,
         on_time_completion_rate=rate,
     )
+
+
+def _check_slot_overlap(
+    db: Session,
+    *,
+    bay: str,
+    start_date: date,
+    end_date: date,
+    start_time: str,
+    end_time: str,
+    slot_status: str,
+    exclude_slot_id: uuid.UUID | None = None,
+) -> None:
+    if slot_status == "completed":
+        return
+
+    query = db.query(ProductionSlot).filter(
+        ProductionSlot.is_deleted == False,
+        ProductionSlot.bay == bay,
+        ProductionSlot.status != "completed",
+        ProductionSlot.start_date <= end_date,
+        ProductionSlot.end_date >= start_date,
+        ProductionSlot.start_time < end_time,
+        ProductionSlot.end_time > start_time,
+    )
+    if exclude_slot_id is not None:
+        query = query.filter(ProductionSlot.id != exclude_slot_id)
+
+    conflict = query.first()
+    if conflict:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Production bay '{bay}' already has an overlapping slot {conflict.code} "
+                f"({conflict.start_date} to {conflict.end_date}, {conflict.start_time}-{conflict.end_time})."
+            ),
+        )
+
+
+def _generate_slot_code(db: Session) -> str:
+    count = db.query(ProductionSlot).count() + 101
+    while True:
+        code = f"SLOT-{count}"
+        if not db.query(ProductionSlot).filter(ProductionSlot.code == code).first():
+            return code
+        count += 1
+
+
+def list_production_slots(
+    db: Session,
+    *,
+    bay: str | None = None,
+    status_filter: str | None = None,
+    work_order_id: uuid.UUID | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> tuple[int, list[ProductionSlotRead]]:
+    query = db.query(ProductionSlot).filter(ProductionSlot.is_deleted == False)
+    if bay:
+        query = query.filter(ProductionSlot.bay == bay)
+    if status_filter:
+        query = query.filter(ProductionSlot.status == status_filter)
+    if work_order_id:
+        query = query.filter(ProductionSlot.work_order_id == work_order_id)
+    if date_from:
+        query = query.filter(ProductionSlot.end_date >= date_from)
+    if date_to:
+        query = query.filter(ProductionSlot.start_date <= date_to)
+
+    items = query.order_by(ProductionSlot.start_date.asc(), ProductionSlot.start_time.asc()).all()
+    return len(items), [ProductionSlotRead.model_validate(s) for s in items]
+
+
+def get_production_slot(db: Session, slot_id: uuid.UUID) -> ProductionSlot:
+    slot = db.query(ProductionSlot).filter(ProductionSlot.id == slot_id, ProductionSlot.is_deleted == False).first()
+    if not slot:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Production slot not found.")
+    return slot
+
+
+def create_production_slot(
+    db: Session,
+    data: ProductionSlotCreate,
+    user_id: uuid.UUID | None = None,
+) -> ProductionSlotRead:
+    bay = data.bay.strip()
+    work_order_code = data.work_order_code
+    if data.work_order_id is not None:
+        wo = get_work_order(db, data.work_order_id)
+        if not work_order_code:
+            work_order_code = wo.work_order_number
+
+    _check_slot_overlap(
+        db,
+        bay=bay,
+        start_date=data.start_date,
+        end_date=data.end_date,
+        start_time=data.start_time,
+        end_time=data.end_time,
+        slot_status=data.status,
+    )
+
+    code = (data.code or "").strip()
+    if code:
+        if db.query(ProductionSlot).filter(ProductionSlot.code == code).first():
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Slot code '{code}' already exists.")
+    else:
+        code = _generate_slot_code(db)
+
+    slot = ProductionSlot(
+        code=code,
+        work_order_id=data.work_order_id,
+        work_order_code=work_order_code,
+        client=data.client.strip(),
+        title=data.title.strip(),
+        bay=bay,
+        stage=data.stage.strip(),
+        start_date=data.start_date,
+        end_date=data.end_date,
+        start_time=data.start_time,
+        end_time=data.end_time,
+        lead_worker=data.lead_worker.strip() or "Unassigned",
+        status=data.status,
+        capacity_hours=data.capacity_hours,
+        priority=data.priority,
+        notes=data.notes.strip() if data.notes else None,
+        created_by_id=user_id,
+    )
+    try:
+        db.add(slot)
+        db.flush()
+        audit_service.log_audit_action(
+            db,
+            action="CREATE",
+            entity_type="production_slot",
+            entity_id=slot.id,
+            user_id=user_id,
+            changes_summary=f"Allocated slot {slot.code} on {slot.bay} ({slot.start_date} to {slot.end_date})",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(slot)
+        return ProductionSlotRead.model_validate(slot)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def update_production_slot(
+    db: Session,
+    slot_id: uuid.UUID,
+    data: ProductionSlotUpdate,
+    user_id: uuid.UUID | None = None,
+) -> ProductionSlotRead:
+    slot = get_production_slot(db, slot_id)
+    updates = data.model_dump(exclude_unset=True)
+
+    new_work_order_id = updates.get("work_order_id", slot.work_order_id)
+    if "work_order_id" in updates and new_work_order_id is not None:
+        wo = get_work_order(db, new_work_order_id)
+        if "work_order_code" not in updates or not updates["work_order_code"]:
+            updates["work_order_code"] = wo.work_order_number
+
+    new_bay = (updates.get("bay", slot.bay) or "").strip()
+    new_start_date = updates.get("start_date", slot.start_date)
+    new_end_date = updates.get("end_date", slot.end_date)
+    new_start_time = updates.get("start_time", slot.start_time)
+    new_end_time = updates.get("end_time", slot.end_time)
+    new_status = updates.get("status", slot.status)
+
+    if new_end_date < new_start_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="end_date must not be earlier than start_date",
+        )
+    if new_end_time <= new_start_time:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="end_time must be after start_time",
+        )
+
+    _check_slot_overlap(
+        db,
+        bay=new_bay,
+        start_date=new_start_date,
+        end_date=new_end_date,
+        start_time=new_start_time,
+        end_time=new_end_time,
+        slot_status=new_status,
+        exclude_slot_id=slot.id,
+    )
+
+    for key, value in updates.items():
+        if isinstance(value, str):
+            value = value.strip()
+        setattr(slot, key, value)
+
+    try:
+        audit_service.log_audit_action(
+            db,
+            action="UPDATE",
+            entity_type="production_slot",
+            entity_id=slot.id,
+            user_id=user_id,
+            changes_summary=f"Updated slot {slot.code} on {slot.bay} ({slot.start_date} to {slot.end_date})",
+            commit=False,
+        )
+        db.commit()
+        db.refresh(slot)
+        return ProductionSlotRead.model_validate(slot)
+    except Exception:
+        db.rollback()
+        raise
+
+
+def delete_production_slot(
+    db: Session,
+    slot_id: uuid.UUID,
+    user_id: uuid.UUID | None = None,
+) -> None:
+    slot = get_production_slot(db, slot_id)
+    slot.is_deleted = True
+    slot.deleted_at = datetime.now(timezone.utc)
+    try:
+        audit_service.log_audit_action(
+            db,
+            action="DELETE",
+            entity_type="production_slot",
+            entity_id=slot.id,
+            user_id=user_id,
+            changes_summary=f"Removed production slot {slot.code} on {slot.bay}",
+            commit=False,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise

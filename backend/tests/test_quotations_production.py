@@ -63,3 +63,175 @@ def test_quotation_calculations_and_lifecycle(client):
     }, headers=headers)
     assert res_task.status_code == 200
     assert len(res_task.json()["tasks"]) >= 1
+
+
+def test_production_slot_persistence_and_overlap_validation(client, db_session):
+    from app.core.security import get_password_hash
+    from app.models.auth import User
+
+    token = get_auth_token(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Create a second user to verify cross-user visibility
+    second_user = User(
+        email="viewer_prod@avora.io",
+        full_name="Second Production Viewer",
+        hashed_password=get_password_hash("Password@123"),
+        is_active=True,
+        is_superuser=False,
+    )
+    db_session.add(second_user)
+    db_session.commit()
+
+    second_login = client.post(
+        "/api/auth/login",
+        json={"email": "viewer_prod@avora.io", "password": "Password@123"},
+    )
+    assert second_login.status_code == 200
+    second_headers = {"Authorization": f"Bearer {second_login.json()['access_token']}"}
+
+    # 1. Create a slot
+    slot_a_res = client.post(
+        "/api/production/slots",
+        headers=headers,
+        json={
+            "client": "Aster Interiors",
+            "title": "Conference Pods Milling",
+            "bay": "CNC Bay 1",
+            "stage": "Cutting",
+            "start_date": "2026-12-01",
+            "end_date": "2026-12-04",
+            "start_time": "08:00",
+            "end_time": "12:00",
+            "lead_worker": "Ramesh Gowda",
+            "status": "allocated",
+            "capacity_hours": 16,
+            "priority": "high",
+        },
+    )
+    assert slot_a_res.status_code == 201
+    slot_a = slot_a_res.json()
+    assert slot_a["code"].startswith("SLOT-")
+
+    # 2. Second user sees the persisted slot via GET /api/production/slots
+    list_res = client.get("/api/production/slots", headers=second_headers)
+    assert list_res.status_code == 200
+    assert any(s["id"] == slot_a["id"] for s in list_res.json()["items"])
+
+    # 3. Overlapping bay + date + time -> 409 Conflict
+    overlap_res = client.post(
+        "/api/production/slots",
+        headers=headers,
+        json={
+            "client": "Orion Corp",
+            "title": "Overlapping CNC Run",
+            "bay": "CNC Bay 1",
+            "stage": "Cutting",
+            "start_date": "2026-12-03",
+            "end_date": "2026-12-06",
+            "start_time": "10:00",
+            "end_time": "16:00",
+            "lead_worker": "Ramesh Gowda",
+            "status": "allocated",
+            "capacity_hours": 24,
+            "priority": "medium",
+        },
+    )
+    assert overlap_res.status_code == 409
+
+    # 4. Same bay + overlapping dates, non-overlapping shift time (12:00-17:00) -> 201 Created
+    afternoon_res = client.post(
+        "/api/production/slots",
+        headers=headers,
+        json={
+            "client": "Orion Corp",
+            "title": "Afternoon CNC Run",
+            "bay": "CNC Bay 1",
+            "stage": "Cutting",
+            "start_date": "2026-12-03",
+            "end_date": "2026-12-06",
+            "start_time": "12:00",
+            "end_time": "17:00",
+            "lead_worker": "Ramesh Gowda",
+            "status": "allocated",
+            "capacity_hours": 20,
+            "priority": "medium",
+        },
+    )
+    assert afternoon_res.status_code == 201
+    slot_b = afternoon_res.json()
+
+    # 5. Different bay + overlapping dates/times -> 201 Created
+    other_bay_res = client.post(
+        "/api/production/slots",
+        headers=headers,
+        json={
+            "client": "Vertex Spaces",
+            "title": "Joinery Run",
+            "bay": "Joinery Bay 2",
+            "stage": "Assembly",
+            "start_date": "2026-12-01",
+            "end_date": "2026-12-04",
+            "start_time": "08:00",
+            "end_time": "17:00",
+            "lead_worker": "Ramesh Gowda",
+            "status": "allocated",
+            "capacity_hours": 32,
+            "priority": "medium",
+        },
+    )
+    assert other_bay_res.status_code == 201
+
+    # 6. Updating slot B to overlap slot A -> 409 Conflict
+    conflict_patch = client.patch(
+        f"/api/production/slots/{slot_b['id']}",
+        headers=headers,
+        json={"start_time": "09:00"},
+    )
+    assert conflict_patch.status_code == 409
+
+    # 7. Updating slot A without overlapping slot B -> 200 OK (does not self-conflict)
+    ok_patch = client.patch(
+        f"/api/production/slots/{slot_a['id']}",
+        headers=headers,
+        json={"notes": "Updated notes", "end_time": "11:30"},
+    )
+    assert ok_patch.status_code == 200
+    assert ok_patch.json()["end_time"] == "11:30"
+
+    # 8. Invalid date range -> 422
+    bad_dates = client.post(
+        "/api/production/slots",
+        headers=headers,
+        json={
+            "client": "Bad Dates",
+            "title": "Invalid Range",
+            "bay": "Assembly Line A",
+            "stage": "Assembly",
+            "start_date": "2026-12-10",
+            "end_date": "2026-12-08",
+            "start_time": "08:00",
+            "end_time": "17:00",
+        },
+    )
+    assert bad_dates.status_code == 422
+
+    # 9. Deleting slot A frees the window so a new slot can claim it
+    del_res = client.delete(f"/api/production/slots/{slot_a['id']}", headers=headers)
+    assert del_res.status_code == 204
+
+    recreate_res = client.post(
+        "/api/production/slots",
+        headers=headers,
+        json={
+            "client": "Aster Interiors",
+            "title": "Re-allocated Milling",
+            "bay": "CNC Bay 1",
+            "stage": "Cutting",
+            "start_date": "2026-12-01",
+            "end_date": "2026-12-04",
+            "start_time": "08:00",
+            "end_time": "12:00",
+        },
+    )
+    assert recreate_res.status_code == 201

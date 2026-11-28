@@ -13,7 +13,7 @@ import { PageContainer, PageHeader } from '../../../components/shared/PageHeader
 import { Button } from '../../../components/ui/Button'
 import { Card } from '../../../components/ui/Card'
 import { productionApi, type WorkOrder } from '../../../lib/api'
-import { getProductionSlots, type MockProductionSlot } from '../../../data/productionSlots'
+import { fetchProductionSlots, type MockProductionSlot } from '../../../data/productionSlots'
 
 interface ScheduleItem {
   id: string
@@ -30,7 +30,7 @@ export function ProductionSchedulePage() {
   const [currentWeek, setCurrentWeek] = useState('Nov 16 – Nov 22, 2026')
   const [loading, setLoading] = useState(false)
   const [liveWorkOrders, setLiveWorkOrders] = useState<WorkOrder[]>([])
-  const [slots, setSlots] = useState<MockProductionSlot[]>(() => getProductionSlots())
+  const [slots, setSlots] = useState<MockProductionSlot[]>([])
 
   const days = [
     'Monday (Nov 16)',
@@ -43,16 +43,21 @@ export function ProductionSchedulePage() {
 
   const fetchSchedule = () => {
     setLoading(true)
-    setSlots(getProductionSlots())
-    productionApi
-      .listWorkOrders({ page_size: 100 })
-      .then((res) => {
-        if (res.items) {
-          setLiveWorkOrders(res.items)
+    Promise.allSettled([
+      productionApi.listWorkOrders({ page_size: 100 }),
+      fetchProductionSlots(),
+    ])
+      .then(([woResult, slotResult]) => {
+        if (woResult.status === 'fulfilled' && woResult.value.items) {
+          setLiveWorkOrders(woResult.value.items)
+        } else if (woResult.status === 'rejected') {
+          console.warn('Could not load live work orders for schedule:', woResult.reason)
         }
-      })
-      .catch((err) => {
-        console.warn('Could not load live work orders for schedule:', err)
+        if (slotResult.status === 'fulfilled') {
+          setSlots(slotResult.value)
+        } else {
+          console.warn('Could not load production slots for schedule:', slotResult.reason)
+        }
       })
       .finally(() => {
         setLoading(false)

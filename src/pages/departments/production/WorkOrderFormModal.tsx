@@ -21,8 +21,7 @@ import { toast } from '../../../lib/toast'
 import type { MockWorkOrder } from '../../../data/mockData'
 import { customerApi, productionApi, quotationApi, labourApi, type Worker } from '../../../lib/api'
 import {
-  saveProductionSlot,
-  type MockProductionSlot,
+  saveProductionSlotToApi,
   type ProductionBay,
   PRODUCTION_BAYS,
 } from '../../../data/productionSlots'
@@ -191,32 +190,34 @@ export function WorkOrderFormModal({
 
       // If user enabled the Option for creating Production Slot
       if (allocateSlot) {
-        const generatedSlotCode = `SLOT-${Math.floor(110 + Math.random() * 880)}`
-        const newSlot: MockProductionSlot = {
-          id: `slot-${Date.now()}`,
-          code: generatedSlotCode,
-          workOrderId: newWorkOrder.id,
-          workOrderCode: newWorkOrder.code,
-          client: newWorkOrder.client,
-          title: `${newWorkOrder.title} - Floor Run`,
-          bay: slotBay,
-          stage: newWorkOrder.stage,
-          startDate: slotStartDate,
-          endDate: slotEndDate,
-          startTime: slotStartTime,
-          endTime: slotEndTime,
-          leadWorker: newWorkOrder.leadWorker,
-          status: 'allocated',
-          capacityHours: Number(slotCapacityHours) || slotDays * 8,
-          priority: newWorkOrder.priority,
-          notes: slotNotes.trim() || 'Allocated during work order registration.',
+        try {
+          const newSlot = await saveProductionSlotToApi({
+            work_order_id: newWorkOrder.id,
+            work_order_code: newWorkOrder.code,
+            client: newWorkOrder.client,
+            title: `${newWorkOrder.title} - Floor Run`,
+            bay: slotBay,
+            stage: newWorkOrder.stage,
+            start_date: slotStartDate,
+            end_date: slotEndDate,
+            start_time: slotStartTime || '08:00',
+            end_time: slotEndTime || '17:00',
+            lead_worker: newWorkOrder.leadWorker || 'Unassigned',
+            status: 'allocated',
+            capacity_hours: Number(slotCapacityHours) || slotDays * 8,
+            priority: newWorkOrder.priority,
+            notes: slotNotes.trim() || 'Allocated during work order registration.',
+          })
+          toast.success(
+            'Work Order & Slot Created',
+            `${newWorkOrder.code} saved to database with Slot ${newSlot.code} (${slotStartDate} → ${slotEndDate}) at ${slotBay}.`,
+          )
+        } catch (slotErr: any) {
+          toast.error(
+            'Work Order Created, Slot Allocation Failed',
+            slotErr?.message || 'Bay and timeframe overlap an existing slot. You can allocate a slot from the Work Order page.',
+          )
         }
-
-        saveProductionSlot(newSlot)
-        toast.success(
-          'Work Order & Slot Created',
-          `${newWorkOrder.code} saved to database with Slot ${newSlot.code} (${slotStartDate} → ${slotEndDate}) at ${slotBay}.`,
-        )
       } else {
         toast.success(
           'Work Order Created',

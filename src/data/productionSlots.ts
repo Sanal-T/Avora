@@ -1,3 +1,10 @@
+import {
+  productionApi,
+  type ApiProductionSlot,
+  type ProductionSlotCreateInput,
+  type ProductionSlotUpdateInput,
+} from '../lib/api'
+
 export type ProductionSlotStatus =
   | 'allocated'
   | 'in_progress'
@@ -42,7 +49,7 @@ export const PRODUCTION_STAGES: ProductionStage[] = [
 export type ProductionSlot = {
   id: string
   code: string // e.g. "SLOT-101"
-  workOrderId?: string // e.g. "wo-1"
+  workOrderId?: string // e.g. UUID
   workOrderCode?: string // e.g. "WO-0842"
   client: string
   title: string
@@ -60,59 +67,49 @@ export type ProductionSlot = {
 }
 export type MockProductionSlot = ProductionSlot
 
-export const initialProductionSlots: ProductionSlot[] = []
-
-const STORAGE_KEY = 'avora_production_slots_v1'
-
-export function getProductionSlots(): MockProductionSlot[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed
-      }
-    }
-  } catch (err) {
-    console.error('Failed to read production slots from localStorage:', err)
+export function mapApiSlotToUiSlot(slot: ApiProductionSlot): ProductionSlot {
+  return {
+    id: slot.id,
+    code: slot.code,
+    workOrderId: slot.work_order_id ?? undefined,
+    workOrderCode: slot.work_order_code ?? undefined,
+    client: slot.client,
+    title: slot.title,
+    bay: slot.bay,
+    stage: slot.stage as ProductionStage,
+    startDate: slot.start_date,
+    endDate: slot.end_date,
+    startTime: slot.start_time,
+    endTime: slot.end_time,
+    leadWorker: slot.lead_worker,
+    status: slot.status,
+    capacityHours: slot.capacity_hours,
+    priority: slot.priority,
+    notes: slot.notes ?? undefined,
   }
-  return initialProductionSlots
 }
 
-export function saveProductionSlot(slot: MockProductionSlot): MockProductionSlot[] {
-  const current = getProductionSlots()
-  const index = current.findIndex((s) => s.id === slot.id)
-  let updated: MockProductionSlot[]
-  if (index >= 0) {
-    updated = [...current]
-    updated[index] = slot
-  } else {
-    updated = [slot, ...current]
-  }
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-  } catch (err) {
-    console.error('Failed to save production slot to localStorage:', err)
-  }
-  return updated
+export async function fetchProductionSlots(params?: {
+  bay?: string
+  status?: string
+  work_order_id?: string
+  date_from?: string
+  date_to?: string
+}): Promise<ProductionSlot[]> {
+  const res = await productionApi.listSlots(params)
+  return (res.items || []).map(mapApiSlotToUiSlot)
 }
 
-export function deleteProductionSlot(slotId: string): MockProductionSlot[] {
-  const current = getProductionSlots()
-  const updated = current.filter((s) => s.id !== slotId)
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-  } catch (err) {
-    console.error('Failed to delete production slot from localStorage:', err)
-  }
-  return updated
+export async function saveProductionSlotToApi(
+  input: ProductionSlotCreateInput & { id?: string },
+): Promise<ProductionSlot> {
+  const { id, ...payload } = input
+  const saved = id
+    ? await productionApi.updateSlot(id, payload as ProductionSlotUpdateInput)
+    : await productionApi.createSlot(payload)
+  return mapApiSlotToUiSlot(saved)
 }
 
-export function resetProductionSlots(): MockProductionSlot[] {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(initialProductionSlots))
-  } catch (err) {
-    console.error('Failed to reset production slots:', err)
-  }
-  return initialProductionSlots
+export async function removeProductionSlotFromApi(slotId: string): Promise<void> {
+  await productionApi.deleteSlot(slotId)
 }

@@ -5,7 +5,7 @@ from app.models.project import Project, ProjectStatusHistory, ProjectMilestone
 from app.models.enquiry import Enquiry, EnquiryStatusHistory
 from app.models.design import Design, DesignVersion, DesignStatusHistory
 from app.models.quotation import Quotation, QuotationItem, QuotationRevision, QuotationFollowUp, QuotationStatusHistory
-from app.models.production import WorkOrder, ProductionTask, ProductionUpdate, Installation, WorkOrderStatusHistory
+from app.models.production import WorkOrder, ProductionTask, ProductionUpdate, Installation, WorkOrderStatusHistory, ProductionSlot
 from app.models.accounts import AccountsRecord, Invoice, Payment
 from app.models.feedback import Feedback, FeedbackCategory
 from app.models.labour import Worker, LabourRequest, LabourAssignment
@@ -43,6 +43,7 @@ __all__ = [
     "ProductionUpdate",
     "Installation",
     "WorkOrderStatusHistory",
+    "ProductionSlot",
     "AccountsRecord",
     "Invoice",
     "Payment",

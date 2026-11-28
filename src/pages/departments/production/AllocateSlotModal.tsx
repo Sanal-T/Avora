@@ -13,7 +13,7 @@ import {
   type ProductionSlotStatus,
   PRODUCTION_BAYS,
   PRODUCTION_STAGES,
-  saveProductionSlot,
+  saveProductionSlotToApi,
 } from '../../../data/productionSlots'
 import { productionApi, labourApi, type WorkOrder, type Worker } from '../../../lib/api'
 
@@ -51,6 +51,7 @@ export function AllocateSlotModal({
   const [capacityHours, setCapacityHours] = useState(24)
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   // Fetch live work orders and workers when modal is opened
   useEffect(() => {
@@ -162,7 +163,7 @@ export function AllocateSlotModal({
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!startDate || !endDate) {
@@ -175,6 +176,11 @@ export function AllocateSlotModal({
       return
     }
 
+    if (endTime <= startTime) {
+      setError('Daily shift end time must be after start time.')
+      return
+    }
+
     if (!title.trim()) {
       setError('Production slot title is required.')
       return
@@ -182,33 +188,43 @@ export function AllocateSlotModal({
 
     const matchedWo = workOrders.find((w) => w.id === selectedWorkOrderId)
 
-    const slotPayload: MockProductionSlot = {
-      id: existingSlot ? existingSlot.id : `slot-${Date.now()}`,
-      code: existingSlot ? existingSlot.code : `SLOT-${Math.floor(100 + Math.random() * 900)}`,
-      workOrderId: selectedWorkOrderId !== 'custom' ? selectedWorkOrderId : undefined,
-      workOrderCode: matchedWo ? matchedWo.work_order_number : 'CUSTOM',
-      client: client.trim() || (matchedWo ? (matchedWo.customer_company || matchedWo.customer_name || 'Factory Floor') : 'Factory Floor'),
-      title: title.trim(),
-      bay,
-      stage,
-      startDate,
-      endDate,
-      startTime,
-      endTime,
-      leadWorker,
-      status,
-      priority,
-      capacityHours: Number(capacityHours) || daysDiff * 8,
-      notes: notes.trim(),
-    }
+    setSaving(true)
+    setError(null)
+    try {
+      const savedSlot = await saveProductionSlotToApi({
+        id: existingSlot?.id,
+        work_order_id: selectedWorkOrderId !== 'custom' ? selectedWorkOrderId : null,
+        work_order_code: matchedWo ? matchedWo.work_order_number : 'CUSTOM',
+        client:
+          client.trim() ||
+          (matchedWo ? matchedWo.customer_company || matchedWo.customer_name || 'Factory Floor' : 'Factory Floor'),
+        title: title.trim(),
+        bay,
+        stage,
+        start_date: startDate,
+        end_date: endDate,
+        start_time: startTime || '08:00',
+        end_time: endTime || '17:00',
+        lead_worker: leadWorker.trim() || 'Unassigned',
+        status,
+        priority,
+        capacity_hours: Number(capacityHours) || daysDiff * 8,
+        notes: notes.trim() || null,
+      })
 
-    saveProductionSlot(slotPayload)
-    toast.success(
-      existingSlot ? 'Production Slot Updated' : 'Production Slot Allocated',
-      `${slotPayload.code} (${startDate} → ${endDate}) allocated at ${bay}`,
-    )
-    onSaveSuccess(slotPayload)
-    onClose()
+      toast.success(
+        existingSlot ? 'Production Slot Updated' : 'Production Slot Allocated',
+        `${savedSlot.code} (${startDate} → ${endDate}) allocated at ${bay}`,
+      )
+      onSaveSuccess(savedSlot)
+      onClose()
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to save production slot.'
+      setError(msg)
+      toast.error('Slot Allocation Failed', msg)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -397,12 +413,12 @@ export function AllocateSlotModal({
             <span>Dates lock the scheduled slot on the production calendar.</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={onClose}>
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" size="sm">
+            <Button type="submit" variant="primary" size="sm" disabled={saving}>
               <CheckCircle2 className="size-3.5 mr-1" />
-              {existingSlot ? 'Save Changes' : 'Confirm Allocation'}
+              {saving ? 'Saving…' : existingSlot ? 'Save Changes' : 'Confirm Allocation'}
             </Button>
           </div>
         </div>

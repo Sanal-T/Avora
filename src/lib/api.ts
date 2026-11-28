@@ -585,6 +585,54 @@ export interface WorkOrderCreateInput {
   quotation_id?: string | null
 }
 
+export interface ApiProductionSlot {
+  id: string
+  code: string
+  work_order_id?: string | null
+  work_order_code?: string | null
+  client: string
+  title: string
+  bay: string
+  stage: string
+  start_date: string
+  end_date: string
+  start_time: string
+  end_time: string
+  lead_worker: string
+  status: 'allocated' | 'in_progress' | 'completed' | 'delayed' | 'maintenance'
+  capacity_hours: number
+  priority: 'low' | 'medium' | 'high' | 'urgent'
+  notes?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ProductionSlotListResponse {
+  total: number
+  items: ApiProductionSlot[]
+}
+
+export interface ProductionSlotCreateInput {
+  code?: string
+  work_order_id?: string | null
+  work_order_code?: string | null
+  client: string
+  title: string
+  bay: string
+  stage: string
+  start_date: string
+  end_date: string
+  start_time?: string
+  end_time?: string
+  lead_worker?: string
+  status?: 'allocated' | 'in_progress' | 'completed' | 'delayed' | 'maintenance'
+  capacity_hours?: number
+  priority?: 'low' | 'medium' | 'high' | 'urgent'
+  notes?: string | null
+}
+
+export type ProductionSlotUpdateInput = Partial<ProductionSlotCreateInput>
+
 export const productionApi = {
   async listWorkOrders(params: { page?: number; page_size?: number; status?: string; search?: string; date_from?: string; date_to?: string; compact?: boolean } = {}): Promise<WorkOrderListResponse> {
     const query = new URLSearchParams()
@@ -642,6 +690,42 @@ export const productionApi = {
 
   async getWorkOrder(id: string): Promise<WorkOrder> {
     return apiFetch<WorkOrder>(`/api/production/${id}`)
+  },
+
+  async listSlots(params: {
+    bay?: string
+    status?: string
+    work_order_id?: string
+    date_from?: string
+    date_to?: string
+  } = {}): Promise<ProductionSlotListResponse> {
+    const query = new URLSearchParams()
+    if (params.bay && params.bay !== 'all') query.set('bay', params.bay)
+    if (params.status && params.status !== 'all') query.set('status', params.status)
+    if (params.work_order_id) query.set('work_order_id', params.work_order_id)
+    if (params.date_from) query.set('date_from', params.date_from)
+    if (params.date_to) query.set('date_to', params.date_to)
+    return apiFetch<ProductionSlotListResponse>(`/api/production/slots${query.size ? `?${query.toString()}` : ''}`)
+  },
+
+  async createSlot(data: ProductionSlotCreateInput): Promise<ApiProductionSlot> {
+    return apiFetch<ApiProductionSlot>('/api/production/slots', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async updateSlot(id: string, data: ProductionSlotUpdateInput): Promise<ApiProductionSlot> {
+    return apiFetch<ApiProductionSlot>(`/api/production/slots/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async deleteSlot(id: string): Promise<void> {
+    await apiFetch<void>(`/api/production/slots/${id}`, {
+      method: 'DELETE',
+    })
   },
 }
 

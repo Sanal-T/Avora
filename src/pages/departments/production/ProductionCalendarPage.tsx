@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Calendar as CalendarIcon,
@@ -26,10 +26,10 @@ import { Input } from '../../../components/ui/Input'
 import { Select } from '../../../components/ui/Select'
 import { AllocateSlotModal } from './AllocateSlotModal'
 import { SlotDetailDialog } from './SlotDetailDialog'
+import { toast } from '../../../lib/toast'
 import {
-  getProductionSlots,
-  deleteProductionSlot,
-  resetProductionSlots,
+  fetchProductionSlots,
+  removeProductionSlotFromApi,
   type MockProductionSlot,
   PRODUCTION_BAYS,
 } from '../../../data/productionSlots'
@@ -38,7 +38,7 @@ export function ProductionCalendarPage() {
   const navigate = useNavigate()
 
   // Slot store state
-  const [slots, setSlots] = useState<MockProductionSlot[]>(() => getProductionSlots())
+  const [slots, setSlots] = useState<MockProductionSlot[]>([])
 
   // View switchers: 'month' | 'timeline' | 'list'
   const [viewMode, setViewMode] = useState<'month' | 'timeline' | 'list'>('month')
@@ -58,21 +58,28 @@ export function ProductionCalendarPage() {
   const [preselectedDate, setPreselectedDate] = useState<string | undefined>(undefined)
   const [detailSlot, setDetailSlot] = useState<MockProductionSlot | null>(null)
 
-  // Reload slots from store
-  const refreshSlots = () => {
-    setSlots(getProductionSlots())
-  }
+  // Reload slots from backend API
+  const refreshSlots = useCallback(async () => {
+    try {
+      const items = await fetchProductionSlots()
+      setSlots(items)
+    } catch (err: any) {
+      toast.error('Failed to load production slots', err?.message || 'Unable to fetch production schedule')
+    }
+  }, [])
 
-  const handleDeleteSlot = (id: string) => {
-    const updated = deleteProductionSlot(id)
-    setSlots(updated)
-    setDetailSlot(null)
-  }
+  useEffect(() => {
+    refreshSlots()
+  }, [refreshSlots])
 
-  const handleResetDefaults = () => {
-    if (window.confirm('Reset all production slots to demo factory schedule?')) {
-      const reset = resetProductionSlots()
-      setSlots(reset)
+  const handleDeleteSlot = async (id: string) => {
+    try {
+      await removeProductionSlotFromApi(id)
+      setSlots((prev) => prev.filter((s) => s.id !== id))
+      setDetailSlot(null)
+      toast.success('Production Slot Removed', 'Slot removed from production schedule.')
+    } catch (err: any) {
+      toast.error('Failed to remove slot', err?.message || 'Unable to remove production slot')
     }
   }
 
@@ -248,12 +255,12 @@ export function ProductionCalendarPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={handleResetDefaults}
+          onClick={refreshSlots}
           className="text-xs text-muted-foreground hover:text-foreground"
-          title="Reset factory schedule to defaults"
+          title="Refresh production schedule from server"
         >
           <RotateCcw className="size-3 mr-1" />
-          Reset Demo Data
+          Refresh Schedule
         </Button>
       </div>
 

@@ -9,6 +9,10 @@ from app.models.auth import User
 from app.schemas.production import (
     InstallationCreate,
     ProductionCompleteHandoverRequest,
+    ProductionSlotCreate,
+    ProductionSlotListResponse,
+    ProductionSlotRead,
+    ProductionSlotUpdate,
     ProductionSummaryResponse,
     ProductionTaskCreate,
     ProductionTaskUpdate,
@@ -57,6 +61,66 @@ def get_production_summary(
     date_to: date | None = Query(default=None),
 ) -> ProductionSummaryResponse:
     return production_service.get_production_summary(db, date_from=date_from, date_to=date_to)
+
+
+@router.get("/slots", response_model=ProductionSlotListResponse)
+def list_production_slots(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    bay: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    work_order_id: uuid.UUID | None = Query(default=None),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+) -> ProductionSlotListResponse:
+    total, items = production_service.list_production_slots(
+        db,
+        bay=bay,
+        status_filter=status,
+        work_order_id=work_order_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    return ProductionSlotListResponse(total=total, items=items)
+
+
+@router.post("/slots", response_model=ProductionSlotRead, status_code=status.HTTP_201_CREATED)
+def create_production_slot(
+    data: ProductionSlotCreate,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Super Admin", "Management", "Production Manager"]))],
+) -> ProductionSlotRead:
+    return production_service.create_production_slot(db, data, user_id=current_user.id)
+
+
+@router.get("/slots/{slot_id}", response_model=ProductionSlotRead)
+def get_production_slot(
+    slot_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> ProductionSlotRead:
+    slot = production_service.get_production_slot(db, slot_id)
+    return ProductionSlotRead.model_validate(slot)
+
+
+@router.put("/slots/{slot_id}", response_model=ProductionSlotRead)
+@router.patch("/slots/{slot_id}", response_model=ProductionSlotRead)
+def update_production_slot(
+    slot_id: uuid.UUID,
+    data: ProductionSlotUpdate,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Super Admin", "Management", "Production Manager"]))],
+) -> ProductionSlotRead:
+    return production_service.update_production_slot(db, slot_id, data, user_id=current_user.id)
+
+
+@router.delete("/slots/{slot_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_production_slot(
+    slot_id: uuid.UUID,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_roles(["Administrator", "Super Admin", "Management", "Production Manager"]))],
+) -> None:
+    production_service.delete_production_slot(db, slot_id, user_id=current_user.id)
 
 
 @router.post("", response_model=WorkOrderRead, status_code=status.HTTP_201_CREATED)

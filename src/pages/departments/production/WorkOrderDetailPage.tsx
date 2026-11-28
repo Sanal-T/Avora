@@ -24,8 +24,8 @@ import { ActivityTimeline } from '../../../components/shared/ActivityTimeline'
 import type { MockWorkOrder } from '../../../data/mockData'
 import { productionApi, type WorkOrder } from '../../../lib/api'
 import {
-  getProductionSlots,
-  deleteProductionSlot,
+  fetchProductionSlots,
+  removeProductionSlotFromApi,
   type MockProductionSlot,
 } from '../../../data/productionSlots'
 import { AllocateSlotModal } from './AllocateSlotModal'
@@ -129,7 +129,7 @@ export function WorkOrderDetailPage() {
   }, [id])
 
   // Production Slots State
-  const [allSlots, setAllSlots] = useState<MockProductionSlot[]>(() => getProductionSlots())
+  const [allSlots, setAllSlots] = useState<MockProductionSlot[]>([])
   const [slotModalOpen, setSlotModalOpen] = useState(false)
   const [editingSlot, setEditingSlot] = useState<MockProductionSlot | null>(null)
   const [inspectedSlot, setInspectedSlot] = useState<MockProductionSlot | null>(null)
@@ -141,9 +141,18 @@ export function WorkOrderDetailPage() {
     )
   }, [allSlots, workOrder])
 
-  const refreshSlots = () => {
-    setAllSlots(getProductionSlots())
+  const refreshSlots = async () => {
+    try {
+      const items = await fetchProductionSlots(id ? { work_order_id: id } : undefined)
+      setAllSlots(items)
+    } catch {
+      // Keep existing state if fetch fails
+    }
   }
+
+  useEffect(() => {
+    refreshSlots()
+  }, [id])
 
   // Task toggle wired to PostgreSQL
   const toggleTask = async (taskId: string) => {
@@ -830,11 +839,15 @@ export function WorkOrderDetailPage() {
           setEditingSlot(slot)
           setSlotModalOpen(true)
         }}
-        onDelete={(slotId) => {
-          deleteProductionSlot(slotId)
-          refreshSlots()
-          setInspectedSlot(null)
-          toast.success('Production Slot Removed', 'Slot de-allocated from work order.')
+        onDelete={async (slotId) => {
+          try {
+            await removeProductionSlotFromApi(slotId)
+            await refreshSlots()
+            setInspectedSlot(null)
+            toast.success('Production Slot Removed', 'Slot de-allocated from work order.')
+          } catch (err: any) {
+            toast.error('Failed to remove slot', err?.message || 'Unable to delete production slot')
+          }
         }}
       />
     </PageContainer>

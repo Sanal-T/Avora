@@ -1,7 +1,8 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ProductionTaskBase(BaseModel):
@@ -157,3 +158,93 @@ class ProductionSummaryResponse(BaseModel):
     completed_work_orders: int
     delayed_work_orders: int
     on_time_completion_rate: float
+
+
+ProductionSlotStatus = Literal["allocated", "in_progress", "completed", "delayed", "maintenance"]
+ProductionSlotPriority = Literal["low", "medium", "high", "urgent"]
+
+
+def _validate_hhmm(value: str, field_name: str) -> str:
+    parts = value.split(":")
+    if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit():
+        raise ValueError(f"{field_name} must be in HH:MM format")
+    hour, minute = int(parts[0]), int(parts[1])
+    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+        raise ValueError(f"{field_name} must be a valid 24-hour time")
+    return f"{hour:02d}:{minute:02d}"
+
+
+class ProductionSlotBase(BaseModel):
+    work_order_id: uuid.UUID | None = None
+    work_order_code: str | None = Field(default=None, max_length=50)
+    client: str = Field(min_length=1, max_length=200)
+    title: str = Field(min_length=1, max_length=250)
+    bay: str = Field(min_length=1, max_length=100)
+    stage: str = Field(min_length=1, max_length=100)
+    start_date: date
+    end_date: date
+    start_time: str = Field(default="08:00", pattern=r"^\d{2}:\d{2}$")
+    end_time: str = Field(default="17:00", pattern=r"^\d{2}:\d{2}$")
+    lead_worker: str = Field(default="Unassigned", min_length=1, max_length=150)
+    status: ProductionSlotStatus = "allocated"
+    capacity_hours: int = Field(default=8, ge=1, le=500)
+    priority: ProductionSlotPriority = "medium"
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def validate_schedule_window(self) -> "ProductionSlotBase":
+        self.start_time = _validate_hhmm(self.start_time, "start_time")
+        self.end_time = _validate_hhmm(self.end_time, "end_time")
+        if self.end_date < self.start_date:
+            raise ValueError("end_date must not be earlier than start_date")
+        if self.end_time <= self.start_time:
+            raise ValueError("end_time must be after start_time")
+        return self
+
+
+class ProductionSlotCreate(ProductionSlotBase):
+    code: str | None = Field(default=None, max_length=50)
+
+
+class ProductionSlotUpdate(BaseModel):
+    work_order_id: uuid.UUID | None = None
+    work_order_code: str | None = Field(default=None, max_length=50)
+    client: str | None = Field(default=None, min_length=1, max_length=200)
+    title: str | None = Field(default=None, min_length=1, max_length=250)
+    bay: str | None = Field(default=None, min_length=1, max_length=100)
+    stage: str | None = Field(default=None, min_length=1, max_length=100)
+    start_date: date | None = None
+    end_date: date | None = None
+    start_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    end_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    lead_worker: str | None = Field(default=None, min_length=1, max_length=150)
+    status: ProductionSlotStatus | None = None
+    capacity_hours: int | None = Field(default=None, ge=1, le=500)
+    priority: ProductionSlotPriority | None = None
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def validate_partial_window(self) -> "ProductionSlotUpdate":
+        if self.start_time is not None:
+            self.start_time = _validate_hhmm(self.start_time, "start_time")
+        if self.end_time is not None:
+            self.end_time = _validate_hhmm(self.end_time, "end_time")
+        if self.start_date is not None and self.end_date is not None and self.end_date < self.start_date:
+            raise ValueError("end_date must not be earlier than start_date")
+        if self.start_time is not None and self.end_time is not None and self.end_time <= self.start_time:
+            raise ValueError("end_time must be after start_time")
+        return self
+
+
+class ProductionSlotRead(ProductionSlotBase):
+    id: uuid.UUID
+    code: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProductionSlotListResponse(BaseModel):
+    total: int
+    items: list[ProductionSlotRead]

@@ -46,6 +46,7 @@ class WorkOrder(Base, TimestampMixin, SoftDeleteMixin):
     installations: Mapped[list["Installation"]] = relationship("Installation", back_populates="work_order", cascade="all, delete-orphan", order_by="Installation.scheduled_date.asc()")
     status_history: Mapped[list["WorkOrderStatusHistory"]] = relationship("WorkOrderStatusHistory", back_populates="work_order", cascade="all, delete-orphan", order_by="WorkOrderStatusHistory.created_at.desc()")
     feedback: Mapped[list["Feedback"]] = relationship("Feedback", back_populates="work_order")
+    slots: Mapped[list["ProductionSlot"]] = relationship("ProductionSlot", back_populates="work_order")
 
 
 class ProductionTask(Base, TimestampMixin):
@@ -116,3 +117,29 @@ class WorkOrderStatusHistory(Base):
 
     work_order: Mapped["WorkOrder"] = relationship("WorkOrder", back_populates="status_history")
     changed_by: Mapped["User | None"] = relationship("User")
+
+
+class ProductionSlot(Base, TimestampMixin, SoftDeleteMixin):
+    __tablename__ = "production_slots"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+    work_order_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("work_orders.id", ondelete="SET NULL"), nullable=True, index=True)
+    work_order_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    client: Mapped[str] = mapped_column(String(200), nullable=False)
+    title: Mapped[str] = mapped_column(String(250), nullable=False)
+    bay: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    stage: Mapped[str] = mapped_column(String(100), nullable=False)
+    start_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    start_time: Mapped[str] = mapped_column(String(10), default="08:00", nullable=False)
+    end_time: Mapped[str] = mapped_column(String(10), default="17:00", nullable=False)
+    lead_worker: Mapped[str] = mapped_column(String(150), default="Unassigned", nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="allocated", nullable=False, index=True)
+    capacity_hours: Mapped[int] = mapped_column(Integer, default=8, nullable=False)
+    priority: Mapped[str] = mapped_column(String(20), default="medium", nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    work_order: Mapped["WorkOrder | None"] = relationship("WorkOrder", back_populates="slots")
+    created_by: Mapped["User | None"] = relationship("User")
